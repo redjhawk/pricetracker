@@ -1,0 +1,3 @@
+interface:
+  display_name: "Node SQLite Backend Developer"
+  short_description: "Build this app's Node.js and SQLite backend"

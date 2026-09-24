@@ -1,0 +1,195 @@
+# Functional Specifications — Price Tracking Service
+
+## 1. Purpose
+
+The service tracks the item price of a product listed on a European Amazon marketplace. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface.
+
+This document defines the first version (v1). Other marketplaces and possible enhancements are listed under [Next steps](#11-next-steps). Remaining decisions are listed under [Open decisions](#12-open-decisions).
+
+## 2. V1 goals and scope
+
+- Add an Amazon European listing by URL.
+- Check each active item twice per day and store detected prices with timestamps.
+- Show all tracked items, their latest known prices, and the last three detected prices.
+- Allow the operator to inspect recent price detections and delete an item.
+- Keep collection attempts running when a price is stale or a check fails.
+
+V1 supports European Amazon listings only. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add/delete actions.
+
+Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope.
+
+## 3. Core concepts
+
+**Tracked item:** A saved reference to an eligible Amazon listing, including its URL, display information, tracking status, and observations.
+
+**Price observation:** A successful detection containing the item price in euros and the detection timestamp. Collection failures are recorded separately and do not overwrite the last successful price.
+
+**Latest price:** The value and timestamp from the latest successful observation. It may be stale if later checks have failed or been delayed.
+
+## 4. Technical architecture constraints
+
+- The application has a separate front end and backend.
+- The backend must run on Node.js and is responsible for the service API, scheduled price collection, and persistence.
+- Use SQLite for server-side storage of tracked items, price observations, and collection outcomes as needed.
+- The front end must use React 19 and IBM Carbon Design System components and visual conventions.
+- The front end reads and displays data from the backend; it does not connect directly to SQLite or collect prices from Amazon.
+- Use an API-first workflow for cross-tier features: define the API contract and obtain operator confirmation before implementing either backend or frontend changes. After confirmation, implement both tiers against the approved contract.
+- Provide a development mode that starts the backend and serves the frontend together, so a developer can open the application and use its pages and backend API without manually starting each tier.
+- Development mode must provide repeatable sample data in a development SQLite database so the interface can be reviewed without relying on live Amazon requests. Keep development seed data isolated from any non-development database.
+- Development mode must allow the developer to navigate directly to the required frontend page (including a detail page where applicable) and have that page request and display data from the backend.
+
+The API shape, Node.js framework, database access library, scheduling implementation, and deployment arrangement are not prescribed here and can be selected during technical design. An API contract for a cross-tier change should cover endpoints and methods, request/response data, validation/errors, and any client-visible states.
+
+## 5. Main user journeys
+
+### 5.1 Add an item
+
+1. The operator opens the tracked-items page and chooses **Add item**.
+2. The operator pastes an Amazon European listing URL and submits it.
+3. The server validates the URL and confirms that it is an eligible Amazon listing.
+4. The server attempts to identify the item and immediately fetch its price; the operator should not have to wait for the next scheduled check for the first attempt.
+5. The item appears in the list if accepted. Its initial price may be pending if the immediate retrieval is still in progress or did not succeed.
+6. The interface explains invalid, unsupported, duplicate, or unprocessable URLs.
+
+### 5.2 Review tracked items
+
+The main page shows all tracked items. Each row/card includes:
+
+- Item title, or a fallback label if unavailable.
+- Amazon marketplace and listing link.
+- Thumbnail when available.
+- Latest successfully detected item price in euros, or an explicit unavailable state.
+- Time of the latest successful detection.
+- The last three successfully detected prices with their timestamps.
+- Collection/listing status, such as active, stale, retrieval issue, or unavailable.
+- An action to open item details and an action to delete the item.
+
+The page should have clear empty, loading, and error states. A stale price does not stop scheduled checks or retries. The stale threshold is an open decision.
+
+### 5.3 View item details
+
+The detail view shows item metadata, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. V1 does not require a chart, trend calculation, or arbitrary date-range selection. The stored observations can support a richer history view in a later version.
+
+### 5.4 Delete an item
+
+The operator can delete an item from tracking. Deletion removes the item and its associated price observations from the server database. No history of deleted items is retained. V1 does not require pause or archive actions.
+
+## 6. Price collection behavior
+
+- Each active item is scheduled for two collection attempts per day.
+- As soon as a new item is accepted, trigger an immediate price collection attempt; then continue with its regular twice-daily schedule.
+- The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment.
+- Each successful check stores the detected item price in euros and its timestamp.
+- Each failed check records a useful outcome, such as temporary retrieval error, listing unavailable, or price not found.
+- A failed check never replaces the latest successful price with a blank, zero, or inferred value.
+- Continue scheduled retries when an item is stale or previous collection attempts failed.
+- Collection requests should present as access from a Google Chrome browser, as specified by the product owner.
+- Whether every successful check is stored or only price changes are stored remains to be decided.
+- The server should expose when the next check is expected if useful to the interface.
+
+## 7. Pages and interface areas
+
+### Tracked items page
+
+The primary page contains the add-item action and the tracked-items list. No sign-in is required.
+
+### Item details page
+
+Shows item metadata, recent price detections, collection status, source listing, and deletion action.
+
+### Add-item flow
+
+A URL input with validation feedback, submission progress, and a clear success or error result. Its specific layout is not prescribed.
+
+### Server-backed data
+
+The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete actions. No user identity or ownership model is required in v1.
+
+## 8. Functional requirements
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-01 | The operator can submit an Amazon European listing URL to add an item. | Must |
+| FR-02 | The server validates URL format and eligibility for v1. | Must |
+| FR-03 | The server stores accepted items and associates price observations with them. | Must |
+| FR-04 | Active items receive two scheduled price collection attempts per day. | Must |
+| FR-05 | The list shows the latest successful item price in euros, its timestamp, the last three detections, and status. | Must |
+| FR-06 | The detail view shows the last three successful price observations. | Must |
+| FR-07 | Collection failures are recorded without corrupting the last successful price, and retries continue. | Must |
+| FR-08 | The operator can open the source listing. | Should |
+| FR-09 | The operator can delete an item and its associated price history. | Must |
+| FR-10 | The front end displays server-provided data; storage and collection are server-side. | Must |
+| FR-11 | The service supports approximately 100 tracked items in v1. | Should |
+| FR-12 | Development mode starts the backend and serves the frontend together, and includes repeatable sample data in an isolated development database. | Must |
+| FR-13 | Development mode supports direct navigation to frontend pages and successful data requests from those pages to the backend. | Must |
+| FR-14 | Adding an accepted item triggers an immediate price collection attempt, followed by the regular twice-daily checks. | Must |
+
+## 9. Important states and edge cases
+
+- URL is malformed or does not belong to an eligible European Amazon marketplace.
+- URL is valid but the listing cannot be retrieved or parsed.
+- Item is added but the initial price is pending.
+- The immediate collection attempt after adding an item fails; the item remains tracked and scheduled retries continue.
+- The listing is already being tracked.
+- The source listing is removed, sold, expired, or made private.
+- A price is missing, unchanged, promotional, or ambiguous.
+- Listing content changes, redirects, or points to a different item.
+- A scheduled check is delayed or fails.
+- The latest successful price is stale, but retries continue.
+- Amazon blocks or limits a collection request.
+
+The interface should preserve and clearly label the latest successful observation when later checks fail.
+
+## 10. Non-goals for v1
+
+- User accounts or login.
+- Marketplaces other than European Amazon.
+- Price trends, percentage changes, or charts.
+- Notifications or target-price alerts.
+- Shipping/tax-inclusive prices, currency conversion, or price ranges.
+- Retaining records after an item is deleted.
+- Export of data or per-user privacy controls.
+
+## 11. Data retention and capacity
+
+Keep price observations for as long as the item remains tracked, including several months of observations. Deleting an item deletes its history. The initial expected tracked-item capacity is around 100; a larger limit may be introduced in a later version.
+
+## 12. Next steps
+
+Potential later marketplace support, after Amazon v1:
+
+- Temu
+- Vinted
+- Wallapop
+- Leboncoin
+
+Each platform will need its own supported-region rules, collection behavior, and handling of listing-specific states. Potential later product enhancements include trends, charts and longer history browsing, notifications, additional currencies, and a higher item limit.
+
+## 13. Open decisions
+
+1. **Amazon coverage:** Which European Amazon country domains and listing types are supported?
+2. **Schedule:** The implementation defaults to 08:00 and 20:00 in `Europe/Paris`; should the production deployment use different configurable check times or a different timezone?
+3. **Price parsing:** How should promotional, coupon, or multi-option prices be interpreted while only storing the item price?
+4. **Observation policy:** Store every successful check, including unchanged prices, or only record price changes?
+5. **Detail history:** Should v1 details show only the last three detections or a longer chronological list?
+6. **Staleness:** After how long without a successful check should a price be marked stale?
+7. **Item limit:** Should the approximately 100-item limit be enforced, and what should happen when it is reached?
+8. **Failures:** How should repeated failures and unavailable listings be surfaced? Should retries use a defined backoff?
+9. **Presentation:** Which language, locale formatting, and accessibility target should the interface use?
+
+## 14. Initial acceptance criteria
+
+- The operator can submit an eligible European Amazon URL and receive a clear result.
+- An accepted item appears in the list, including when its initial price is pending.
+- A successful check creates a timestamped euro price observation.
+- Adding an accepted item immediately triggers its first collection attempt without waiting for the twice-daily schedule.
+- Active items have two collection attempts per day, and retries continue when checks fail or prices become stale.
+- The list shows the latest successful price and the last three successful detections, or a clear unavailable state.
+- The details view exposes recent detections in a readable form.
+- Failed checks do not erase or misrepresent the last successful price.
+- Deleting an item removes its stored price history.
+- No login is required; the server stores data and collects prices, while the front end displays server-provided information.
+- The backend runs on Node.js and persists data in SQLite.
+- The separate front end uses React 19 and IBM Carbon Design System.
+- A developer can start one development mode, open the frontend directly at the tracked-items or item-details page, and see sample data returned by the backend.
+- Development seed data is repeatable and cannot overwrite the non-development database.
