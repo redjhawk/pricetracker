@@ -83,6 +83,7 @@ The operator can delete an item from tracking. Deletion removes the item and its
 
 - Each active item is scheduled for two collection attempts per day.
 - As soon as a new item is accepted, trigger an immediate price collection attempt; then continue with its regular twice-daily schedule.
+- Preserve the submitted Amazon listing URL and use it for collection requests; normalize the Amazon product identity separately for duplicate detection.
 - The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment.
 - Each successful check stores the detected item price in euros and its timestamp.
 - Amazon checks also look for second-hand offers sold by Amazon. If multiple qualifying offers exist, store the lowest-priced offer and its condition. Ignore third-party offers; do not accept an offer unless Amazon's seller attribution can be verified. LeBoncoin items have no separate second-hand-offer field.

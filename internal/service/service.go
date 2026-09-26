@@ -111,7 +111,7 @@ func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
 	var canonical string
 	switch {
 	case amazonURL.Kind == "valid":
-		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: amazonURL.URL}
+		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: rawURL}
 		canonical = amazonURL.Canonical
 	case leboncoinURL.Kind == "valid":
 		itemListing = model.Listing{Platform: "leboncoin", ListingID: leboncoinURL.ListingID, Marketplace: leboncoinURL.Marketplace, URL: leboncoinURL.URL}

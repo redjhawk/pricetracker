@@ -147,7 +147,7 @@ Request:
 { "url": "https://www.amazon.de/dp/B09XS7JWHH" }
 ```
 
-The backend accepts URLs from the configured European Amazon marketplaces or a LeBoncoin ad matching `https://www.leboncoin.fr/ad/{category}/{numericListingId}`. Tracking query parameters are removed when canonicalizing; one final comma after the numeric listing ID is accepted as pasted punctuation. A duplicate canonical listing returns `409 Conflict`. Invalid JSON or a missing/malformed URL returns `400 Bad Request`; a well-formed URL from an unsupported marketplace or listing form returns `422 Unprocessable Content`.
+The backend accepts URLs from the configured European Amazon marketplaces or a LeBoncoin ad matching `https://www.leboncoin.fr/ad/{category}/{numericListingId}`. Amazon's `url` field retains the submitted listing URL and collection requests use that URL; URL normalization is used separately for duplicate detection. LeBoncoin tracking query parameters are removed when canonicalizing; one final comma after the numeric listing ID is accepted as pasted punctuation. A duplicate canonical listing returns `409 Conflict`. Invalid JSON or a missing/malformed URL returns `400 Bad Request`; a well-formed URL from an unsupported marketplace or listing form returns `422 Unprocessable Content`.
 
 Response `201 Created`: the new item response. The item is stored immediately with `status: "pending"`; the backend starts its initial price collection attempt immediately without making the client wait for Amazon. The normal twice-daily schedule follows. The frontend can refresh the item list or detail to display the first result when it arrives.
 
