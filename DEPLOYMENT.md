@@ -44,7 +44,7 @@ View logs with `sudo journalctl -u pricefollower -f`. To update, build and uploa
 
 ```bash
 ./scripts/build-release.sh 7
-./scripts/copy-dist.sh pi@raspberry-pi:/tmp/pricefollower
+./scripts/copy-dist.sh pi@raspberry-pi:/tmp/
 ```
 
 Then rerun the installer on the Pi; it replaces the executable and restarts the service:
@@ -67,4 +67,4 @@ npm run dev
 
 Vite serves the frontend at `http://localhost:5173` and proxies API calls to the Go backend on port `3001`. The development backend seeds six sample listings into `.data/pricefollower.sqlite` on its first run. Development seed data is separate from `/var/lib/pricefollower`.
 
-`scripts/copy-dist.sh` uploads the single release executable. The production executable serves both the embedded frontend and the API, while SQLite data remains in the persistent data directory.
+`scripts/copy-dist.sh` uploads the release executable and installer script. The production executable serves both the embedded frontend and the API, while SQLite data remains in the persistent data directory.
