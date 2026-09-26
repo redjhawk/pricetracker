@@ -82,6 +82,21 @@ CREATE TABLE IF NOT EXISTS collection_attempts (
 );
 CREATE INDEX IF NOT EXISTS collection_attempts_item_time ON collection_attempts(item_id, attempted_at DESC);
 CREATE INDEX IF NOT EXISTS items_next_check ON items(next_check_at);
+CREATE TABLE IF NOT EXISTS second_hand_offer_checks (
+  item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK(status IN ('available', 'not_found', 'check_error')),
+  checked_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS second_hand_offer_observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  amount_cents INTEGER NOT NULL CHECK(amount_cents >= 0),
+  currency TEXT NOT NULL DEFAULT 'EUR' CHECK(currency = 'EUR'),
+  condition TEXT NOT NULL CHECK(condition IN ('like_new', 'very_good', 'good', 'acceptable', 'unknown')),
+  condition_label TEXT NOT NULL,
+  observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS second_hand_offer_item_time ON second_hand_offer_observations(item_id, observed_at DESC);
 `)
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
@@ -98,7 +113,7 @@ func (s *Store) SeedDevelopment(ctx context.Context, nextCheck func(time.Time) t
 		return err
 	}
 	if count > 0 {
-		return nil
+		return s.seedSecondHandExamples(ctx)
 	}
 	type sample struct {
 		id, asin, marketplace, title, thumbnail string
@@ -158,8 +173,74 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.id, item.asin, item.marketplace, url, 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	if err := s.seedSecondHandExamples(ctx); err != nil {
+		return err
+	}
 	fmt.Printf("Seeded %d sample items into %s\n", len(samples), filepath.Join(s.config.DataDirectory, "pricefollower.sqlite"))
 	return nil
+}
+
+func (s *Store) seedSecondHandExamples(ctx context.Context) error {
+	var count int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM second_hand_offer_checks").Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	type sampleCheck struct {
+		id     string
+		status string
+	}
+	checks := []sampleCheck{
+		{"sample-sony-headphones", "not_found"},
+		{"sample-kindle-paperwhite", "available"},
+		{"sample-lego-land-rover", "not_found"},
+		{"sample-nike-air-max", "available"},
+		{"sample-samsung-monitor", "check_error"},
+		{"sample-title-unavailable", "check_error"},
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC()
+	for _, check := range checks {
+		checkedAgo := 3 * time.Hour
+		if check.status == "available" {
+			checkedAgo = 4 * time.Hour
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO second_hand_offer_checks (item_id, status, checked_at)
+SELECT id, ?, ? FROM items WHERE id = ?`, check.status, now.Add(-checkedAgo).Format(timestampLayout), check.id); err != nil {
+			return err
+		}
+	}
+	offers := []struct {
+		amount    int
+		condition string
+		label     string
+		hoursAgo  int
+	}{
+		{13499, "very_good", "Très bon état", 4},
+		{12999, "good", "Bon état", 28},
+		{12999, "good", "Bon état", 52},
+	}
+	for _, offer := range offers {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
+(item_id, amount_cents, currency, condition, condition_label, observed_at)
+SELECT id, ?, 'EUR', ?, ?, ? FROM items WHERE id = 'sample-kindle-paperwhite'`, offer.amount, offer.condition, offer.label,
+			now.Add(-time.Duration(offer.hoursAgo)*time.Hour).Format(timestampLayout)); err != nil {
+			return err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
+(item_id, amount_cents, currency, condition, condition_label, observed_at)
+SELECT id, 8995, 'EUR', 'good', 'Buone condizioni', ? FROM items WHERE id = 'sample-nike-air-max'`, now.Add(-5*time.Hour).Format(timestampLayout))
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) List(ctx context.Context) ([]model.Item, error) {
@@ -236,6 +317,42 @@ func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
 		latest := item.LastThreeDetections[0]
 		item.LatestPrice = &latest
 	}
+	item.SecondHandOffer = model.SecondHandOffer{Status: "pending", LastThreeDetections: make([]model.SecondHandObservation, 0, 3)}
+	var usedStatus, usedChecked string
+	err = s.db.QueryRowContext(ctx, "SELECT status, checked_at FROM second_hand_offer_checks WHERE item_id = ?", id).Scan(&usedStatus, &usedChecked)
+	if err == nil {
+		item.SecondHandOffer.Status = usedStatus
+		checked := parseTimestamp(usedChecked)
+		item.SecondHandOffer.LastCheckedAt = &checked
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return item, err
+	}
+	usedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at FROM second_hand_offer_observations
+WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
+	if err != nil {
+		return item, err
+	}
+	for usedRows.Next() {
+		var detection model.SecondHandObservation
+		var observed string
+		if err := usedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
+			usedRows.Close()
+			return item, err
+		}
+		detection.Timestamp = parseTimestamp(observed)
+		item.SecondHandOffer.LastThreeDetections = append(item.SecondHandOffer.LastThreeDetections, detection)
+	}
+	if err := usedRows.Err(); err != nil {
+		usedRows.Close()
+		return item, err
+	}
+	if err := usedRows.Close(); err != nil {
+		return item, err
+	}
+	if len(item.SecondHandOffer.LastThreeDetections) > 0 {
+		latest := item.SecondHandOffer.LastThreeDetections[0]
+		item.SecondHandOffer.LatestDetection = &latest
+	}
 	var result, attempted string
 	var message sql.NullString
 	err = s.db.QueryRowContext(ctx, `SELECT result, attempted_at, message FROM collection_attempts WHERE item_id = ? ORDER BY attempted_at DESC, id DESC LIMIT 1`, id).Scan(&result, &attempted, &message)
@@ -289,6 +406,38 @@ func (s *Store) SetNextCheck(ctx context.Context, id string, next time.Time) err
 	return err
 }
 
+func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stamp := next.UTC().Format(timestampLayout)
+	for _, id := range ids {
+		if _, err := tx.ExecContext(ctx, "UPDATE items SET next_check_at = ? WHERE id = ?", stamp, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) IDs(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items ORDER BY added_at DESC, id DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0, 100)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
 	if err != nil {
@@ -313,27 +462,50 @@ func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 }
 
 func (s *Store) RecordSuccess(ctx context.Context, id string, result model.CollectionResult, timestamp time.Time) error {
+	return s.RecordCollection(ctx, id, result, timestamp)
+}
+
+func (s *Store) RecordCollection(ctx context.Context, id string, result model.CollectionResult, timestamp time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	stamp := timestamp.UTC().Format(timestampLayout)
-	if _, err := tx.ExecContext(ctx, "INSERT INTO price_observations (item_id, amount_cents, currency, observed_at) VALUES (?, ?, 'EUR', ?)", id, result.AmountCents, stamp); err != nil {
+	var attemptMessage any
+	if result.Result == "success" {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO price_observations (item_id, amount_cents, currency, observed_at) VALUES (?, ?, 'EUR', ?)", id, result.AmountCents, stamp); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE items SET title = COALESCE(?, title), thumbnail_url = COALESCE(?, thumbnail_url) WHERE id = ?", result.Title, result.ThumbnailURL, id); err != nil {
+			return err
+		}
+	} else {
+		attemptMessage = result.Message
+	}
+	if _, err := tx.ExecContext(ctx, "INSERT INTO collection_attempts (item_id, result, attempted_at, message) VALUES (?, ?, ?, ?)", id, result.Result, stamp, attemptMessage); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO collection_attempts (item_id, result, attempted_at) VALUES (?, 'success', ?)", id, stamp); err != nil {
+	usedStatus := result.SecondHandStatus
+	if usedStatus != "available" && usedStatus != "not_found" && usedStatus != "check_error" {
+		usedStatus = "check_error"
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_checks (item_id, status, checked_at) VALUES (?, ?, ?)
+ON CONFLICT(item_id) DO UPDATE SET status = excluded.status, checked_at = excluded.checked_at`, id, usedStatus, stamp); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "UPDATE items SET title = COALESCE(?, title), thumbnail_url = COALESCE(?, thumbnail_url) WHERE id = ?", result.Title, result.ThumbnailURL, id); err != nil {
-		return err
+	if usedStatus == "available" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
+(item_id, amount_cents, currency, condition, condition_label, observed_at) VALUES (?, ?, 'EUR', ?, ?, ?)`, id,
+			result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel, stamp); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
 
 func (s *Store) RecordFailure(ctx context.Context, id, result, message string, timestamp time.Time) error {
-	_, err := s.db.ExecContext(ctx, "INSERT INTO collection_attempts (item_id, result, attempted_at, message) VALUES (?, ?, ?, ?)", id, result, timestamp.UTC().Format(timestampLayout), message)
-	return err
+	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
 func (s *Store) Delete(ctx context.Context, id string) (bool, error) {

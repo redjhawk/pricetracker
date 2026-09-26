@@ -77,6 +77,20 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, item)
 		return
 	}
+	if path == "/api/v1/items/refresh" {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
+			return
+		}
+		requestedAt, count, err := s.service.RefreshAll(r.Context())
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"requestedAt": requestedAt, "itemsQueued": count})
+		return
+	}
 	const itemPrefix = "/api/v1/items/"
 	if strings.HasPrefix(path, itemPrefix) {
 		id := strings.TrimPrefix(path, itemPrefix)

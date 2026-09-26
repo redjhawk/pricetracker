@@ -10,7 +10,7 @@ import {
 } from "@carbon/react";
 import { Add, ChartLine } from "@carbon/icons-react";
 import type { TrackedItem } from "./types";
-import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems } from "./api/items";
+import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems, refreshAllItems } from "./api/items";
 import AddItemModal from "./components/AddItemModal";
 import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
@@ -29,6 +29,9 @@ export default function App() {
   const [items, setItems] = useState<TrackedItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<TrackedItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -37,13 +40,15 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<TrackedItem | null>(null);
   const itemId = getItemId(pathname);
 
-  const refreshItems = useCallback(async (quiet = false) => {
+  const refreshItems = useCallback(async (quiet = false): Promise<TrackedItem[] | null> => {
     try {
       const currentItems = await listItems();
       setItems(currentItems);
       setListError(null);
+      return currentItems;
     } catch (error) {
       if (!quiet) setListError(errorMessage(error));
+      return null;
     } finally {
       if (!quiet) setListLoading(false);
     }
@@ -60,10 +65,15 @@ export default function App() {
   }, [refreshItems]);
 
   useEffect(() => {
-    if (!items.some((item) => item.status === "pending")) return;
-    const poll = window.setInterval(() => void refreshItems(true), 5_000);
+    if (!refreshing && !items.some((item) => item.status === "pending")) return;
+    const poll = window.setInterval(async () => {
+      const currentItems = await refreshItems(true);
+      if (refreshing && currentItems && !currentItems.some((item) => item.status === "pending")) {
+        setRefreshing(false);
+      }
+    }, 5_000);
     return () => window.clearInterval(poll);
-  }, [items, refreshItems]);
+  }, [items, refreshItems, refreshing]);
 
   useEffect(() => {
     if (!itemId) {
@@ -111,6 +121,20 @@ export default function App() {
     setDeleteTarget(null);
   }
 
+  async function handleRefresh() {
+    setRefreshError(null);
+    try {
+      const result = await refreshAllItems();
+      setRefreshCount(result.itemsQueued);
+      setRefreshing(result.itemsQueued > 0);
+      const updatedItems = await refreshItems(true);
+      if (updatedItems) setRefreshing(result.itemsQueued > 0 && updatedItems.some((item) => item.status === "pending"));
+    } catch (error) {
+      setRefreshError(errorMessage(error));
+      setRefreshing(false);
+    }
+  }
+
   const showingDetail = itemId !== null;
 
   return (
@@ -151,7 +175,11 @@ export default function App() {
               items={items}
               loading={listLoading}
               error={listError}
+              refreshError={refreshError}
+              refreshing={refreshing}
+              refreshCount={refreshCount}
               onRetry={() => void refreshItems()}
+              onRefresh={() => void handleRefresh()}
               onAdd={() => setAddOpen(true)}
               onViewDetail={(item) => navigate(`/items/${encodeURIComponent(item.id)}`)}
               onDelete={setDeleteTarget}

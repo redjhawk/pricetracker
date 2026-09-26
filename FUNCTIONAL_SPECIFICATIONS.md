@@ -11,6 +11,8 @@ This document defines the first version (v1). Other marketplaces and possible en
 - Add an Amazon European listing by URL.
 - Check each active item twice per day and store detected prices with timestamps.
 - Show all tracked items, their latest known prices, and the last three detected prices.
+- Show the latest second-hand offer sold by Amazon, when available, with its condition and recent detections.
+- Allow the operator to manually refresh the prices for all tracked items.
 - Allow the operator to inspect recent price detections and delete an item.
 - Keep collection attempts running when a price is stale or a check fails.
 
@@ -62,13 +64,14 @@ The main page shows all tracked items. Each row/card includes:
 - Time of the latest successful detection.
 - The last three successfully detected prices with their timestamps.
 - Collection/listing status, such as active, stale, retrieval issue, or unavailable.
-- An action to open item details and an action to delete the item.
+- Latest second-hand offer sold by Amazon, including price and condition; third-party offers are ignored.
+- Actions to open item details, delete an item, or refresh all tracked items.
 
 The page should have clear empty, loading, and error states. A stale price does not stop scheduled checks or retries. The stale threshold is an open decision.
 
 ### 5.3 View item details
 
-The detail view shows item metadata, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. V1 does not require a chart, trend calculation, or arbitrary date-range selection. The stored observations can support a richer history view in a later version.
+The detail view shows item metadata, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. It also shows the last three second-hand offer detections sold by Amazon, including condition and timestamp. V1 does not require a chart, trend calculation, or arbitrary date-range selection. The stored observations can support a richer history view in a later version.
 
 ### 5.4 Delete an item
 
@@ -80,6 +83,8 @@ The operator can delete an item from tracking. Deletion removes the item and its
 - As soon as a new item is accepted, trigger an immediate price collection attempt; then continue with its regular twice-daily schedule.
 - The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment.
 - Each successful check stores the detected item price in euros and its timestamp.
+- Each product check also looks for second-hand offers sold by Amazon. If multiple qualifying offers exist, store the lowest-priced offer and its condition. Ignore third-party offers; do not accept an offer unless Amazon's seller attribution can be verified.
+- Record the second-hand check outcome as available, no qualifying offer found, pending, or check error. Preserve the last detected Amazon offer when a later check finds none or cannot verify the result.
 - Each failed check records a useful outcome, such as temporary retrieval error, listing unavailable, or price not found.
 - A failed check never replaces the latest successful price with a blank, zero, or inferred value.
 - Continue scheduled retries when an item is stale or previous collection attempts failed.
@@ -123,6 +128,9 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-12 | Development mode starts the backend and serves the frontend together, and includes repeatable sample data in an isolated development database. | Must |
 | FR-13 | Development mode supports direct navigation to frontend pages and successful data requests from those pages to the backend. | Must |
 | FR-14 | Adding an accepted item triggers an immediate price collection attempt, followed by the regular twice-daily checks. | Must |
+| FR-15 | Every item collection checks second-hand offers and only stores offers explicitly sold by Amazon; third-party offers are excluded. | Must |
+| FR-16 | The main list shows the latest Amazon-sold second-hand offer price and condition, or a clear pending/not-found/error state. | Must |
+| FR-17 | The operator can request a check of all tracked items from the main page; the API accepts asynchronously and the interface shows progress. | Must |
 
 ## 9. Important states and edge cases
 
@@ -182,6 +190,9 @@ Each platform will need its own supported-region rules, collection behavior, and
 - The operator can submit an eligible European Amazon URL and receive a clear result.
 - An accepted item appears in the list, including when its initial price is pending.
 - A successful check creates a timestamped euro price observation.
+- A qualifying Amazon-sold second-hand offer is recorded with its timestamp and condition; third-party offers are never shown as Amazon offers.
+- The main list distinguishes a current Amazon-sold offer, no qualifying offer, a pending check, and an uncertain/failed check.
+- The operator can manually refresh all tracked items and see pending progress until the checks finish.
 - Adding an accepted item immediately triggers its first collection attempt without waiting for the twice-daily schedule.
 - Active items have two collection attempts per day, and retries continue when checks fail or prices become stale.
 - The list shows the latest successful price and the last three successful detections, or a clear unavailable state.

@@ -17,7 +17,7 @@ import {
   TextInput,
   Tag,
 } from "@carbon/react";
-import { Add, Launch } from "@carbon/icons-react";
+import { Add, Launch, Renew } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
 import StatusTag from "./StatusTag";
 
@@ -25,7 +25,11 @@ interface Props {
   items: TrackedItem[];
   loading: boolean;
   error: string | null;
+  refreshError: string | null;
+  refreshing: boolean;
+  refreshCount: number;
   onRetry: () => void;
+  onRefresh: () => void;
   onAdd: () => void;
   onViewDetail: (item: TrackedItem) => void;
   onDelete: (item: TrackedItem) => void;
@@ -40,7 +44,7 @@ const time = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-export default function TrackedItemsPage({ items, loading, error, onRetry, onAdd, onViewDetail, onDelete }: Props) {
+export default function TrackedItemsPage({ items, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete }: Props) {
   const [search, setSearch] = useState("");
   const filteredItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -62,8 +66,24 @@ export default function TrackedItemsPage({ items, loading, error, onRetry, onAdd
             {items.length} {items.length === 1 ? "item" : "items"} tracked · Prices checked twice daily
           </p>
         </div>
-        <Button renderIcon={Add} onClick={onAdd}>Add item</Button>
+        <div className="page-heading-actions">
+          <Button kind="tertiary" renderIcon={Renew} onClick={onRefresh} disabled={refreshing || items.length === 0}>
+            Refresh prices
+          </Button>
+          <Button renderIcon={Add} onClick={onAdd}>Add item</Button>
+        </div>
       </div>
+
+      {refreshing && <InlineLoading description={`Refreshing prices for ${refreshCount} ${refreshCount === 1 ? "item" : "items"}…`} />}
+      {refreshError && (
+        <InlineNotification
+          kind="error"
+          title="Could not refresh prices"
+          subtitle={refreshError}
+          lowContrast
+          className="detail-notification"
+        />
+      )}
 
       {error && (
         <div className="page-feedback">
@@ -106,6 +126,7 @@ export default function TrackedItemsPage({ items, loading, error, onRetry, onAdd
                 <TableHeader>Marketplace</TableHeader>
                 <TableHeader>Latest price</TableHeader>
                 <TableHeader>Last 3 detections</TableHeader>
+                <TableHeader>Amazon second-hand offer</TableHeader>
                 <TableHeader>Status</TableHeader>
                 <TableHeader aria-label="Actions" />
               </TableRow>
@@ -113,7 +134,7 @@ export default function TrackedItemsPage({ items, loading, error, onRetry, onAdd
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <p className="table-empty">No items match your search.</p>
                   </TableCell>
                 </TableRow>
@@ -154,6 +175,24 @@ export default function TrackedItemsPage({ items, loading, error, onRetry, onAdd
                         ))}
                       </ul>
                     ) : <span className="muted">No detections yet</span>}
+                  </TableCell>
+                  <TableCell>
+                    {item.secondHandOffer.status === "available" && item.secondHandOffer.latestDetection ? (
+                      <div className="latest-price">
+                        <strong>{euro.format(item.secondHandOffer.latestDetection.amount)}</strong>
+                        <span>{item.secondHandOffer.latestDetection.conditionLabel}</span>
+                      </div>
+                    ) : item.secondHandOffer.status === "pending" ? (
+                      <span className="muted">Checking Amazon offers…</span>
+                    ) : item.secondHandOffer.status === "not_found" ? (
+                      <span className="muted">No Amazon offer</span>
+                    ) : item.secondHandOffer.latestDetection ? (
+                      <div className="latest-price">
+                        <strong>{euro.format(item.secondHandOffer.latestDetection.amount)}</strong>
+                        <span>{item.secondHandOffer.latestDetection.conditionLabel} · Last detected</span>
+                        <span className="muted">Latest check failed</span>
+                      </div>
+                    ) : <span className="muted">Amazon offer check unavailable</span>}
                   </TableCell>
                   <TableCell><StatusTag status={item.status} /></TableCell>
                   <TableCell>

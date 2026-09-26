@@ -36,11 +36,12 @@ type Service struct {
 	workerContext context.Context
 	stopWorkers   context.CancelFunc
 	workers       sync.WaitGroup
+	refreshSlots  chan struct{}
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
 	workerContext, stopWorkers := context.WithCancel(context.Background())
-	return &Service{config: cfg, store: database, collector: amazon.NewCollector(cfg.UserAgent), inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers}
+	return &Service{config: cfg, store: database, collector: amazon.NewCollector(cfg.UserAgent), inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers, refreshSlots: make(chan struct{}, 2)}
 }
 
 func (s *Service) Close() {
@@ -127,6 +128,43 @@ func (s *Service) Remove(ctx context.Context, id string) (bool, error) {
 	return s.store.Delete(ctx, id)
 }
 
+func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
+	ids, err := s.store.IDs(ctx)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	requestedAt := time.Now().UTC()
+	if err := s.store.SetNextChecks(ctx, ids, s.NextCheckAt(requestedAt)); err != nil {
+		return time.Time{}, 0, err
+	}
+	queued := make([]string, 0, len(ids))
+	s.mu.Lock()
+	for _, id := range ids {
+		if _, active := s.inFlight[id]; active {
+			continue
+		}
+		s.inFlight[id] = requestedAt
+		queued = append(queued, id)
+	}
+	s.mu.Unlock()
+	for _, id := range queued {
+		s.workers.Add(1)
+		go s.runQueuedCollection(id)
+	}
+	return requestedAt, len(ids), nil
+}
+
+func (s *Service) runQueuedCollection(id string) {
+	defer s.workers.Done()
+	select {
+	case s.refreshSlots <- struct{}{}:
+		defer func() { <-s.refreshSlots }()
+		s.collectReserved(s.workerContext, id)
+	case <-s.workerContext.Done():
+		s.releaseCollection(id)
+	}
+}
+
 func (s *Service) Collect(ctx context.Context, id string) {
 	started := time.Now().UTC()
 	s.mu.Lock()
@@ -136,6 +174,10 @@ func (s *Service) Collect(ctx context.Context, id string) {
 	}
 	s.inFlight[id] = started
 	s.mu.Unlock()
+	s.collectReserved(ctx, id)
+}
+
+func (s *Service) collectReserved(ctx context.Context, id string) {
 	defer func() { s.mu.Lock(); delete(s.inFlight, id); s.mu.Unlock() }()
 	item, err := s.store.Listing(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -145,7 +187,7 @@ func (s *Service) Collect(ctx context.Context, id string) {
 		log.Printf("load listing %s for collection: %v", id, err)
 		return
 	}
-	requestContext, cancel := context.WithTimeout(ctx, 16*time.Second)
+	requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 	defer cancel()
 	result := s.collector.Collect(requestContext, item)
 	if _, err := s.store.Listing(ctx, id); errors.Is(err, sql.ErrNoRows) {
@@ -155,14 +197,16 @@ func (s *Service) Collect(ctx context.Context, id string) {
 		return
 	}
 	timestamp := time.Now().UTC()
-	if result.Result == "success" {
-		err = s.store.RecordSuccess(ctx, id, result, timestamp)
-	} else {
-		err = s.store.RecordFailure(ctx, id, result.Result, result.Message, timestamp)
-	}
+	err = s.store.RecordCollection(ctx, id, result, timestamp)
 	if err != nil {
 		log.Printf("save collection result for item %s: %v", id, err)
 	}
+}
+
+func (s *Service) releaseCollection(id string) {
+	s.mu.Lock()
+	delete(s.inFlight, id)
+	s.mu.Unlock()
 }
 
 func (s *Service) RunScheduler(ctx context.Context) {
@@ -217,6 +261,7 @@ func (s *Service) withInFlight(item model.Item) model.Item {
 
 func (s *Service) withPending(item model.Item, timestamp time.Time) model.Item {
 	item.Status = "pending"
+	item.SecondHandOffer.Status = "pending"
 	item.LastAttempt = &model.Attempt{Result: "pending", Timestamp: timestamp.UTC(), Message: nil}
 	return item
 }

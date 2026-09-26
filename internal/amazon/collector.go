@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -28,6 +29,9 @@ var (
 	offscreenPattern    = regexp.MustCompile(`(?is)<span\b[^>]*class=["']([^"']*\ba-offscreen\b[^"']*)["'][^>]*>(.*?)</span>`)
 	priceWrapperPattern = regexp.MustCompile(`(?is)<span\b[^>]*class=["']([^"']*\ba-price\b[^"']*)["'][^>]*>`)
 	imagePattern        = regexp.MustCompile(`(?is)<img\b[^>]*>`)
+	aodOfferPattern     = regexp.MustCompile(`(?is)<div\b[^>]*\bid=["']aod-offer["'][^>]*>`)
+	htmlTokenPattern    = regexp.MustCompile(`(?is)<!--.*?-->|<![^>]*>|</?[a-z][^>]*>|[^<]+`)
+	tagNamePattern      = regexp.MustCompile(`(?is)^</?([a-z][\w:-]*)`)
 )
 
 type URLResult struct {
@@ -84,34 +88,17 @@ func NewCollector(userAgent string) *Collector {
 }
 
 func (c *Collector) Collect(ctx context.Context, item model.Listing) model.CollectionResult {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL, nil)
+	request, err := c.newRequest(ctx, item, item.URL)
 	if err != nil {
 		return requestError(item, err)
 	}
-	chromeMajor := "154"
-	if match := regexp.MustCompile(`Chrome/(\d+)`).FindStringSubmatch(c.userAgent); len(match) > 1 {
-		chromeMajor = match[1]
-	}
-	request.Header.Set("User-Agent", c.userAgent)
-	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	request.Header.Set("Accept-Language", locale(item.Marketplace))
-	request.Header.Set("Accept-Encoding", "identity")
-	request.Header.Set("Upgrade-Insecure-Requests", "1")
-	request.Header.Set("Sec-CH-UA", `"Google Chrome";v="`+chromeMajor+`", "Chromium";v="`+chromeMajor+`", "Not_A Brand";v="99"`)
-	request.Header.Set("Sec-CH-UA-Mobile", "?0")
-	request.Header.Set("Sec-CH-UA-Platform", `"Linux"`)
-	request.Header.Set("Sec-Fetch-Dest", "document")
-	request.Header.Set("Sec-Fetch-Mode", "navigate")
-	request.Header.Set("Sec-Fetch-Site", "none")
-	request.Header.Set("Sec-Fetch-User", "?1")
-
 	response, err := c.client.Do(request)
 	if err != nil {
 		return requestError(item, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
-		return model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."}
+		return c.withSecondHand(ctx, item, model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."})
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return requestError(item, fmt.Errorf("Amazon returned HTTP %d", response.StatusCode))
@@ -129,20 +116,403 @@ func (c *Collector) Collect(ctx context.Context, item model.Listing) model.Colle
 		return requestError(item, fmt.Errorf("Amazon blocked the product request"))
 	}
 	if regexp.MustCompile(`(?i)currently unavailable|temporarily out of stock|no longer available|this item is not available`).MatchString(textContent(page[:min(len(page), 200_000)])) {
-		return model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."}
+		return c.withSecondHand(ctx, item, model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."})
 	}
-	amount, ok := productPrice(page)
-	if !ok {
-		return model.CollectionResult{Result: "price_not_found", Message: "Amazon did not show a detectable euro price."}
+	result := model.CollectionResult{Result: "price_not_found", Message: "Amazon did not show a detectable euro price.", SecondHandStatus: "check_error"}
+	if amount, ok := productPrice(page); ok {
+		result.Result = "success"
+		result.AmountCents = amount
+		result.Title = productTitle(page)
+		result.ThumbnailURL = productImage(page)
+	} else {
+		result.Title = productTitle(page)
+		result.ThumbnailURL = productImage(page)
 	}
-	title := productTitle(page)
-	thumbnail := productImage(page)
-	return model.CollectionResult{Result: "success", AmountCents: amount, Title: title, ThumbnailURL: thumbnail}
+	result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = secondHandOfferFromProductPage(page)
+	if result.SecondHandStatus == "available" {
+		return result
+	}
+	return c.withSecondHand(ctx, item, result)
+}
+
+func (c *Collector) withSecondHand(ctx context.Context, item model.Listing, result model.CollectionResult) model.CollectionResult {
+	result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = c.secondHandOffer(ctx, item)
+	return result
+}
+
+func (c *Collector) newRequest(ctx context.Context, item model.Listing, target string) (*http.Request, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	chromeMajor := "154"
+	if match := regexp.MustCompile(`Chrome/(\d+)`).FindStringSubmatch(c.userAgent); len(match) > 1 {
+		chromeMajor = match[1]
+	}
+	request.Header.Set("User-Agent", c.userAgent)
+	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+	request.Header.Set("Accept-Language", locale(item.Marketplace))
+	request.Header.Set("Accept-Encoding", "identity")
+	request.Header.Set("Upgrade-Insecure-Requests", "1")
+	request.Header.Set("Sec-CH-UA", `"Google Chrome";v="`+chromeMajor+`", "Chromium";v="`+chromeMajor+`", "Not_A Brand";v="99"`)
+	request.Header.Set("Sec-CH-UA-Mobile", "?0")
+	request.Header.Set("Sec-CH-UA-Platform", `"Linux"`)
+	request.Header.Set("Sec-Fetch-Dest", "document")
+	request.Header.Set("Sec-Fetch-Mode", "navigate")
+	request.Header.Set("Sec-Fetch-Site", "none")
+	request.Header.Set("Sec-Fetch-User", "?1")
+	return request, nil
+}
+
+type usedCondition struct {
+	code  string
+	label string
+}
+
+type offerHTMLNode struct {
+	tag      string
+	id       string
+	openTag  string
+	text     string
+	children []*offerHTMLNode
+	parent   *offerHTMLNode
+}
+
+func secondHandOfferFromProductPage(page string) (string, int64, string, string) {
+	root := &offerHTMLNode{tag: "root"}
+	stack := []*offerHTMLNode{root}
+	page = scriptPattern.ReplaceAllString(page, " ")
+	page = stylePattern.ReplaceAllString(page, " ")
+	for _, token := range htmlTokenPattern.FindAllString(page, -1) {
+		if strings.HasPrefix(token, "<!--") || strings.HasPrefix(token, "<!") {
+			continue
+		}
+		if strings.HasPrefix(token, "</") {
+			matches := tagNamePattern.FindStringSubmatch(token)
+			if len(matches) < 2 {
+				continue
+			}
+			for index := len(stack) - 1; index > 0; index-- {
+				if stack[index].tag == strings.ToLower(matches[1]) {
+					stack = stack[:index]
+					break
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(token, "<") {
+			matches := tagNamePattern.FindStringSubmatch(token)
+			if len(matches) < 2 {
+				continue
+			}
+			node := &offerHTMLNode{tag: strings.ToLower(matches[1]), id: attribute(token, "id"), openTag: token, parent: stack[len(stack)-1]}
+			node.parent.children = append(node.parent.children, node)
+			if !strings.HasSuffix(strings.TrimSpace(token), "/>") && !isVoidElement(node.tag) {
+				stack = append(stack, node)
+			}
+			continue
+		}
+		stack[len(stack)-1].text += " " + html.UnescapeString(token)
+	}
+
+	var merchantNodes []*offerHTMLNode
+	collectOfferNodesByID(root, "merchant-info", &merchantNodes)
+	for _, merchant := range merchantNodes {
+		if !hasAmazonSecondHandSeller(merchant) {
+			continue
+		}
+		var amount int64
+		amountFound := false
+		condition := usedCondition{code: "unknown", label: "Condition unavailable"}
+		for ancestor, depth := merchant, 0; ancestor != nil && ancestor.tag != "root" && depth < 12; ancestor, depth = ancestor.parent, depth+1 {
+			if !amountFound {
+				amount, amountFound = customerVisibleEuroPrice(ancestor)
+				if !amountFound {
+					if priceNode := findOfferNodeByID(ancestor, "price_feature_div"); priceNode != nil {
+						amount, amountFound = parseEuroPrice(offerNodeText(priceNode))
+					}
+				}
+			}
+			if candidate, found := parseUsedCondition(offerNodeText(ancestor)); found {
+				condition = candidate
+			}
+			if amountFound && condition.code != "unknown" {
+				return "available", amount, condition.code, condition.label
+			}
+			if ancestor.id == "usedAccordionRow" {
+				break
+			}
+		}
+		if amountFound {
+			return "available", amount, condition.code, condition.label
+		}
+	}
+	return "not_found", 0, "", ""
+}
+
+func collectOfferNodesByID(node *offerHTMLNode, id string, matches *[]*offerHTMLNode) {
+	if node.id == id {
+		*matches = append(*matches, node)
+	}
+	for _, child := range node.children {
+		collectOfferNodesByID(child, id, matches)
+	}
+}
+
+func hasAmazonSecondHandSeller(node *offerHTMLNode) bool {
+	if node.tag == "a" && isAmazonSeller(offerNodeText(node)) && strings.Contains(strings.ToLower(offerNodeText(node)), "seconde main") {
+		return true
+	}
+	for _, child := range node.children {
+		if hasAmazonSecondHandSeller(child) {
+			return true
+		}
+	}
+	return false
+}
+
+func findOfferNodeByID(node *offerHTMLNode, id string) *offerHTMLNode {
+	if node.id == id {
+		return node
+	}
+	for _, child := range node.children {
+		if match := findOfferNodeByID(child, id); match != nil {
+			return match
+		}
+	}
+	return nil
+}
+
+func offerNodeText(node *offerHTMLNode) string {
+	var text strings.Builder
+	text.WriteString(node.text)
+	for _, child := range node.children {
+		text.WriteByte(' ')
+		text.WriteString(offerNodeText(child))
+	}
+	return textContent(text.String())
+}
+
+func customerVisibleEuroPrice(node *offerHTMLNode) (int64, bool) {
+	var amount, currency string
+	var findInputs func(*offerHTMLNode)
+	findInputs = func(current *offerHTMLNode) {
+		if current.tag == "input" {
+			name := attribute(current.openTag, "name")
+			id := attribute(current.openTag, "id")
+			switch {
+			case name == "items[0.base][customerVisiblePrice][amount]" || id == "items[0.base][customerVisiblePrice][amount]":
+				amount = attribute(current.openTag, "value")
+			case name == "items[0.base][customerVisiblePrice][currencyCode]" || id == "items[0.base][customerVisiblePrice][currencyCode]":
+				currency = attribute(current.openTag, "value")
+			}
+		}
+		for _, child := range current.children {
+			findInputs(child)
+		}
+	}
+	findInputs(node)
+	if amount == "" || !strings.EqualFold(currency, "EUR") {
+		return 0, false
+	}
+	return parseEuroPrice(amount + " €")
+}
+
+func isVoidElement(tag string) bool {
+	switch tag {
+	case "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr":
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *Collector) secondHandOffer(ctx context.Context, item model.Listing) (string, int64, string, string) {
+	parsed, err := url.Parse(item.URL)
+	if err != nil {
+		return "check_error", 0, "", ""
+	}
+	parsed.Path = "/gp/aod/ajax/ref=tmm_pap_used_aod_0"
+	parsed.RawQuery = ""
+	// Amazon's used-offer link uses this referral path and a double-encoded
+	// filters parameter. A bare /gp/aod/ajax request can return an empty/new
+	// offer response even when the product page shows an Amazon Seconde main offer.
+	queries := []url.Values{}
+	usedQuery := url.Values{}
+	usedQuery.Set("asin", item.ASIN)
+	usedQuery.Set("pc", "dp")
+	usedQuery.Set("condition", "used")
+	usedQuery.Set("filters", `%7B%22all%22%3Atrue%2C%22usedLikeNew%22%3Atrue%2C%22usedVeryGood%22%3Atrue%2C%22usedGood%22%3Atrue%2C%22usedAcceptable%22%3Atrue%7D`)
+	queries = append(queries, usedQuery)
+	allQuery := url.Values{}
+	allQuery.Set("asin", item.ASIN)
+	allQuery.Set("pc", "dp")
+	allQuery.Set("condition", "ALL")
+	allQuery.Set("experienceId", "aodAjaxMain")
+	queries = append(queries, allQuery)
+
+	var pages []string
+	var failedResponses []string
+	for _, query := range queries {
+		endpoint := *parsed
+		if query.Get("condition") == "ALL" {
+			endpoint.Path = "/gp/aod/ajax"
+		}
+		endpoint.RawQuery = query.Encode()
+		request, requestErr := c.newRequest(ctx, item, endpoint.String())
+		if requestErr != nil {
+			continue
+		}
+		request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+		request.Header.Set("Referer", item.URL)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request.Header.Set("Sec-Fetch-Mode", "cors")
+		request.Header.Set("Sec-Fetch-Dest", "empty")
+		request.Header.Set("X-Requested-With", "XMLHttpRequest")
+		response, requestErr := c.client.Do(request)
+		if requestErr != nil {
+			failedResponses = append(failedResponses, requestErr.Error())
+			continue
+		}
+		if response.StatusCode >= 200 && response.StatusCode < 300 {
+			body, readErr := io.ReadAll(io.LimitReader(response.Body, 5<<20))
+			if readErr == nil {
+				pages = append(pages, string(body))
+			} else {
+				failedResponses = append(failedResponses, readErr.Error())
+			}
+		} else {
+			failedResponses = append(failedResponses, fmt.Sprintf("HTTP %d", response.StatusCode))
+		}
+		response.Body.Close()
+	}
+	if len(pages) == 0 {
+		log.Printf("Amazon used-offer check failed for %s/%s: %s", item.Marketplace, item.ASIN, strings.Join(failedResponses, "; "))
+		return "check_error", 0, "", ""
+	}
+	checkError := false
+	offerCount, usedCount, amazonSellerCount, malformedCount := 0, 0, 0, 0
+	for _, page := range pages {
+		starts := aodOfferPattern.FindAllStringIndex(page, -1)
+		offerCount += len(starts)
+		if len(starts) == 0 {
+			lower := strings.ToLower(page)
+			if strings.Contains(lower, "aod-offer") || strings.Contains(lower, "no featured offers") || strings.Contains(lower, "aucune offre") {
+				continue
+			}
+			checkError = true
+			continue
+		}
+		var lowest int64
+		var best usedCondition
+		ambiguous := false
+		for index, match := range starts {
+			end := len(page)
+			if index+1 < len(starts) {
+				end = starts[index+1][0]
+			}
+			block := page[match[0]:end]
+			conditionText := textContent(elementContentByID(block, "aod-offer-condition"))
+			if conditionText == "" {
+				conditionText = textContent(elementContentByID(block, "aod-offer-heading"))
+			}
+			condition, isUsed := parseUsedCondition(conditionText)
+			if !isUsed {
+				condition, isUsed = parseUsedCondition(textContent(block))
+			}
+			if !isUsed {
+				continue
+			}
+			usedCount++
+			sellerText := textContent(elementContentByID(block, "aod-offer-soldBy"))
+			if sellerText == "" {
+				ambiguous = true
+				continue
+			}
+			if !isAmazonSeller(sellerText) {
+				continue
+			}
+			amazonSellerCount++
+			priceRegion := elementContentByID(block, "aod-offer-price")
+			if priceRegion == "" {
+				malformedCount++
+				ambiguous = true
+				continue
+			}
+			amount, ok := lowestEuroAmount(priceRegion)
+			if !ok {
+				malformedCount++
+				ambiguous = true
+				continue
+			}
+			if lowest == 0 || amount < lowest {
+				lowest, best = amount, condition
+			}
+		}
+		if lowest > 0 {
+			return "available", lowest, best.code, best.label
+		}
+		if ambiguous {
+			checkError = true
+		}
+	}
+	if checkError {
+		log.Printf("Amazon used-offer check incomplete for %s/%s: offers=%d used=%d amazon_sellers=%d malformed=%d", item.Marketplace, item.ASIN, offerCount, usedCount, amazonSellerCount, malformedCount)
+		return "check_error", 0, "", ""
+	}
+	log.Printf("Amazon used-offer check found none for %s/%s: offers=%d used=%d amazon_sellers=%d", item.Marketplace, item.ASIN, offerCount, usedCount, amazonSellerCount)
+	return "not_found", 0, "", ""
+}
+
+func parseUsedCondition(value string) (usedCondition, bool) {
+	value = textContent(value)
+	lower := strings.ToLower(value)
+	patterns := []struct {
+		code string
+		re   *regexp.Regexp
+	}{
+		{"like_new", regexp.MustCompile(`(?i)(comme neuf|wie neu|como nuevo|come nuovo|als nieuw|like new)`)},
+		{"very_good", regexp.MustCompile(`(?i)(tr[eè]s bon [eé]tat|sehr gut|muy bueno|ottim[ae] condizioni|zeer goed|very good)`)},
+		{"good", regexp.MustCompile(`(?i)(bon [eé]tat|gut(?:er zustand)?|bueno|buon[ae] condizioni|goed|condition: good|good)`)},
+		{"acceptable", regexp.MustCompile(`(?i)([eé]tat correct|akzeptabel|aceptable|accettabile|acceptabel|acceptable)`)},
+	}
+	for _, pattern := range patterns {
+		match := pattern.re.FindString(value)
+		if match != "" {
+			return usedCondition{code: pattern.code, label: match}, true
+		}
+	}
+	if strings.Contains(lower, "used") || strings.Contains(lower, "gebraucht") || strings.Contains(lower, "d'occasion") || strings.Contains(lower, "usado") || strings.Contains(lower, "usato") || strings.Contains(lower, "gebruikt") {
+		return usedCondition{code: "unknown", label: "Condition unavailable"}, true
+	}
+	return usedCondition{}, false
+}
+
+func lowestEuroAmount(region string) (int64, bool) {
+	var lowest int64
+	for _, match := range offscreenPattern.FindAllStringSubmatch(region, -1) {
+		amount, ok := parseEuroPrice(match[2])
+		if ok && (lowest == 0 || amount < lowest) {
+			lowest = amount
+		}
+	}
+	return lowest, lowest > 0
+}
+
+func isAmazonSeller(value string) bool {
+	normalized := strings.ToLower(textContent(value))
+	normalized = regexp.MustCompile(`[\s.,'’()\-]`).ReplaceAllString(normalized, "")
+	known := map[string]bool{
+		"amazon": true, "amazonfr": true, "amazonde": true, "amazones": true, "amazonit": true, "amazonnl": true, "amazoncombe": true,
+		"amazoneusarl": true, "amazoneusàrl": true, "amazoneuropesarl": true, "amazoneuropecoresarl": true,
+		"amazonwarehouse": true, "amazonresale": true, "amazonsecondemain": true,
+	}
+	return known[normalized]
 }
 
 func requestError(item model.Listing, err error) model.CollectionResult {
 	fmt.Printf("Amazon collection failed for %s/%s: %v\n", item.Marketplace, item.ASIN, err)
-	return model.CollectionResult{Result: "request_error", Message: "Amazon could not be reached for a price check."}
+	return model.CollectionResult{Result: "request_error", Message: "Amazon could not be reached for a price check.", SecondHandStatus: "check_error"}
 }
 
 func locale(marketplace string) string {

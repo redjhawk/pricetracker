@@ -7,6 +7,8 @@ PriceFollower is a self-hosted Amazon price tracker for European listings. Add a
 - Track products from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium.
 - Collect the first price as soon as a product is added, then check twice daily.
 - View the latest detected price, its timestamp, collection status, and the three latest observations.
+- Track the lowest-priced second-hand offer explicitly sold by Amazon, with its condition and recent history; third-party offers are ignored.
+- Manually refresh all tracked item prices and Amazon-sold second-hand offers from the main page.
 - Keep checking after stale prices or collection failures.
 - Delete tracked products and their stored price history.
 - Use one shared collection without accounts or login.

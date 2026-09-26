@@ -126,6 +126,28 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
           </p>
           <p className="summary-footnote">Added {dateTime.format(new Date(item.addedAt))}</p>
         </article>
+        <article className="summary-tile">
+          <p className="summary-label">Amazon second-hand offer</p>
+          {item.secondHandOffer.status === "available" && item.secondHandOffer.latestDetection ? (
+            <>
+              <p className="summary-price">{euro.format(item.secondHandOffer.latestDetection.amount)}</p>
+              <p className="summary-footnote">{item.secondHandOffer.latestDetection.conditionLabel}</p>
+              <p className="summary-footnote">
+                Detected <time dateTime={item.secondHandOffer.latestDetection.timestamp}>{dateTime.format(new Date(item.secondHandOffer.latestDetection.timestamp))}</time>
+              </p>
+            </>
+          ) : item.secondHandOffer.status === "pending" ? (
+            <p className="summary-empty">Checking Amazon offers…</p>
+          ) : item.secondHandOffer.status === "not_found" ? (
+            <p className="summary-empty">No Amazon-sold second-hand offer found.</p>
+          ) : item.secondHandOffer.latestDetection ? (
+            <>
+              <p className="summary-price">{euro.format(item.secondHandOffer.latestDetection.amount)}</p>
+              <p className="summary-footnote">Last detected: {item.secondHandOffer.latestDetection.conditionLabel}</p>
+              <p className="summary-footnote">The latest offer check could not be completed.</p>
+            </>
+          ) : <p className="summary-empty">Amazon offer check unavailable.</p>}
+        </article>
       </div>
 
       <div className="history-heading">
@@ -153,6 +175,40 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
                 <StructuredListCell className="detection-price">{euro.format(observation.amount)}</StructuredListCell>
                 <StructuredListCell>
                   <time dateTime={observation.timestamp}>{dateTime.format(new Date(observation.timestamp))}</time>
+                </StructuredListCell>
+              </StructuredListRow>
+            ))}
+          </StructuredListBody>
+        </StructuredListWrapper>
+      )}
+
+      <div className="history-heading second-hand-history-heading">
+        <div>
+          <h2>Recent Amazon second-hand offers</h2>
+          <p>Only offers sold by Amazon are included</p>
+        </div>
+      </div>
+
+      {item.secondHandOffer.lastThreeDetections.length === 0 ? (
+        <p className="history-empty">No Amazon-sold second-hand offer has been detected yet.</p>
+      ) : (
+        <StructuredListWrapper className="detections-list">
+          <StructuredListHead>
+            <StructuredListRow head>
+              <StructuredListCell head>#</StructuredListCell>
+              <StructuredListCell head>Offer price</StructuredListCell>
+              <StructuredListCell head>Condition</StructuredListCell>
+              <StructuredListCell head>Date and time</StructuredListCell>
+            </StructuredListRow>
+          </StructuredListHead>
+          <StructuredListBody>
+            {item.secondHandOffer.lastThreeDetections.map((detection, index) => (
+              <StructuredListRow key={`${detection.timestamp}-${index}`}>
+                <StructuredListCell>{index + 1}</StructuredListCell>
+                <StructuredListCell className="detection-price">{euro.format(detection.amount)}</StructuredListCell>
+                <StructuredListCell>{detection.conditionLabel}</StructuredListCell>
+                <StructuredListCell>
+                  <time dateTime={detection.timestamp}>{dateTime.format(new Date(detection.timestamp))}</time>
                 </StructuredListCell>
               </StructuredListRow>
             ))}

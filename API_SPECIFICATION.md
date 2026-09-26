@@ -1,6 +1,6 @@
 # API Contract — Draft for Approval
 
-**Status:** Approved by the operator on 2026-09-24. This contract is the implementation target.
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer and bulk refresh additions approved 2026-09-26.
 
 ## Conventions
 
@@ -35,6 +35,26 @@
       "timestamp": "2026-09-24T08:12:00Z"
     }
   ],
+  "secondHandOffer": {
+    "status": "available",
+    "latestDetection": {
+      "amountCents": 20900,
+      "currency": "EUR",
+      "condition": "good",
+      "conditionLabel": "Bon état",
+      "timestamp": "2026-09-24T08:12:00Z"
+    },
+    "lastThreeDetections": [
+      {
+        "amountCents": 20900,
+        "currency": "EUR",
+        "condition": "good",
+        "conditionLabel": "Bon état",
+        "timestamp": "2026-09-24T08:12:00Z"
+      }
+    ],
+    "lastCheckedAt": "2026-09-24T08:12:00Z"
+  },
   "lastAttempt": {
     "result": "success",
     "timestamp": "2026-09-24T08:12:00Z",
@@ -51,6 +71,10 @@ Fields:
 - `status` is one of `pending`, `active`, `stale`, `retrieval_error`, or `unavailable`.
 - `latestPrice` is `null` until a successful price detection has been stored.
 - `lastThreeDetections` contains up to three successful observations, newest first; it is empty if no price has been detected.
+- `secondHandOffer.status` is `pending`, `available`, `not_found`, or `check_error`. Only offers explicitly sold by Amazon (including its identified Amazon Resale/Warehouse offers) qualify; all third-party offers are ignored. If seller attribution cannot be verified, the check is an error.
+- `secondHandOffer.latestDetection` is the latest qualifying offer detection, even if a later check finds no offer or fails. The interface should use `status` to distinguish a current offer from an older last detection.
+- `secondHandOffer.lastThreeDetections` contains up to three successful detections of the lowest-priced qualifying Amazon offer, newest first. Each detection includes normalized `condition` (`like_new`, `very_good`, `good`, `acceptable`, or `unknown`) and the original Amazon `conditionLabel`.
+- `secondHandOffer.lastCheckedAt` is `null` before the first check.
 - `lastAttempt` is `null` before the first collection attempt. Its `result` is one of `pending`, `success`, `request_error`, `price_not_found`, or `unavailable`. `message` is optional user-safe detail and must not expose internal errors.
 - `nextCheckAt` may be `null` if a next attempt has not been scheduled yet.
 
@@ -67,6 +91,23 @@ Response `200 OK`:
 ```
 
 Each element is an item response. An empty collection returns an empty array.
+
+### Refresh all tracked prices
+
+`POST /api/v1/items/refresh`
+
+No request body is required. The backend schedules an immediate check for each item in the collection at the time of the request. Each check includes both the regular item price and the lowest-priced qualifying Amazon-sold second-hand offer. Items already being checked count as included and are not checked a second time. The existing twice-daily schedule remains active.
+
+Response `202 Accepted`:
+
+```json
+{
+  "requestedAt": "2026-09-26T10:00:00Z",
+  "itemsQueued": 12
+}
+```
+
+The existing item list reports queued or running collection attempts as `pending`, allowing the frontend to poll `GET /api/v1/items` until checks finish. `itemsQueued` is the number of tracked items included, including those already being checked.
 
 ### Get item details
 
@@ -112,6 +153,9 @@ The client may use `code` for predictable UI behavior. `message` is safe to disp
 ## Frontend behavior supported by this contract
 
 - The list view loads all current items with one request and can filter them locally by title, ASIN, and marketplace.
+- The main list shows the latest qualifying Amazon-sold second-hand offer and its Amazon condition. It distinguishes an available offer, no qualifying offer, a pending check, and a failed/uncertain check.
+- The details view can show the last three second-hand offer detections and their condition labels.
+- The main page can request a refresh of all tracked items and displays progress while the existing item statuses are pending.
 - The details view loads a single item by ID and can render its latest price, recent detections, and collection status.
 - Adding an item shows validation/duplicate errors from the API and displays the newly created pending item while its immediate collection attempt runs.
 - Deleting an item removes it from the visible list after a successful response.

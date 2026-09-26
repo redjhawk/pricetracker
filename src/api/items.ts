@@ -1,4 +1,4 @@
-import type { ItemStatus, PriceObservation, TrackedItem } from "../types";
+import type { ItemStatus, PriceObservation, SecondHandOffer, SecondHandOfferDetection, TrackedItem } from "../types";
 
 interface ApiPriceObservation {
   amountCents: number;
@@ -16,6 +16,12 @@ interface ApiTrackedItem {
   status: ItemStatus;
   latestPrice: ApiPriceObservation | null;
   lastThreeDetections: ApiPriceObservation[];
+  secondHandOffer: {
+    status: SecondHandOffer["status"];
+    latestDetection: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null;
+    lastThreeDetections: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
+    lastCheckedAt: string | null;
+  };
   nextCheckAt: string | null;
   addedAt: string;
 }
@@ -43,11 +49,29 @@ function mapObservation(observation: ApiPriceObservation | null): PriceObservati
   };
 }
 
+function mapSecondHandDetection(
+  observation: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null,
+): SecondHandOfferDetection | null {
+  if (!observation) return null;
+  return {
+    amount: observation.amountCents / 100,
+    currency: observation.currency,
+    condition: observation.condition,
+    conditionLabel: observation.conditionLabel,
+    timestamp: observation.timestamp,
+  };
+}
+
 function mapItem(item: ApiTrackedItem): TrackedItem {
   return {
     ...item,
     latestPrice: mapObservation(item.latestPrice),
     lastThreeDetections: item.lastThreeDetections.map((observation) => mapObservation(observation)!),
+    secondHandOffer: {
+      ...item.secondHandOffer,
+      latestDetection: mapSecondHandDetection(item.secondHandOffer.latestDetection),
+      lastThreeDetections: item.secondHandOffer.lastThreeDetections.map((observation) => mapSecondHandDetection(observation)!),
+    },
   };
 }
 
@@ -96,3 +120,6 @@ export function deleteItem(id: string): Promise<void> {
   return request<void>(`/api/v1/items/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export function refreshAllItems(): Promise<{ requestedAt: string; itemsQueued: number }> {
+  return request<{ requestedAt: string; itemsQueued: number }>("/api/v1/items/refresh", { method: "POST" });
+}

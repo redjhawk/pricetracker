@@ -47,6 +47,12 @@ input {
   margin-block-end: var(--cds-spacing-06);
 }
 
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cds-spacing-03);
+}
+
 .page-heading h1,
 .detail-heading h1 {
   margin: 0;
@@ -268,7 +274,7 @@ input {
 
 .detail-summary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px;
   margin-block-end: var(--cds-spacing-07);
   background: var(--cds-layer-accent);
@@ -306,6 +312,10 @@ input {
 
 .history-heading {
   margin-block-end: var(--cds-spacing-04);
+}
+
+.second-hand-history-heading {
+  margin-block-start: var(--cds-spacing-07);
 }
 
 .history-heading h2 {
@@ -359,7 +369,11 @@ input {
   }
 
   .tracked-table-container table {
-    min-width: 58rem;
+    min-width: 66rem;
+  }
+
+  .detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -376,6 +390,10 @@ input {
 
   .detail-actions {
     justify-content: flex-start;
+  }
+
+  .page-heading-actions {
+    align-self: stretch;
   }
 
   .detail-summary {
