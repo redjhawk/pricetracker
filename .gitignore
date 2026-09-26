@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .data/
+release/
+web/static/dist/
 *.tsbuildinfo
 .env
 .env.*

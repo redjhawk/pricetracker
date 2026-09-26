@@ -1,0 +1,1 @@
+Frontend files are embedded into the release binary during scripts/build-release.sh.

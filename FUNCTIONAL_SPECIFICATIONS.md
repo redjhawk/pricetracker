@@ -29,7 +29,7 @@ Prices are the item price only, in euros. Shipping, taxes, and other charges are
 ## 4. Technical architecture constraints
 
 - The application has a separate front end and backend.
-- The backend must run on Node.js and is responsible for the service API, scheduled price collection, and persistence.
+- The backend must run on Go and is responsible for the service API, scheduled price collection, and persistence.
 - Use SQLite for server-side storage of tracked items, price observations, and collection outcomes as needed.
 - The front end must use React 19 and IBM Carbon Design System components and visual conventions.
 - The front end reads and displays data from the backend; it does not connect directly to SQLite or collect prices from Amazon.
@@ -38,7 +38,7 @@ Prices are the item price only, in euros. Shipping, taxes, and other charges are
 - Development mode must provide repeatable sample data in a development SQLite database so the interface can be reviewed without relying on live Amazon requests. Keep development seed data isolated from any non-development database.
 - Development mode must allow the developer to navigate directly to the required frontend page (including a detail page where applicable) and have that page request and display data from the backend.
 
-The API shape, Node.js framework, database access library, scheduling implementation, and deployment arrangement are not prescribed here and can be selected during technical design. An API contract for a cross-tier change should cover endpoints and methods, request/response data, validation/errors, and any client-visible states.
+The API shape, Go HTTP implementation, database access library, scheduling implementation, and deployment arrangement are not prescribed here and can be selected during technical design. An API contract for a cross-tier change should cover endpoints and methods, request/response data, validation/errors, and any client-visible states.
 
 ## 5. Main user journeys
 
@@ -189,7 +189,7 @@ Each platform will need its own supported-region rules, collection behavior, and
 - Failed checks do not erase or misrepresent the last successful price.
 - Deleting an item removes its stored price history.
 - No login is required; the server stores data and collects prices, while the front end displays server-provided information.
-- The backend runs on Node.js and persists data in SQLite.
+- The backend runs on Go and persists data in SQLite.
 - The separate front end uses React 19 and IBM Carbon Design System.
 - A developer can start one development mode, open the frontend directly at the tracked-items or item-details page, and see sample data returned by the backend.
 - Development seed data is repeatable and cannot overwrite the non-development database.

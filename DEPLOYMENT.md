@@ -1,63 +1,70 @@
-# Deployment Recommendation — Raspberry Pi
+# Build and deploy on Raspberry Pi (32-bit ARM)
 
-## Recommended format
+The production backend is Go. The release build embeds the React `dist/` files in the Go executable, so the Pi needs only one application file. The SQLite database remains separate in a persistent data directory.
 
-Package the application as an architecture-specific Debian package (`.deb`). This provides one installable file while using the Debian package manager for installation and upgrades.
+## Build a release
 
-Initial target: ARM64, assuming a Raspberry Pi 3 or newer running a 64-bit Debian-based OS. Build a separate ARM32 package only if older 32-bit Raspberry Pi systems need support. Raspberry Pi OS is available in both 32-bit and 64-bit editions; select a package that matches the installed OS architecture. See the [Raspberry Pi OS architecture documentation](https://www.raspberrypi.com/documentation/computers/os.html).
-
-Example installation:
+On a Linux or macOS build machine, install Node.js 22 or newer for the React toolchain and Go 1.25 or newer for the backend. From the project root, run:
 
 ```bash
-sudo apt install ./pricefollower_arm64.deb
-```
-
-## Package contents and service behavior
-
-The package should contain:
-
-- The Node.js backend and production dependencies.
-- The built React frontend, served by the backend.
-- A pinned Node.js 24 LTS runtime, avoiding dependence on whichever Node.js version happens to be installed on the Pi. Node.js 24 is listed as an LTS release in the [Node.js release schedule](https://nodejs.org/en/about/previous-releases).
-- A `systemd` service definition so the application starts at boot and can be managed as a service.
-
-Keep the SQLite database outside the package-managed application directory, for example under `/var/lib/pricefollower/`. This allows package upgrades to replace application files without replacing tracked items or price history.
-
-The backend should serve both the frontend and API from one service. Developers and operators can then open the Pi's hostname or address in a browser; the browser's frontend requests data from that same backend.
-
-## Quick manual install on a Raspberry Pi
-
-For a quick trial without building a Debian package, install Node.js 22 or newer on the Pi and copy the project directory to it. Then run:
-
-```bash
-cd /path/to/pricefollower
 npm ci
-npm run build
-mkdir -p ./data
-PRICEFOLLOWER_DATA_DIR=./data npm start
+go mod download
+./scripts/build-release.sh 7
 ```
 
-The Node.js server serves the built files from `dist/` and the API from the same origin. Open `http://<raspberry-pi-address>:3001` from a browser on the network. The SQLite database will be created under `./data/pricefollower.sqlite`. Ensure that the account running Node.js can write to the selected data directory. Keep the process running while the application is in use; use the `.deb` and `systemd` service approach above for startup at boot and ongoing use.
+The script builds the React app, embeds its files, and writes `release/pricefollower` for Linux ARMv7. For an ARMv6 target, use:
+
+```bash
+./scripts/build-release.sh 6
+```
+
+Confirm the Pi's processor and OS architecture before choosing the target. The Go SQLite driver is pure Go and supports Linux ARM, so the release does not need a C compiler or a native module installed on the Pi.
+
+## Install and run manually
+
+Upload the executable and installer to the Pi's `/tmp` directory with the deployment script:
+
+```bash
+./scripts/copy-dist.sh pi@raspberry-pi:/tmp/
+```
+
+The script copies the release binary produced by `scripts/build-release.sh` and `install-pricefollower.sh`. It does not copy the source tree or a separate `dist/` directory.
+
+On the Pi, run the installer as root:
+
+```bash
+sudo /tmp/install-pricefollower.sh /tmp/pricefollower
+```
+
+The installer creates the system user and group, installs the executable under `/opt/pricefollower`, creates `/var/lib/pricefollower`, assigns both directories to the service account, and enables and starts the systemd service. Open `http://<raspberry-pi-address>:3001`. The database file is `/var/lib/pricefollower/pricefollower.sqlite`.
+
+## Start at boot with systemd
+
+View logs with `sudo journalctl -u pricefollower -f`. To update, build and upload the new executable from the development machine:
+
+```bash
+./scripts/build-release.sh 7
+./scripts/copy-dist.sh pi@raspberry-pi:/tmp/pricefollower
+```
+
+Then rerun the installer on the Pi; it replaces the executable and restarts the service:
+
+```bash
+sudo /tmp/install-pricefollower.sh /tmp/pricefollower
+```
+
+The database stays in `/var/lib/pricefollower` across updates.
 
 ## Local development
 
-From the project directory, install dependencies and start both tiers with one command:
+Install Node.js 22 or newer and Go 1.25 or newer, then run:
 
 ```bash
-npm install
+npm ci
+go mod download
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite serves the React frontend and proxies `/api` requests to the Node.js backend on port `3001`. On the first development run, the backend seeds six representative items into `.data/pricefollower.sqlite`; this development database is separate from the production data directory. Remove that file manually only when a clean sample database is needed.
+Vite serves the frontend at `http://localhost:5173` and proxies API calls to the Go backend on port `3001`. The development backend seeds six sample listings into `.data/pricefollower.sqlite` on its first run. Development seed data is separate from `/var/lib/pricefollower`.
 
-Use Node.js 22 or newer for development, matching the declared project engine and Carbon dependency requirements.
-
-For production, build the frontend with `npm run build` and start the Node.js service with `npm start`. The same Node process serves the built frontend and API. Set `PRICEFOLLOWER_DATA_DIR` to the service's persistent data directory when deploying.
-
-## Why not a standalone executable?
-
-Node.js Single Executable Applications (SEA) can bundle a Node.js application into one executable, but Node.js currently marks the feature as active development. Bundling application dependencies and frontend assets also adds complexity. For this service, a `.deb` is the simpler production choice while still providing a single installable artifact. See the [Node.js SEA documentation](https://nodejs.org/download/release/v26.8.1/docs/api/single-executable-applications.html).
-
-## Release artifact
-
-The initial release should produce one package for the selected target, for example `pricefollower_arm64.deb`. If both ARM64 and ARM32 systems must be supported, publish one package per architecture. Confirm the Pi model and OS architecture before producing the first release.
+`scripts/copy-dist.sh` uploads the single release executable. The production executable serves both the embedded frontend and the API, while SQLite data remains in the persistent data directory.
