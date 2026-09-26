@@ -2,27 +2,28 @@
 
 ## 1. Purpose
 
-The service tracks the item price of a product listed on a European Amazon marketplace. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface.
+The service tracks the price of an item listed on a European Amazon marketplace or LeBoncoin France. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface.
 
 This document defines the first version (v1). Other marketplaces and possible enhancements are listed under [Next steps](#11-next-steps). Remaining decisions are listed under [Open decisions](#12-open-decisions).
 
 ## 2. V1 goals and scope
 
-- Add an Amazon European listing by URL.
+- Add a supported European Amazon or LeBoncoin listing by URL.
 - Check each active item twice per day and store detected prices with timestamps.
 - Show all tracked items, their latest known prices, and the last three detected prices.
 - Show the latest second-hand offer sold by Amazon, when available, with its condition and recent detections.
 - Allow the operator to manually refresh the prices for all tracked items.
+- Allow the operator to manually refresh an individual item from its details page.
 - Allow the operator to inspect recent price detections and delete an item.
 - Keep collection attempts running when a price is stale or a check fails.
 
-V1 supports European Amazon listings only. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add/delete actions.
+V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
 
 Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope.
 
 ## 3. Core concepts
 
-**Tracked item:** A saved reference to an eligible Amazon listing, including its URL, display information, tracking status, and observations.
+**Tracked item:** A saved reference to an eligible Amazon or LeBoncoin listing, including its platform, URL, display information, tracking status, and observations.
 
 **Price observation:** A successful detection containing the item price in euros and the detection timestamp. Collection failures are recorded separately and do not overwrite the last successful price.
 
@@ -34,10 +35,11 @@ Prices are the item price only, in euros. Shipping, taxes, and other charges are
 - The backend must run on Go and is responsible for the service API, scheduled price collection, and persistence.
 - Use SQLite for server-side storage of tracked items, price observations, and collection outcomes as needed.
 - The front end must use React 19 and IBM Carbon Design System components and visual conventions.
-- The front end reads and displays data from the backend; it does not connect directly to SQLite or collect prices from Amazon.
+- The front end reads and displays data from the backend; it does not connect directly to SQLite or collect marketplace prices.
+- Keep collection logic in separate platform adapters for Amazon and LeBoncoin.
 - Use an API-first workflow for cross-tier features: define the API contract and obtain operator confirmation before implementing either backend or frontend changes. After confirmation, implement both tiers against the approved contract.
 - Provide a development mode that starts the backend and serves the frontend together, so a developer can open the application and use its pages and backend API without manually starting each tier.
-- Development mode must provide repeatable sample data in a development SQLite database so the interface can be reviewed without relying on live Amazon requests. Keep development seed data isolated from any non-development database.
+- Development mode must provide repeatable sample data in a development SQLite database so the interface can be reviewed without relying on live marketplace requests. Keep development seed data isolated from any non-development database.
 - Development mode must allow the developer to navigate directly to the required frontend page (including a detail page where applicable) and have that page request and display data from the backend.
 
 The API shape, Go HTTP implementation, database access library, scheduling implementation, and deployment arrangement are not prescribed here and can be selected during technical design. An API contract for a cross-tier change should cover endpoints and methods, request/response data, validation/errors, and any client-visible states.
@@ -47,8 +49,8 @@ The API shape, Go HTTP implementation, database access library, scheduling imple
 ### 5.1 Add an item
 
 1. The operator opens the tracked-items page and chooses **Add item**.
-2. The operator pastes an Amazon European listing URL and submits it.
-3. The server validates the URL and confirms that it is an eligible Amazon listing.
+2. The operator pastes a supported Amazon European or LeBoncoin France listing URL and submits it.
+3. The server validates the URL and confirms that it is an eligible listing.
 4. The server attempts to identify the item and immediately fetch its price; the operator should not have to wait for the next scheduled check for the first attempt.
 5. The item appears in the list if accepted. Its initial price may be pending if the immediate retrieval is still in progress or did not succeed.
 6. The interface explains invalid, unsupported, duplicate, or unprocessable URLs.
@@ -58,20 +60,20 @@ The API shape, Go HTTP implementation, database access library, scheduling imple
 The main page shows all tracked items. Each row/card includes:
 
 - Item title, or a fallback label if unavailable.
-- Amazon marketplace and listing link.
+- Source platform and listing link.
 - Thumbnail when available.
 - Latest successfully detected item price in euros, or an explicit unavailable state.
 - Time of the latest successful detection.
 - The last three successfully detected prices with their timestamps.
 - Collection/listing status, such as active, stale, retrieval issue, or unavailable.
-- Latest second-hand offer sold by Amazon, including price and condition; third-party offers are ignored.
+- Latest second-hand offer sold by Amazon for Amazon items, including price and condition; third-party offers are ignored. This field is not applicable to LeBoncoin items.
 - Actions to open item details, delete an item, or refresh all tracked items.
 
 The page should have clear empty, loading, and error states. A stale price does not stop scheduled checks or retries. The stale threshold is an open decision.
 
 ### 5.3 View item details
 
-The detail view shows item metadata, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. It also shows the last three second-hand offer detections sold by Amazon, including condition and timestamp. V1 does not require a chart, trend calculation, or arbitrary date-range selection. The stored observations can support a richer history view in a later version.
+The detail view shows item metadata, platform, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. It shows Amazon second-hand detections only for Amazon items. The operator can request an immediate price refresh from this page; the interface displays progress and then reloads the server result. V1 does not require a chart, trend calculation, or arbitrary date-range selection.
 
 ### 5.4 Delete an item
 
@@ -83,12 +85,14 @@ The operator can delete an item from tracking. Deletion removes the item and its
 - As soon as a new item is accepted, trigger an immediate price collection attempt; then continue with its regular twice-daily schedule.
 - The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment.
 - Each successful check stores the detected item price in euros and its timestamp.
-- Each product check also looks for second-hand offers sold by Amazon. If multiple qualifying offers exist, store the lowest-priced offer and its condition. Ignore third-party offers; do not accept an offer unless Amazon's seller attribution can be verified.
+- Amazon checks also look for second-hand offers sold by Amazon. If multiple qualifying offers exist, store the lowest-priced offer and its condition. Ignore third-party offers; do not accept an offer unless Amazon's seller attribution can be verified. LeBoncoin items have no separate second-hand-offer field.
+- A LeBoncoin free/donation listing with no numeric price is recorded as a zero-euro price only when the listing explicitly indicates that it is a donation/free item. The interface displays this as “Gratuit”. A missing or unparseable price is not treated as free.
 - Record the second-hand check outcome as available, no qualifying offer found, pending, or check error. Preserve the last detected Amazon offer when a later check finds none or cannot verify the result.
 - Each failed check records a useful outcome, such as temporary retrieval error, listing unavailable, or price not found.
 - A failed check never replaces the latest successful price with a blank, zero, or inferred value.
 - Continue scheduled retries when an item is stale or previous collection attempts failed.
-- Collection requests should present as access from a Google Chrome browser, as specified by the product owner.
+- A manual refresh from an item's details page queues an immediate check for that item only. An in-progress check is not duplicated.
+- Collection requests should present as access from a Google Chrome browser, as specified by the product owner. A challenge or other non-success response is a retrieval error, not a free price or proof that the listing is unavailable.
 - Whether every successful check is stored or only price changes are stored remains to be decided.
 - The server should expose when the next check is expected if useful to the interface.
 
@@ -100,7 +104,7 @@ The primary page contains the add-item action and the tracked-items list. No sig
 
 ### Item details page
 
-Shows item metadata, recent price detections, collection status, source listing, and deletion action.
+Shows item metadata, recent price detections, collection status, source listing, refresh action, and deletion action.
 
 ### Add-item flow
 
@@ -108,13 +112,13 @@ A URL input with validation feedback, submission progress, and a clear success o
 
 ### Server-backed data
 
-The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete actions. No user identity or ownership model is required in v1.
+The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete/refresh actions. No user identity or ownership model is required in v1.
 
 ## 8. Functional requirements
 
 | ID | Requirement | Priority |
 |---|---|---|
-| FR-01 | The operator can submit an Amazon European listing URL to add an item. | Must |
+| FR-01 | The operator can submit an eligible European Amazon or French LeBoncoin listing URL to add an item. | Must |
 | FR-02 | The server validates URL format and eligibility for v1. | Must |
 | FR-03 | The server stores accepted items and associates price observations with them. | Must |
 | FR-04 | Active items receive two scheduled price collection attempts per day. | Must |
@@ -128,13 +132,15 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-12 | Development mode starts the backend and serves the frontend together, and includes repeatable sample data in an isolated development database. | Must |
 | FR-13 | Development mode supports direct navigation to frontend pages and successful data requests from those pages to the backend. | Must |
 | FR-14 | Adding an accepted item triggers an immediate price collection attempt, followed by the regular twice-daily checks. | Must |
-| FR-15 | Every item collection checks second-hand offers and only stores offers explicitly sold by Amazon; third-party offers are excluded. | Must |
+| FR-15 | Amazon item collections check for second-hand offers and only store offers explicitly sold by Amazon; third-party offers are excluded. This does not apply to LeBoncoin items. | Must |
 | FR-16 | The main list shows the latest Amazon-sold second-hand offer price and condition, or a clear pending/not-found/error state. | Must |
 | FR-17 | The operator can request a check of all tracked items from the main page; the API accepts asynchronously and the interface shows progress. | Must |
+| FR-18 | The operator can request an immediate check of one item from its details page; the API accepts asynchronously and the interface shows progress. | Must |
+| FR-19 | An explicitly donated/free LeBoncoin listing with no numeric price is recorded as zero euros and displayed as “Gratuit”; missing prices are not assumed to be free. | Must |
 
 ## 9. Important states and edge cases
 
-- URL is malformed or does not belong to an eligible European Amazon marketplace.
+- URL is malformed or does not belong to a supported Amazon or LeBoncoin listing.
 - URL is valid but the listing cannot be retrieved or parsed.
 - Item is added but the initial price is pending.
 - The immediate collection attempt after adding an item fails; the item remains tracked and scheduled retries continue.
@@ -145,13 +151,16 @@ The server is the source of truth for tracked items and price observations. The 
 - A scheduled check is delayed or fails.
 - The latest successful price is stale, but retries continue.
 - Amazon blocks or limits a collection request.
+- LeBoncoin blocks a request with a JavaScript challenge or returns a non-success response; record a retrieval error and continue retries.
+- A LeBoncoin listing has no numeric price but explicitly indicates a donation/free item.
+- A LeBoncoin listing has no price and no explicit donation/free text; report price not found, not zero.
 
 The interface should preserve and clearly label the latest successful observation when later checks fail.
 
 ## 10. Non-goals for v1
 
 - User accounts or login.
-- Marketplaces other than European Amazon.
+- Marketplaces other than European Amazon and LeBoncoin France (Temu, Vinted, and Wallapop remain future work).
 - Price trends, percentage changes, or charts.
 - Notifications or target-price alerts.
 - Shipping/tax-inclusive prices, currency conversion, or price ranges.
@@ -164,18 +173,17 @@ Keep price observations for as long as the item remains tracked, including sever
 
 ## 12. Next steps
 
-Potential later marketplace support, after Amazon v1:
+Potential later marketplace support:
 
 - Temu
 - Vinted
 - Wallapop
-- Leboncoin
 
 Each platform will need its own supported-region rules, collection behavior, and handling of listing-specific states. Potential later product enhancements include trends, charts and longer history browsing, notifications, additional currencies, and a higher item limit.
 
 ## 13. Open decisions
 
-1. **Amazon coverage:** Which European Amazon country domains and listing types are supported?
+1. **Amazon coverage:** Are the currently supported European Amazon country domains and listing forms sufficient?
 2. **Schedule:** The implementation defaults to 08:00 and 20:00 in `Europe/Paris`; should the production deployment use different configurable check times or a different timezone?
 3. **Price parsing:** How should promotional, coupon, or multi-option prices be interpreted while only storing the item price?
 4. **Observation policy:** Store every successful check, including unchanged prices, or only record price changes?
@@ -187,12 +195,15 @@ Each platform will need its own supported-region rules, collection behavior, and
 
 ## 14. Initial acceptance criteria
 
-- The operator can submit an eligible European Amazon URL and receive a clear result.
+- The operator can submit an eligible European Amazon or French LeBoncoin URL and receive a clear result.
 - An accepted item appears in the list, including when its initial price is pending.
 - A successful check creates a timestamped euro price observation.
 - A qualifying Amazon-sold second-hand offer is recorded with its timestamp and condition; third-party offers are never shown as Amazon offers.
 - The main list distinguishes a current Amazon-sold offer, no qualifying offer, a pending check, and an uncertain/failed check.
 - The operator can manually refresh all tracked items and see pending progress until the checks finish.
+- The operator can refresh an individual item from its details page and see pending progress until the check finishes.
+- The operator can track an eligible LeBoncoin France ad, including the example priced item and the explicit free/donation item.
+- A free/donation observation is stored as zero euros and shown as “Gratuit”; an absent or unclear price is not shown as free.
 - Adding an accepted item immediately triggers its first collection attempt without waiting for the twice-daily schedule.
 - Active items have two collection attempts per day, and retries continue when checks fail or prices become stale.
 - The list shows the latest successful price and the last three successful detections, or a clear unavailable state.

@@ -13,7 +13,7 @@ export default function DeleteModal({ item, onClose, onConfirm }: Props) {
   const [submitting, setSubmitting] = useState(false);
   if (!item) return null;
 
-  const label = item.title ?? `ASIN ${item.asin}`;
+  const label = item.title ?? `Listing ${item.listingId}`;
   const trackedItem = item;
 
   async function submit() {

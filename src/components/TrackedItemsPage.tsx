@@ -36,6 +36,7 @@ interface Props {
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const priceLabel = (amount: number) => amount === 0 ? "Gratuit" : euro.format(amount);
 const time = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -50,7 +51,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
     const query = search.trim().toLocaleLowerCase();
     if (!query) return items;
     return items.filter((item) =>
-      [item.title ?? "", item.asin, item.marketplace].some((value) =>
+      [item.title ?? "", item.listingId, item.asin ?? "", item.marketplace, item.platform].some((value) =>
         value.toLocaleLowerCase().includes(query),
       ),
     );
@@ -60,7 +61,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
     <section className="tracked-page" aria-labelledby="tracked-heading">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">AMAZON EUROPE</p>
+          <p className="eyebrow">AMAZON · LEBONCOIN</p>
           <h1 id="tracked-heading">Tracked items</h1>
           <p className="page-description">
             {items.length} {items.length === 1 ? "item" : "items"} tracked · Prices checked twice daily
@@ -103,7 +104,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
       ) : error ? null : items.length === 0 ? (
         <div className="empty-state">
           <h2>No items tracked yet</h2>
-          <p>Add an Amazon listing URL to start following its price.</p>
+            <p>Add an Amazon or LeBoncoin listing URL to start following its price.</p>
           <Button renderIcon={Add} onClick={onAdd}>Add your first item</Button>
         </div>
       ) : (
@@ -113,7 +114,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
               <TextInput
                 id="item-search"
                 labelText="Search tracked items"
-                placeholder="Search by title, ASIN, or marketplace"
+                placeholder="Search by title, listing ID, or platform"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -151,7 +152,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                         <Button kind="ghost" className="item-title" onClick={() => onViewDetail(item)}>
                           {item.title ?? "Title unavailable"}
                         </Button>
-                        <span className="item-asin">{item.asin}</span>
+                        <span className="item-asin">{item.listingId}</span>
                       </div>
                     </div>
                   </TableCell>
@@ -159,7 +160,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                   <TableCell>
                     {item.latestPrice ? (
                       <div className="latest-price">
-                        <strong>{euro.format(item.latestPrice.amount)}</strong>
+                      <strong>{priceLabel(item.latestPrice.amount)}</strong>
                         <time dateTime={item.latestPrice.timestamp}>{time.format(new Date(item.latestPrice.timestamp))} UTC</time>
                       </div>
                     ) : <span className="muted">Awaiting first price</span>}
@@ -169,7 +170,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                       <ul className="price-history-list">
                         {item.lastThreeDetections.slice(0, 3).map((observation) => (
                           <li key={observation.timestamp}>
-                            <span>{euro.format(observation.amount)}</span>
+                            <span>{priceLabel(observation.amount)}</span>
                             <time dateTime={observation.timestamp}>{time.format(new Date(observation.timestamp))}</time>
                           </li>
                         ))}
@@ -177,22 +178,22 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                     ) : <span className="muted">No detections yet</span>}
                   </TableCell>
                   <TableCell>
-                    {item.secondHandOffer.status === "available" && item.secondHandOffer.latestDetection ? (
+                    {item.secondHandOffer?.status === "available" && item.secondHandOffer.latestDetection ? (
                       <div className="latest-price">
-                        <strong>{euro.format(item.secondHandOffer.latestDetection.amount)}</strong>
+                        <strong>{priceLabel(item.secondHandOffer.latestDetection.amount)}</strong>
                         <span>{item.secondHandOffer.latestDetection.conditionLabel}</span>
                       </div>
-                    ) : item.secondHandOffer.status === "pending" ? (
+                    ) : item.secondHandOffer?.status === "pending" ? (
                       <span className="muted">Checking Amazon offers…</span>
-                    ) : item.secondHandOffer.status === "not_found" ? (
+                    ) : item.secondHandOffer?.status === "not_found" ? (
                       <span className="muted">No Amazon offer</span>
-                    ) : item.secondHandOffer.latestDetection ? (
+                    ) : item.secondHandOffer?.latestDetection ? (
                       <div className="latest-price">
-                        <strong>{euro.format(item.secondHandOffer.latestDetection.amount)}</strong>
+                        <strong>{priceLabel(item.secondHandOffer.latestDetection.amount)}</strong>
                         <span>{item.secondHandOffer.latestDetection.conditionLabel} · Last detected</span>
                         <span className="muted">Latest check failed</span>
                       </div>
-                    ) : <span className="muted">Amazon offer check unavailable</span>}
+                    ) : item.secondHandOffer ? <span className="muted">Amazon offer check unavailable</span> : <span className="muted">—</span>}
                   </TableCell>
                   <TableCell><StatusTag status={item.status} /></TableCell>
                   <TableCell>
@@ -202,13 +203,13 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                         size="sm"
                         hasIconOnly
                         renderIcon={Launch}
-                        iconDescription={`Open ${item.marketplace} listing in a new tab`}
+                        iconDescription={`Open ${item.platform} listing in a new tab`}
                         onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
                       />
-                      <OverflowMenu flipped size="sm" aria-label={`Actions for ${item.title ?? item.asin}`}>
+                      <OverflowMenu flipped size="sm" aria-label={`Actions for ${item.title ?? item.listingId}`}>
                         <OverflowMenuItem itemText="View details" onClick={() => onViewDetail(item)} />
                         <OverflowMenuItem
-                          itemText="Open on Amazon"
+                          itemText={`Open on ${item.platform === "amazon" ? "Amazon" : "LeBoncoin"}`}
                           onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
                         />
                         <OverflowMenuItem itemText="Delete" isDelete hasDivider onClick={() => onDelete(item)} />

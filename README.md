@@ -1,21 +1,23 @@
 # PriceFollower
 
-PriceFollower is a self-hosted Amazon price tracker for European listings. Add a product URL and the server checks its price twice a day, stores dated price observations, and shows the latest price and recent history in a web interface. It can run on a Raspberry Pi with a single Go executable and a SQLite database.
+PriceFollower is a self-hosted price tracker for European Amazon and French LeBoncoin listings. Add a listing URL and the server checks its price twice a day, stores dated observations, and shows the latest price and recent history in a web interface. It can run on a Raspberry Pi with a single Go executable and a SQLite database.
 
 ## Features
 
 - Track products from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium.
+- Track listings from LeBoncoin France, including explicit donations displayed as “Gratuit”.
 - Collect the first price as soon as a product is added, then check twice daily.
 - View the latest detected price, its timestamp, collection status, and the three latest observations.
 - Track the lowest-priced second-hand offer explicitly sold by Amazon, with its condition and recent history; third-party offers are ignored.
 - Manually refresh all tracked item prices and Amazon-sold second-hand offers from the main page.
+- Manually refresh an item from its details page.
 - Keep checking after stale prices or collection failures.
 - Delete tracked products and their stored price history.
 - Use one shared collection without accounts or login.
 - Run the backend and React frontend in development mode with sample data.
 - Build a self-contained Linux ARM executable with the frontend embedded for Raspberry Pi deployment.
 
-Prices are shown in euros and represent the item price. Shipping, taxes, alerts, trend charts, and marketplaces other than the supported European Amazon sites are outside the current v1 scope.
+Prices are shown in euros and represent the item price. Shipping, taxes, alerts, trend charts, and marketplaces other than European Amazon and LeBoncoin France are outside the current v1 scope.
 
 ## Technology
 
@@ -68,4 +70,4 @@ This is an early, single-instance application intended for a small shared collec
 
 ## Similar projects and search terms
 
-Self-hosted Amazon price tracker · Raspberry Pi price monitoring · European Amazon price history · Go and SQLite price tracking · React Carbon price tracker
+Self-hosted Amazon and LeBoncoin price tracker · Raspberry Pi price monitoring · European price history · Go and SQLite price tracking · React Carbon price tracker

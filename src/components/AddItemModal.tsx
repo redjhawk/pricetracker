@@ -21,7 +21,7 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
 
   async function submit() {
     if (!url.trim()) {
-      setError("Enter an Amazon listing URL.");
+      setError("Enter an Amazon or LeBoncoin listing URL.");
       return;
     }
     setSubmitting(true);
@@ -48,7 +48,7 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
       onRequestClose={close}
       size="sm"
     >
-      <p className="modal-intro">Paste the URL of an Amazon product listing to add it to your tracked items.</p>
+      <p className="modal-intro">Paste the URL of an Amazon or LeBoncoin listing to add it to your tracked items.</p>
       {submitting && <InlineLoading description="Adding the item and starting its first price check…" />}
       {error && (
         <InlineNotification
@@ -62,8 +62,8 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
       )}
       <TextInput
         id="add-item-url"
-        labelText="Amazon listing URL"
-        placeholder="https://www.amazon.de/dp/B0XXXXXXXX"
+        labelText="Listing URL"
+        placeholder="https://www.amazon.fr/dp/B0XXXXXXXX or https://www.leboncoin.fr/ad/..."
         value={url}
         onChange={(event) => {
           setUrl(event.target.value);
@@ -72,7 +72,7 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
         disabled={submitting}
         invalid={Boolean(error)}
         invalidText={error}
-        helperText="Supported euro marketplaces: amazon.de, .fr, .es, .it, .nl, .be"
+        helperText="Supported: European Amazon marketplaces and French LeBoncoin listings"
       />
     </Modal>
   );

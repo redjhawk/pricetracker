@@ -57,6 +57,8 @@ func (s *Store) createSchema(ctx context.Context) error {
 CREATE TABLE IF NOT EXISTS items (
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'amazon',
+  listing_id TEXT NOT NULL DEFAULT '',
   marketplace TEXT NOT NULL,
   canonical_url TEXT NOT NULL UNIQUE,
   url TEXT NOT NULL,
@@ -101,6 +103,48 @@ CREATE INDEX IF NOT EXISTS second_hand_offer_item_time ON second_hand_offer_obse
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
 	}
+	for _, column := range []struct{ name, declaration string }{
+		{"platform", "TEXT NOT NULL DEFAULT 'amazon'"},
+		{"listing_id", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := s.ensureItemColumn(ctx, column.name, column.declaration); err != nil {
+			return err
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, "UPDATE items SET listing_id = asin WHERE listing_id = '' AND platform = 'amazon'"); err != nil {
+		return fmt.Errorf("migrate item listing identifiers: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(items)")
+	if err != nil {
+		return fmt.Errorf("inspect items schema: %w", err)
+	}
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var columnName, columnType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			rows.Close()
+			return fmt.Errorf("read items schema: %w", err)
+		}
+		if columnName == name {
+			rows.Close()
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("read items schema: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close items schema: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, "ALTER TABLE items ADD COLUMN "+name+" "+declaration); err != nil {
+		return fmt.Errorf("add items.%s column: %w", name, err)
+	}
 	return nil
 }
 
@@ -113,7 +157,10 @@ func (s *Store) SeedDevelopment(ctx context.Context, nextCheck func(time.Time) t
 		return err
 	}
 	if count > 0 {
-		return s.seedSecondHandExamples(ctx)
+		if err := s.seedSecondHandExamples(ctx); err != nil {
+			return err
+		}
+		return s.seedLeBoncoinExamples(ctx, nextCheck)
 	}
 	type sample struct {
 		id, asin, marketplace, title, thumbnail string
@@ -148,8 +195,8 @@ func (s *Store) SeedDevelopment(ctx context.Context, nextCheck func(time.Time) t
 		}
 		url := "https://" + item.marketplace + "/dp/" + item.asin
 		if _, err := tx.ExecContext(ctx, `INSERT INTO items
-(id, asin, marketplace, canonical_url, url, title, thumbnail_url, next_check_at, added_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.id, item.asin, item.marketplace, url, url, title, thumbnail,
+(id, asin, platform, listing_id, marketplace, canonical_url, url, title, thumbnail_url, next_check_at, added_at)
+VALUES (?, ?, 'amazon', ?, ?, ?, ?, ?, ?, ?, ?)`, item.id, item.asin, item.asin, item.marketplace, url, url, title, thumbnail,
 			nextCheck(time.Now()).UTC().Format(timestampLayout), time.Now().Add(-time.Duration(addedHours)*time.Hour).UTC().Format(timestampLayout)); err != nil {
 			return err
 		}
@@ -176,7 +223,42 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.id, item.asin, item.marketplace, url, 
 	if err := s.seedSecondHandExamples(ctx); err != nil {
 		return err
 	}
+	if err := s.seedLeBoncoinExamples(ctx, nextCheck); err != nil {
+		return err
+	}
 	fmt.Printf("Seeded %d sample items into %s\n", len(samples), filepath.Join(s.config.DataDirectory, "pricefollower.sqlite"))
+	return nil
+}
+
+func (s *Store) seedLeBoncoinExamples(ctx context.Context, nextCheck func(time.Time) time.Time) error {
+	now := time.Now().UTC()
+	examples := []struct {
+		id, listingID, category, title, thumbnail string
+		priceCents                                int64
+		hoursAgo                                  int
+	}{
+		{"sample-lbc-pool", "3259094860", "jardin_plantes", "Bestway Piscine Hors Sol 404 x 201 x 100 cm Rectangulaire Tubulaire", "https://img.leboncoin.fr/api/v1/lbcpb1/images/e8/2f/29/e82f29bc9cb04ef0378ff3e29b8256f3e4c6a7fa.jpg?rule=ad-thumb", 9900, 4},
+		{"sample-lbc-donation", "3277184962", "bricolage", "Donne dalle noir très lourd", "https://img.leboncoin.fr/api/v1/lbcpb1/images/02/d6/4c/02d64c32f9ed60343cb5130c1080d2e69c68ec27.jpg?rule=ad-thumb", 0, 8},
+	}
+	for _, item := range examples {
+		url := "https://www.leboncoin.fr/ad/" + item.category + "/" + item.listingID
+		if _, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO items
+(id, asin, platform, listing_id, marketplace, canonical_url, url, title, thumbnail_url, next_check_at, added_at)
+VALUES (?, '', 'leboncoin', ?, 'leboncoin.fr', ?, ?, ?, ?, ?, ?)`, item.id, item.listingID, url, url, item.title, item.thumbnail,
+			nextCheck(now).UTC().Format(timestampLayout), now.Add(-time.Duration(item.hoursAgo)*time.Hour).Format(timestampLayout)); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO price_observations (item_id, amount_cents, currency, observed_at)
+SELECT ?, ?, 'EUR', ? WHERE NOT EXISTS (SELECT 1 FROM price_observations WHERE item_id = ?)`, item.id, item.priceCents,
+			now.Add(-time.Duration(item.hoursAgo)*time.Hour).Format(timestampLayout), item.id); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO collection_attempts (item_id, result, attempted_at, message)
+SELECT ?, 'success', ?, NULL WHERE NOT EXISTS (SELECT 1 FROM collection_attempts WHERE item_id = ?)`, item.id,
+			now.Add(-time.Duration(item.hoursAgo)*time.Hour).Format(timestampLayout), item.id); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -277,12 +359,15 @@ func (s *Store) List(ctx context.Context) ([]model.Item, error) {
 
 func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
 	var item model.Item
-	var title, thumbnail, next sql.NullString
+	var asin, title, thumbnail, next sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, asin, marketplace, url, thumbnail_url, next_check_at, added_at FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.ASIN, &item.Marketplace, &item.URL, &thumbnail, &next, &added)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added)
 	if err != nil {
 		return item, err
+	}
+	if item.Platform == "amazon" && asin.Valid {
+		item.ASIN = &asin.String
 	}
 	item.Title = nullString(title)
 	item.ThumbnailURL = nullString(thumbnail)
@@ -317,41 +402,43 @@ func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
 		latest := item.LastThreeDetections[0]
 		item.LatestPrice = &latest
 	}
-	item.SecondHandOffer = model.SecondHandOffer{Status: "pending", LastThreeDetections: make([]model.SecondHandObservation, 0, 3)}
-	var usedStatus, usedChecked string
-	err = s.db.QueryRowContext(ctx, "SELECT status, checked_at FROM second_hand_offer_checks WHERE item_id = ?", id).Scan(&usedStatus, &usedChecked)
-	if err == nil {
-		item.SecondHandOffer.Status = usedStatus
-		checked := parseTimestamp(usedChecked)
-		item.SecondHandOffer.LastCheckedAt = &checked
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return item, err
-	}
-	usedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at FROM second_hand_offer_observations
+	if item.Platform == "amazon" {
+		item.SecondHandOffer = &model.SecondHandOffer{Status: "pending", LastThreeDetections: make([]model.SecondHandObservation, 0, 3)}
+		var usedStatus, usedChecked string
+		err = s.db.QueryRowContext(ctx, "SELECT status, checked_at FROM second_hand_offer_checks WHERE item_id = ?", id).Scan(&usedStatus, &usedChecked)
+		if err == nil {
+			item.SecondHandOffer.Status = usedStatus
+			checked := parseTimestamp(usedChecked)
+			item.SecondHandOffer.LastCheckedAt = &checked
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return item, err
+		}
+		usedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at FROM second_hand_offer_observations
 WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
-	if err != nil {
-		return item, err
-	}
-	for usedRows.Next() {
-		var detection model.SecondHandObservation
-		var observed string
-		if err := usedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
+		if err != nil {
+			return item, err
+		}
+		for usedRows.Next() {
+			var detection model.SecondHandObservation
+			var observed string
+			if err := usedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
+				usedRows.Close()
+				return item, err
+			}
+			detection.Timestamp = parseTimestamp(observed)
+			item.SecondHandOffer.LastThreeDetections = append(item.SecondHandOffer.LastThreeDetections, detection)
+		}
+		if err := usedRows.Err(); err != nil {
 			usedRows.Close()
 			return item, err
 		}
-		detection.Timestamp = parseTimestamp(observed)
-		item.SecondHandOffer.LastThreeDetections = append(item.SecondHandOffer.LastThreeDetections, detection)
-	}
-	if err := usedRows.Err(); err != nil {
-		usedRows.Close()
-		return item, err
-	}
-	if err := usedRows.Close(); err != nil {
-		return item, err
-	}
-	if len(item.SecondHandOffer.LastThreeDetections) > 0 {
-		latest := item.SecondHandOffer.LastThreeDetections[0]
-		item.SecondHandOffer.LatestDetection = &latest
+		if err := usedRows.Close(); err != nil {
+			return item, err
+		}
+		if len(item.SecondHandOffer.LastThreeDetections) > 0 {
+			latest := item.SecondHandOffer.LastThreeDetections[0]
+			item.SecondHandOffer.LatestDetection = &latest
+		}
 	}
 	var result, attempted string
 	var message sql.NullString
@@ -395,8 +482,8 @@ func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bo
 }
 
 func (s *Store) Insert(ctx context.Context, item model.Listing, canonicalURL string, nextCheck time.Time) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, marketplace, canonical_url, url, next_check_at, added_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Marketplace, canonicalURL, item.URL,
+	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
 		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout))
 	return err
 }
@@ -457,7 +544,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, asin, marketplace, url FROM items WHERE id = ?", id).Scan(&item.ID, &item.ASIN, &item.Marketplace, &item.URL)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL)
 	return item, err
 }
 
@@ -486,19 +574,25 @@ func (s *Store) RecordCollection(ctx context.Context, id string, result model.Co
 	if _, err := tx.ExecContext(ctx, "INSERT INTO collection_attempts (item_id, result, attempted_at, message) VALUES (?, ?, ?, ?)", id, result.Result, stamp, attemptMessage); err != nil {
 		return err
 	}
-	usedStatus := result.SecondHandStatus
-	if usedStatus != "available" && usedStatus != "not_found" && usedStatus != "check_error" {
-		usedStatus = "check_error"
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_checks (item_id, status, checked_at) VALUES (?, ?, ?)
-ON CONFLICT(item_id) DO UPDATE SET status = excluded.status, checked_at = excluded.checked_at`, id, usedStatus, stamp); err != nil {
+	var platform string
+	if err := tx.QueryRowContext(ctx, "SELECT platform FROM items WHERE id = ?", id).Scan(&platform); err != nil {
 		return err
 	}
-	if usedStatus == "available" {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
-(item_id, amount_cents, currency, condition, condition_label, observed_at) VALUES (?, ?, 'EUR', ?, ?, ?)`, id,
-			result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel, stamp); err != nil {
+	if platform == "amazon" {
+		usedStatus := result.SecondHandStatus
+		if usedStatus != "available" && usedStatus != "not_found" && usedStatus != "check_error" {
+			usedStatus = "check_error"
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_checks (item_id, status, checked_at) VALUES (?, ?, ?)
+ON CONFLICT(item_id) DO UPDATE SET status = excluded.status, checked_at = excluded.checked_at`, id, usedStatus, stamp); err != nil {
 			return err
+		}
+		if usedStatus == "available" {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
+(item_id, amount_cents, currency, condition, condition_label, observed_at) VALUES (?, ?, 'EUR', ?, ?, ?)`, id,
+				result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel, stamp); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit()

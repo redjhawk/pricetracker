@@ -30,23 +30,27 @@ type SecondHandOffer struct {
 }
 
 type Item struct {
-	ID                  string          `json:"id"`
-	Title               *string         `json:"title"`
-	ASIN                string          `json:"asin"`
-	Marketplace         string          `json:"marketplace"`
-	URL                 string          `json:"url"`
-	ThumbnailURL        *string         `json:"thumbnailUrl"`
-	Status              string          `json:"status"`
-	LatestPrice         *Observation    `json:"latestPrice"`
-	LastThreeDetections []Observation   `json:"lastThreeDetections"`
-	SecondHandOffer     SecondHandOffer `json:"secondHandOffer"`
-	LastAttempt         *Attempt        `json:"lastAttempt"`
-	NextCheckAt         *time.Time      `json:"nextCheckAt"`
-	AddedAt             time.Time       `json:"addedAt"`
+	ID                  string           `json:"id"`
+	Title               *string          `json:"title"`
+	Platform            string           `json:"platform"`
+	ListingID           string           `json:"listingId"`
+	ASIN                *string          `json:"asin"`
+	Marketplace         string           `json:"marketplace"`
+	URL                 string           `json:"url"`
+	ThumbnailURL        *string          `json:"thumbnailUrl"`
+	Status              string           `json:"status"`
+	LatestPrice         *Observation     `json:"latestPrice"`
+	LastThreeDetections []Observation    `json:"lastThreeDetections"`
+	SecondHandOffer     *SecondHandOffer `json:"secondHandOffer"`
+	LastAttempt         *Attempt         `json:"lastAttempt"`
+	NextCheckAt         *time.Time       `json:"nextCheckAt"`
+	AddedAt             time.Time        `json:"addedAt"`
 }
 
 type Listing struct {
 	ID          string
+	Platform    string
+	ListingID   string
 	ASIN        string
 	Marketplace string
 	URL         string

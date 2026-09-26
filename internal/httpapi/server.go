@@ -92,6 +92,30 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	const itemPrefix = "/api/v1/items/"
+	const refreshSuffix = "/refresh"
+	if strings.HasPrefix(path, itemPrefix) && strings.HasSuffix(path, refreshSuffix) {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, itemPrefix), refreshSuffix)
+		if id == "" || strings.Contains(id, "/") {
+			writeError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", "API route was not found.")
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
+			return
+		}
+		requestedAt, err := s.service.RefreshItem(r.Context(), id)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "ITEM_NOT_FOUND", "Tracked item was not found.")
+			return
+		}
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"requestedAt": requestedAt, "itemsQueued": 1})
+		return
+	}
 	if strings.HasPrefix(path, itemPrefix) {
 		id := strings.TrimPrefix(path, itemPrefix)
 		if id == "" || strings.Contains(id, "/") {

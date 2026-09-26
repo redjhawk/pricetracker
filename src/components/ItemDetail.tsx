@@ -9,8 +9,9 @@ import {
   StructuredListRow,
   StructuredListWrapper,
   Tag,
+  InlineLoading,
 } from "@carbon/react";
-import { Launch, TrashCan } from "@carbon/icons-react";
+import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
 import StatusTag from "./StatusTag";
 
@@ -18,9 +19,13 @@ interface Props {
   item: TrackedItem;
   onBack: () => void;
   onDelete: (item: TrackedItem) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+  refreshError: string | null;
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const priceLabel = (amount: number) => amount === 0 ? "Gratuit" : euro.format(amount);
 const dateTime = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -31,8 +36,8 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   timeZoneName: "short",
 });
 
-export default function ItemDetail({ item, onBack, onDelete }: Props) {
-  const title = item.title ?? `Listing ${item.asin}`;
+export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshing, refreshError }: Props) {
+  const title = item.title ?? `Listing ${item.listingId}`;
 
   return (
     <section className="detail-page" aria-labelledby="detail-heading">
@@ -49,11 +54,14 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
           <h1 id="detail-heading">{title}</h1>
           <div className="detail-tags">
             <Tag type="cool-gray" size="sm">{item.marketplace}</Tag>
-            <Tag type="cool-gray" size="sm">{item.asin}</Tag>
+            <Tag type="cool-gray" size="sm">{item.listingId}</Tag>
             <StatusTag status={item.status} />
           </div>
         </div>
         <div className="detail-actions">
+          <Button kind="tertiary" size="sm" renderIcon={Renew} onClick={onRefresh} disabled={refreshing}>
+            Refresh price
+          </Button>
           <Button
             kind="ghost"
             size="sm"
@@ -61,14 +69,17 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-          >
-            Open on Amazon
-          </Button>
+          >Open on {item.platform === "amazon" ? "Amazon" : "LeBoncoin"}</Button>
           <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => onDelete(item)}>
             Delete
           </Button>
         </div>
       </div>
+
+      {refreshing && <InlineLoading description="Refreshing this item's price…" />}
+      {refreshError && (
+        <InlineNotification kind="error" title="Could not refresh price" subtitle={refreshError} lowContrast className="detail-notification" />
+      )}
 
       {item.status === "stale" && (
         <InlineNotification
@@ -112,7 +123,7 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
           <p className="summary-label">Latest price</p>
           {item.latestPrice ? (
             <>
-              <p className="summary-price">{euro.format(item.latestPrice.amount)}</p>
+              <p className="summary-price">{priceLabel(item.latestPrice.amount)}</p>
               <p className="summary-footnote">
                 Detected <time dateTime={item.latestPrice.timestamp}>{dateTime.format(new Date(item.latestPrice.timestamp))}</time>
               </p>
@@ -126,11 +137,11 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
           </p>
           <p className="summary-footnote">Added {dateTime.format(new Date(item.addedAt))}</p>
         </article>
-        <article className="summary-tile">
+        {item.secondHandOffer && <article className="summary-tile">
           <p className="summary-label">Amazon second-hand offer</p>
           {item.secondHandOffer.status === "available" && item.secondHandOffer.latestDetection ? (
             <>
-              <p className="summary-price">{euro.format(item.secondHandOffer.latestDetection.amount)}</p>
+              <p className="summary-price">{priceLabel(item.secondHandOffer.latestDetection.amount)}</p>
               <p className="summary-footnote">{item.secondHandOffer.latestDetection.conditionLabel}</p>
               <p className="summary-footnote">
                 Detected <time dateTime={item.secondHandOffer.latestDetection.timestamp}>{dateTime.format(new Date(item.secondHandOffer.latestDetection.timestamp))}</time>
@@ -142,12 +153,12 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
             <p className="summary-empty">No Amazon-sold second-hand offer found.</p>
           ) : item.secondHandOffer.latestDetection ? (
             <>
-              <p className="summary-price">{euro.format(item.secondHandOffer.latestDetection.amount)}</p>
+              <p className="summary-price">{priceLabel(item.secondHandOffer.latestDetection.amount)}</p>
               <p className="summary-footnote">Last detected: {item.secondHandOffer.latestDetection.conditionLabel}</p>
               <p className="summary-footnote">The latest offer check could not be completed.</p>
             </>
           ) : <p className="summary-empty">Amazon offer check unavailable.</p>}
-        </article>
+        </article>}
       </div>
 
       <div className="history-heading">
@@ -172,7 +183,7 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
             {item.lastThreeDetections.slice(0, 3).map((observation, index) => (
               <StructuredListRow key={`${observation.timestamp}-${index}`}>
                 <StructuredListCell>{index + 1}</StructuredListCell>
-                <StructuredListCell className="detection-price">{euro.format(observation.amount)}</StructuredListCell>
+                <StructuredListCell className="detection-price">{priceLabel(observation.amount)}</StructuredListCell>
                 <StructuredListCell>
                   <time dateTime={observation.timestamp}>{dateTime.format(new Date(observation.timestamp))}</time>
                 </StructuredListCell>
@@ -182,6 +193,7 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
         </StructuredListWrapper>
       )}
 
+      {item.secondHandOffer && <>
       <div className="history-heading second-hand-history-heading">
         <div>
           <h2>Recent Amazon second-hand offers</h2>
@@ -215,6 +227,7 @@ export default function ItemDetail({ item, onBack, onDelete }: Props) {
           </StructuredListBody>
         </StructuredListWrapper>
       )}
+      </>}
     </section>
   );
 }

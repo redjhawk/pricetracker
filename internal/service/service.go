@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	mathrand "math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 
 	"pricefollower.local/config"
 	"pricefollower.local/internal/amazon"
+	"pricefollower.local/internal/leboncoin"
 	"pricefollower.local/internal/model"
 	"pricefollower.local/internal/store"
 )
@@ -25,12 +27,16 @@ type Error struct {
 	Message string
 }
 
+type collector interface {
+	Collect(context.Context, model.Listing) model.CollectionResult
+}
+
 func (e *Error) Error() string { return e.Message }
 
 type Service struct {
 	config        config.Config
 	store         *store.Store
-	collector     *amazon.Collector
+	collectors    map[string]collector
 	mu            sync.Mutex
 	inFlight      map[string]time.Time
 	workerContext context.Context
@@ -41,7 +47,15 @@ type Service struct {
 
 func New(cfg config.Config, database *store.Store) *Service {
 	workerContext, stopWorkers := context.WithCancel(context.Background())
-	return &Service{config: cfg, store: database, collector: amazon.NewCollector(cfg.UserAgent), inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers, refreshSlots: make(chan struct{}, 2)}
+	return &Service{
+		config: cfg, store: database,
+		collectors: map[string]collector{
+			"amazon":    amazon.NewCollector(cfg.UserAgent),
+			"leboncoin": leboncoin.NewCollector(cfg.UserAgent),
+		},
+		inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers,
+		refreshSlots: make(chan struct{}, 2),
+	}
 }
 
 func (s *Service) Close() {
@@ -90,14 +104,24 @@ func (s *Service) Get(ctx context.Context, id string) (model.Item, error) {
 }
 
 func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
-	parsed := amazon.ParseURL(strings.TrimSpace(rawURL))
-	if parsed.Kind == "invalid" {
-		return model.Item{}, &Error{Status: 400, Code: "INVALID_URL", Message: "Enter a valid HTTPS Amazon listing URL."}
+	rawURL = strings.TrimSpace(rawURL)
+	amazonURL := amazon.ParseURL(rawURL)
+	leboncoinURL := leboncoin.ParseURL(rawURL)
+	var itemListing model.Listing
+	var canonical string
+	switch {
+	case amazonURL.Kind == "valid":
+		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: amazonURL.URL}
+		canonical = amazonURL.Canonical
+	case leboncoinURL.Kind == "valid":
+		itemListing = model.Listing{Platform: "leboncoin", ListingID: leboncoinURL.ListingID, Marketplace: leboncoinURL.Marketplace, URL: leboncoinURL.URL}
+		canonical = leboncoinURL.Canonical
+	case amazonURL.Kind == "invalid" && leboncoinURL.Kind == "invalid":
+		return model.Item{}, &Error{Status: 400, Code: "INVALID_URL", Message: "Enter a valid HTTPS Amazon or LeBoncoin listing URL."}
+	default:
+		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported Amazon euro marketplaces and LeBoncoin listings."}
 	}
-	if parsed.Kind != "valid" {
-		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported euro-priced Amazon marketplaces."}
-	}
-	exists, err := s.store.IsCanonicalTracked(ctx, parsed.Canonical)
+	exists, err := s.store.IsCanonicalTracked(ctx, canonical)
 	if err != nil {
 		return model.Item{}, err
 	}
@@ -108,8 +132,8 @@ func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
 	if err != nil {
 		return model.Item{}, err
 	}
-	itemListing := model.Listing{ID: id, ASIN: parsed.ASIN, Marketplace: parsed.Marketplace, URL: parsed.URL}
-	if err := s.store.Insert(ctx, itemListing, parsed.Canonical, s.NextCheckAt(time.Now())); err != nil {
+	itemListing.ID = id
+	if err := s.store.Insert(ctx, itemListing, canonical, s.NextCheckAt(time.Now())); err != nil {
 		if store.IsUniqueConstraint(err) {
 			return model.Item{}, &Error{Status: 409, Code: "ITEM_ALREADY_TRACKED", Message: "This listing is already being tracked."}
 		}
@@ -154,6 +178,27 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 	return requestedAt, len(ids), nil
 }
 
+func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
+	if _, err := s.store.Listing(ctx, id); err != nil {
+		return time.Time{}, err
+	}
+	requestedAt := time.Now().UTC()
+	if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
+		return time.Time{}, err
+	}
+	s.mu.Lock()
+	_, active := s.inFlight[id]
+	if !active {
+		s.inFlight[id] = requestedAt
+	}
+	s.mu.Unlock()
+	if !active {
+		s.workers.Add(1)
+		go s.runQueuedCollection(id)
+	}
+	return requestedAt, nil
+}
+
 func (s *Service) runQueuedCollection(id string) {
 	defer s.workers.Done()
 	select {
@@ -189,7 +234,12 @@ func (s *Service) collectReserved(ctx context.Context, id string) {
 	}
 	requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 	defer cancel()
-	result := s.collector.Collect(requestContext, item)
+	collector, exists := s.collectors[item.Platform]
+	if !exists {
+		log.Printf("no collector registered for platform %q on item %s", item.Platform, id)
+		return
+	}
+	result := collector.Collect(requestContext, item)
 	if _, err := s.store.Listing(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return
 	} else if err != nil {
@@ -231,6 +281,7 @@ func (s *Service) collectDue(ctx context.Context) {
 		}
 		return
 	}
+	collected := false
 	for _, id := range ids {
 		if ctx.Err() != nil {
 			return
@@ -241,11 +292,27 @@ func (s *Service) collectDue(ctx context.Context) {
 		if active {
 			continue
 		}
+		if collected && !waitScheduledRequest(ctx) {
+			return
+		}
 		if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(time.Now())); err != nil {
 			log.Printf("schedule next check for item %s: %v", id, err)
 			continue
 		}
 		s.Collect(ctx, id)
+		collected = true
+	}
+}
+
+func waitScheduledRequest(ctx context.Context) bool {
+	delay := time.Duration(5+mathrand.Intn(56)) * time.Second
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
@@ -261,7 +328,9 @@ func (s *Service) withInFlight(item model.Item) model.Item {
 
 func (s *Service) withPending(item model.Item, timestamp time.Time) model.Item {
 	item.Status = "pending"
-	item.SecondHandOffer.Status = "pending"
+	if item.SecondHandOffer != nil {
+		item.SecondHandOffer.Status = "pending"
+	}
 	item.LastAttempt = &model.Attempt{Result: "pending", Timestamp: timestamp.UTC(), Message: nil}
 	return item
 }

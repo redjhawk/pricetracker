@@ -28,14 +28,16 @@ export interface SecondHandOffer {
 export interface TrackedItem {
   id: string;
   title: string | null;
-  asin: string;
+  platform: "amazon" | "leboncoin";
+  listingId: string;
+  asin: string | null;
   marketplace: string;
   url: string;
   thumbnailUrl: string | null;
   status: ItemStatus;
   latestPrice: PriceObservation | null;
   lastThreeDetections: PriceObservation[];
-  secondHandOffer: SecondHandOffer;
+  secondHandOffer: SecondHandOffer | null;
   lastAttempt?: {
     result: "pending" | "success" | "request_error" | "price_not_found" | "unavailable";
     timestamp: string;

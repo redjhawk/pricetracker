@@ -10,7 +10,7 @@ import {
 } from "@carbon/react";
 import { Add, ChartLine } from "@carbon/icons-react";
 import type { TrackedItem } from "./types";
-import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems, refreshAllItems } from "./api/items";
+import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems, refreshAllItems, refreshItem } from "./api/items";
 import AddItemModal from "./components/AddItemModal";
 import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
@@ -35,6 +35,8 @@ export default function App() {
   const [detailItem, setDetailItem] = useState<TrackedItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRefreshing, setDetailRefreshing] = useState(false);
+  const [detailRefreshError, setDetailRefreshError] = useState<string | null>(null);
   const [pathname, setPathname] = useState(window.location.pathname);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TrackedItem | null>(null);
@@ -80,6 +82,8 @@ export default function App() {
       setDetailItem(null);
       setDetailError(null);
       setDetailLoading(false);
+      setDetailRefreshing(false);
+      setDetailRefreshError(null);
       return;
     }
 
@@ -94,14 +98,21 @@ export default function App() {
   }, [itemId]);
 
   useEffect(() => {
-    if (!itemId || detailItem?.status !== "pending") return;
+    if (!itemId || (detailItem?.status !== "pending" && !detailRefreshing)) return;
+    let active = true;
     const poll = window.setInterval(() => {
       getItem(itemId)
-        .then(setDetailItem)
-        .catch((error) => setDetailError(errorMessage(error)));
-    }, 5_000);
-    return () => window.clearInterval(poll);
-  }, [itemId, detailItem?.status]);
+        .then((item) => {
+          if (!active) return;
+          setDetailItem(item);
+          if (item.status !== "pending") setDetailRefreshing(false);
+        })
+        .catch((error) => {
+          if (active) setDetailError(errorMessage(error));
+        });
+    }, 3_000);
+    return () => { active = false; window.clearInterval(poll); };
+  }, [itemId, detailItem?.status, detailRefreshing]);
 
   function navigate(path: string) {
     window.history.pushState(null, "", path);
@@ -132,6 +143,20 @@ export default function App() {
     } catch (error) {
       setRefreshError(errorMessage(error));
       setRefreshing(false);
+    }
+  }
+
+  async function handleRefreshItem(id: string) {
+    setDetailRefreshing(true);
+    setDetailRefreshError(null);
+    try {
+      await refreshItem(id);
+      const updated = await getItem(id);
+      setDetailItem(updated);
+      if (updated.status !== "pending") setDetailRefreshing(false);
+    } catch (error) {
+      setDetailRefreshing(false);
+      setDetailRefreshError(errorMessage(error));
     }
   }
 
@@ -168,6 +193,9 @@ export default function App() {
                 item={detailItem}
                 onBack={() => navigate("/")}
                 onDelete={setDeleteTarget}
+                onRefresh={() => void handleRefreshItem(detailItem.id)}
+                refreshing={detailRefreshing}
+                refreshError={detailRefreshError}
               />
             ) : null
           ) : (

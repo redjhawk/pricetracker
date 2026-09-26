@@ -9,7 +9,9 @@ interface ApiPriceObservation {
 interface ApiTrackedItem {
   id: string;
   title: string | null;
-  asin: string;
+  platform: TrackedItem["platform"];
+  listingId: string;
+  asin: string | null;
   marketplace: string;
   url: string;
   thumbnailUrl: string | null;
@@ -21,7 +23,7 @@ interface ApiTrackedItem {
     latestDetection: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null;
     lastThreeDetections: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
     lastCheckedAt: string | null;
-  };
+  } | null;
   nextCheckAt: string | null;
   addedAt: string;
 }
@@ -67,11 +69,13 @@ function mapItem(item: ApiTrackedItem): TrackedItem {
     ...item,
     latestPrice: mapObservation(item.latestPrice),
     lastThreeDetections: item.lastThreeDetections.map((observation) => mapObservation(observation)!),
-    secondHandOffer: {
-      ...item.secondHandOffer,
-      latestDetection: mapSecondHandDetection(item.secondHandOffer.latestDetection),
-      lastThreeDetections: item.secondHandOffer.lastThreeDetections.map((observation) => mapSecondHandDetection(observation)!),
-    },
+    secondHandOffer: item.secondHandOffer
+      ? {
+          ...item.secondHandOffer,
+          latestDetection: mapSecondHandDetection(item.secondHandOffer.latestDetection),
+          lastThreeDetections: item.secondHandOffer.lastThreeDetections.map((observation) => mapSecondHandDetection(observation)!),
+        }
+      : null,
   };
 }
 
@@ -122,4 +126,8 @@ export function deleteItem(id: string): Promise<void> {
 
 export function refreshAllItems(): Promise<{ requestedAt: string; itemsQueued: number }> {
   return request<{ requestedAt: string; itemsQueued: number }>("/api/v1/items/refresh", { method: "POST" });
+}
+
+export function refreshItem(id: string): Promise<{ requestedAt: string; itemsQueued: number }> {
+  return request<{ requestedAt: string; itemsQueued: number }>(`/api/v1/items/${encodeURIComponent(id)}/refresh`, { method: "POST" });
 }
