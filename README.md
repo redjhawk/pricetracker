@@ -38,7 +38,7 @@ npm run dev
 
 Open <http://localhost:5173>. Vite serves the frontend and proxies API requests to the Go server on port `3001`. The development backend seeds sample products into `.data/pricefollower.sqlite` on its first run. This development database is separate from the production data directory.
 
-The API contract is documented in [API_SPECIFICATION.md](API_SPECIFICATION.md). Product scope and behavior are in [FUNCTIONAL_SPECIFICATIONS.md](FUNCTIONAL_SPECIFICATIONS.md).
+The API contract is documented in [API_SPECIFICATION.md](API_SPECIFICATION.md). Product scope and behavior are in [doc/FUNCTIONAL_SPECIFICATIONS.md](doc/FUNCTIONAL_SPECIFICATIONS.md), with user and system flows listed in [doc/use-cases/README.md](doc/use-cases/README.md).
 
 ## Raspberry Pi deployment
 

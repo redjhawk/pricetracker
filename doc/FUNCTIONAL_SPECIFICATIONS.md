@@ -4,17 +4,19 @@
 
 The service tracks the price of an item listed on a European Amazon marketplace or LeBoncoin France. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface.
 
-This document defines the first version (v1). Other marketplaces and possible enhancements are listed under [Next steps](#11-next-steps). Remaining decisions are listed under [Open decisions](#12-open-decisions).
+This document defines the first version (v1). Other marketplaces and possible enhancements are listed under [Next steps](#12-next-steps). Remaining decisions are listed under [Open decisions](#13-open-decisions).
+
+Related documents: [API contract](../API_SPECIFICATION.md) · [Use case index](use-cases/README.md).
 
 ## 2. V1 goals and scope
 
 - Add a supported European Amazon or LeBoncoin listing by URL.
 - Check each active item twice per day and store detected prices with timestamps.
-- Show all tracked items, their latest known prices, and the last three detected prices.
+- Show all tracked items and their latest known prices in one compact Prices column, with up to three recent price periods that combine consecutive checks at the same price.
 - Show the latest second-hand offer sold by Amazon, when available, with its condition and recent detections.
 - Allow the operator to manually refresh the prices for all tracked items.
 - Allow the operator to manually refresh an individual item from its details page.
-- Allow the operator to inspect recent price detections and delete an item.
+- Allow the operator to inspect the complete price history for a tracked item and delete an item.
 - Keep collection attempts running when a price is stale or a check fails.
 
 V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
@@ -28,6 +30,8 @@ Prices are the item price only, in euros. Shipping, taxes, and other charges are
 **Price observation:** A successful detection containing the item price in euros and the detection timestamp. Collection failures are recorded separately and do not overwrite the last successful price.
 
 **Latest price:** The value and timestamp from the latest successful observation. It may be stale if later checks have failed or been delayed.
+
+**Price period:** A run of consecutive successful observations with the same price. The main list shows each recent period once, using the timestamp of that price's latest successful observation. A new amount starts a new period, including when the amount returns to an earlier value after changing.
 
 ## 4. Technical architecture constraints
 
@@ -62,9 +66,8 @@ The main page shows all tracked items. Each row/card includes:
 - Item title, or a fallback label if unavailable.
 - Source platform and listing link.
 - Thumbnail when available.
-- Latest successfully detected item price in euros, or an explicit unavailable state.
-- Time of the latest successful detection.
-- The last three successfully detected prices with their timestamps.
+- One compact Prices column containing up to three recent consecutive price periods, newest first. The latest price appears once as the first period; each amount is paired with the time of its latest successful observation. Repeated checks at the same price update that period's time; a changed price starts a new period.
+- An explicit unavailable or awaiting-first-price state when no successful price is available.
 - Collection/listing status, such as active, stale, retrieval issue, or unavailable.
 - Latest second-hand offer sold by Amazon for Amazon items, including price and condition; third-party offers are ignored. This field is not applicable to LeBoncoin items.
 - Actions to open item details, delete an item, or refresh all tracked items.
@@ -73,7 +76,7 @@ The page should have clear empty, loading, and error states. A stale price does 
 
 ### 5.3 View item details
 
-The detail view shows item metadata, platform, listing URL, latest known price and timestamp, current status, and a chronological list of the last three successful detections. It shows Amazon second-hand detections only for Amazon items. The operator can request an immediate price refresh from this page; the interface displays progress and then reloads the server result. V1 does not require a chart, trend calculation, or arbitrary date-range selection.
+The detail view shows item metadata, platform, listing URL, latest known price and timestamp, current status, and every successful price detection for as long as the item has been tracked, newest first. Amazon items also show every successful Amazon-sold second-hand offer detection with its condition. The operator can scroll through the full lists and request an immediate price refresh from this page; the interface displays progress and then reloads the server result. V1 does not require a chart, trend calculation, or arbitrary date-range selection.
 
 ### 5.4 Delete an item
 
@@ -94,14 +97,14 @@ The operator can delete an item from tracking. Deletion removes the item and its
 - Continue scheduled retries when an item is stale or previous collection attempts failed.
 - A manual refresh from an item's details page queues an immediate check for that item only. An in-progress check is not duplicated.
 - Collection requests should present as access from a Google Chrome browser, as specified by the product owner. A challenge or other non-success response is a retrieval error, not a free price or proof that the listing is unavailable.
-- Whether every successful check is stored or only price changes are stored remains to be decided.
+- Store every successful price check, including unchanged prices, and retain every observation while the item remains tracked.
 - The server should expose when the next check is expected if useful to the interface.
 
 ## 7. Pages and interface areas
 
 ### Tracked items page
 
-The primary page contains the add-item action and the tracked-items list. No sign-in is required.
+The primary page contains the add-item action, a search field, and the tracked-items list. Search filters locally by title, listing ID, ASIN, platform, or marketplace. Each row presents the latest price and recent price periods together in the Prices column. No sign-in is required.
 
 ### Item details page
 
@@ -123,8 +126,8 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-02 | The server validates URL format and eligibility for v1. | Must |
 | FR-03 | The server stores accepted items and associates price observations with them. | Must |
 | FR-04 | Active items receive two scheduled price collection attempts per day. | Must |
-| FR-05 | The list shows the latest successful item price in euros, its timestamp, the last three detections, and status. | Must |
-| FR-06 | The detail view shows the last three successful price observations. | Must |
+| FR-05 | The list shows the latest successful item price and up to three recent consecutive price periods together in one Prices column, newest first, with each period's latest observation time. Repeated checks at the same price update that period's time; a different price starts a new period. | Must |
+| FR-06 | The detail view shows all successful price observations for the full tracking period. | Must |
 | FR-07 | Collection failures are recorded without corrupting the last successful price, and retries continue. | Must |
 | FR-08 | The operator can open the source listing. | Should |
 | FR-09 | The operator can delete an item and its associated price history. | Must |
@@ -138,6 +141,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-17 | The operator can request a check of all tracked items from the main page; the API accepts asynchronously and the interface shows progress. | Must |
 | FR-18 | The operator can request an immediate check of one item from its details page; the API accepts asynchronously and the interface shows progress. | Must |
 | FR-19 | An explicitly donated/free LeBoncoin listing with no numeric price is recorded as zero euros and displayed as “Gratuit”; missing prices are not assumed to be free. | Must |
+| FR-20 | The item details view shows every successful item-price observation for the full tracking period; Amazon details also show every successful Amazon-sold second-hand offer observation. | Must |
 
 ## 9. Important states and edge cases
 
@@ -180,19 +184,17 @@ Potential later marketplace support:
 - Vinted
 - Wallapop
 
-Each platform will need its own supported-region rules, collection behavior, and handling of listing-specific states. Potential later product enhancements include trends, charts and longer history browsing, notifications, additional currencies, and a higher item limit.
+Each platform will need its own supported-region rules, collection behavior, and handling of listing-specific states. Potential later product enhancements include trends, charts, notifications, additional currencies, and a higher item limit.
 
 ## 13. Open decisions
 
 1. **Amazon coverage:** Are the currently supported European Amazon country domains and listing forms sufficient?
 2. **Schedule:** The implementation defaults to 08:00 and 20:00 in `Europe/Paris`; should the production deployment use different configurable check times or a different timezone?
 3. **Price parsing:** How should promotional, coupon, or multi-option prices be interpreted while only storing the item price?
-4. **Observation policy:** Store every successful check, including unchanged prices, or only record price changes?
-5. **Detail history:** Should v1 details show only the last three detections or a longer chronological list?
-6. **Staleness:** After how long without a successful check should a price be marked stale?
-7. **Item limit:** Should the approximately 100-item limit be enforced, and what should happen when it is reached?
-8. **Failures:** How should repeated failures and unavailable listings be surfaced? Should retries use a defined backoff?
-9. **Presentation:** Which language, locale formatting, and accessibility target should the interface use?
+4. **Staleness:** After how long without a successful check should a price be marked stale?
+5. **Item limit:** Should the approximately 100-item limit be enforced, and what should happen when it is reached?
+6. **Failures:** How should repeated failures and unavailable listings be surfaced? Should retries use a defined backoff?
+7. **Presentation:** Which language, locale formatting, and accessibility target should the interface use?
 
 ## 14. Initial acceptance criteria
 
@@ -207,8 +209,8 @@ Each platform will need its own supported-region rules, collection behavior, and
 - A free/donation observation is stored as zero euros and shown as “Gratuit”; an absent or unclear price is not shown as free.
 - Adding an accepted item immediately triggers its first collection attempt without waiting for the twice-daily schedule.
 - Active items have two collection attempts per day, and retries continue when checks fail or prices become stale.
-- The list shows the latest successful price and the last three successful detections, or a clear unavailable state.
-- The details view exposes recent detections in a readable form.
+- The list shows the latest successful price once, together with up to three recent consecutive price periods in one Prices column, or a clear unavailable state.
+- The item details view displays all successful item-price detections, and all successful Amazon-sold second-hand detections when applicable.
 - Failed checks do not erase or misrepresent the last successful price.
 - Deleting an item removes its stored price history.
 - No login is required; the server stores data and collects prices, while the front end displays server-provided information.
