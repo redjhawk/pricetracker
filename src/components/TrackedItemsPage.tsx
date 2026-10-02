@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
   TextInput,
-  Tag,
 } from "@carbon/react";
 import { Add, Launch, Renew } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
@@ -122,7 +121,6 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
             <TableHead>
               <TableRow>
                 <TableHeader>Item</TableHeader>
-                <TableHeader>Marketplace</TableHeader>
                 <TableHeader>Prices</TableHeader>
                 <TableHeader>Amazon second-hand offer</TableHeader>
                 <TableHeader>Status</TableHeader>
@@ -132,7 +130,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={5}>
                     <p className="table-empty">No items match your search.</p>
                   </TableCell>
                 </TableRow>
@@ -149,11 +147,10 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                         <Button kind="ghost" className="item-title" onClick={() => onViewDetail(item)}>
                           {item.title ?? "Title unavailable"}
                         </Button>
-                        <span className="item-asin">{item.listingId}</span>
+                        <span className="item-asin">{item.marketplace} · {item.listingId}</span>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell><Tag type="cool-gray" size="sm">{item.marketplace}</Tag></TableCell>
                   <TableCell>
                     {item.lastThreeDetections.length || item.latestPrice ? (
                       <ul className="price-history-list">

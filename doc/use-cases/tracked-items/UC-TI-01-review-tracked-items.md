@@ -12,7 +12,7 @@
 
 1. The page requests the tracked-item collection from `GET /api/v1/items`.
 2. The system returns the shared collection, ordered by most recently added item first.
-3. The page shows each item's title or fallback label, thumbnail when available, platform, listing ID, status, and row actions.
+3. The page shows each item's title or fallback label and thumbnail when available in the **Item** column, with marketplace followed by listing ID below the title. There is no standalone **Marketplace** column. Status and row actions remain available.
 4. A single **Prices** column shows up to three recent consecutive price periods, newest first. The latest price is shown once as the newest period, with its most recent successful observation time.
 5. Repeated successful checks at the same price update that period's displayed time. A changed price starts a new period, including a return to a price seen before an intervening change.
 6. For Amazon items, the page shows the latest qualifying Amazon-sold second-hand offer or its pending, not-found, or check-error state.
