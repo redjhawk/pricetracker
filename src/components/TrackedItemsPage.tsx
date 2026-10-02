@@ -12,8 +12,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableToolbar,
-  TableToolbarContent,
   TextInput,
   Tag,
 } from "@carbon/react";
@@ -108,19 +106,19 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
           <Button renderIcon={Add} onClick={onAdd}>Add your first item</Button>
         </div>
       ) : (
-        <TableContainer className="tracked-table-container">
-          <TableToolbar>
-            <TableToolbarContent>
-              <TextInput
-                id="item-search"
-                labelText="Search tracked items"
-                placeholder="Search by title, listing ID, or platform"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </TableToolbarContent>
-          </TableToolbar>
-          <Table size="lg" aria-label="Tracked items">
+        <>
+          <div className="tracked-table-search">
+            <TextInput
+              id="item-search"
+              className="tracked-search"
+              labelText="Search tracked items"
+              placeholder="Search by title, listing ID, or platform"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <TableContainer className="tracked-table-container">
+            <Table size="lg" aria-label="Tracked items">
             <TableHead>
               <TableRow>
                 <TableHeader>Item</TableHeader>
@@ -219,8 +217,9 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        </TableContainer>
+            </Table>
+          </TableContainer>
+        </>
       )}
     </section>
   );
