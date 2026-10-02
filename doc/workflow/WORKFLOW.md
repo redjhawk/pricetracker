@@ -12,7 +12,7 @@ The coordinator records the paths of all artifacts in the feature's index, `doc/
 
 Assign stable requirement IDs such as `FR-ITEM-DETAILS-001`, technical IDs such as `TS-ITEM-DETAILS-001`, review IDs such as `REV-001`, and QA case IDs such as `QA-001`. Link technical design, implementation, review findings, and QA results to their source requirements. Preserve IDs when documents change.
 
-Artifact states are `draft`, `needs-clarification`, `ready`, `approved` where approval is required, and `superseded`. A ready artifact has no unresolved question that affects its handoff; ready does not mean user-approved. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `qa`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
+Artifact states are `draft`, `needs-clarification`, `ready`, `approved` where approval is required, and `superseded`. A ready artifact has no unresolved question that affects its handoff; ready does not mean user-approved. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `qa`, `commit`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
 
 ## 1. Expert functional specification agent
 
@@ -82,6 +82,16 @@ Investigate failures through the reviewer and decision agent; apply approved fix
 
 Handoff: executed QA results, reproducible exploratory sequences, actual URL/corner-case catalog, and unresolved limitations.
 
+## 8. Coordinator commits
+
+After all preceding stages pass for the exact final diff, create focused commits containing the requested change and its workflow evidence. Confirm specification consistency, required user/API approvals, justified outcomes for every review finding, absence of critical blockers, and passed required QA before committing. Any new implementation changes return to the applicable review, decision and QA stages.
+
+Inspect the working tree and stage explicit paths or hunks; do not include unrelated user changes. Review the staged diff and run `git diff --cached --check`. Use a descriptive commit message explaining the concrete change. Do not amend existing commits. Do not push unless the user explicitly requests it.
+
+Record staged scope, verification commands and results, intended commit messages, and outcomes in `doc/changes/<change>/commit-step.md`, using [the commit template](templates/commit.md), and link it from the change index. Record the preparation and passed gates before committing. Refer to the resulting commit through its message and `git log` evidence; do not insert a commit's own hash into a file included in that commit. If committing fails, record the error and leave this stage blocked. The user may explicitly waive committing; record that request rather than claim a commit succeeded.
+
+Handoff: successful focused commits, recorded scope and verification evidence, or an explicit user no-commit override.
+
 ## Completion
 
-Mark the feature complete only when specifications and the contract are consistent with the final implementation, all review findings have justified recorded outcomes, no critical blocker remains, and required QA passes. Record deferred noncritical work and its rationale. Summarize delivered behavior, verification evidence, and material remaining limitations for the user.
+Mark the feature complete only when specifications and the contract are consistent with the final implementation, all review findings have justified recorded outcomes, no critical blocker remains, required QA passes, and stage 8 commits succeed (unless the user explicitly requests no commit). Record deferred noncritical work and its rationale. Summarize delivered behavior, verification evidence, commit outcome, and material remaining limitations for the user.

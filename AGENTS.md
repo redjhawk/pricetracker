@@ -20,6 +20,7 @@ Follow [the staged workflow](doc/workflow/WORKFLOW.md) for development requests.
 5. [Reviewer](.agents/roles/reviewer.md): independently inspect correctness, specification mismatches, and implemented behavior absent from the specifications.
 6. [Review adjudicator](.agents/roles/review-adjudicator.md): independently justify criticality and disposition of every finding in a Markdown decision record.
 7. [QA tester](.agents/roles/qa-tester.md): execute exploratory interface tests and corner cases; record actual URLs, actions, outcomes, and limitations.
+8. Coordinator: after the preceding stages pass for the final diff, create focused commits and record their scope, checks, messages, and outcomes in `doc/changes/<change>/commit-step.md`. Use explicit staging to preserve unrelated work; do not amend existing commits or push without an explicit user request. A successful commit is required for completion unless the user explicitly requests no commit.
 
 The coordinating agent manages handoffs and user decisions. These Markdown files are role instructions for separate agent invocations, not automatically registered runtime agents. Keep reviewer and adjudicator independent of the implementation. Run stages in dependency order; agents must not concurrently edit the same files. If delegation is unavailable, report that limitation rather than claim independent review.
 
