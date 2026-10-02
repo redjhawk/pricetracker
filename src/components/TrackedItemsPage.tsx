@@ -123,8 +123,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
               <TableRow>
                 <TableHeader>Item</TableHeader>
                 <TableHeader>Marketplace</TableHeader>
-                <TableHeader>Latest price</TableHeader>
-                <TableHeader>Last 3 detections</TableHeader>
+                <TableHeader>Prices</TableHeader>
                 <TableHeader>Amazon second-hand offer</TableHeader>
                 <TableHeader>Status</TableHeader>
                 <TableHeader aria-label="Actions" />
@@ -133,7 +132,7 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
             <TableBody>
               {filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={6}>
                     <p className="table-empty">No items match your search.</p>
                   </TableCell>
                 </TableRow>
@@ -156,24 +155,19 @@ export default function TrackedItemsPage({ items, loading, error, refreshError, 
                   </TableCell>
                   <TableCell><Tag type="cool-gray" size="sm">{item.marketplace}</Tag></TableCell>
                   <TableCell>
-                    {item.latestPrice ? (
-                      <div className="latest-price">
-                      <strong>{priceLabel(item.latestPrice.amount)}</strong>
-                        <time dateTime={item.latestPrice.timestamp}>{time.format(new Date(item.latestPrice.timestamp))} UTC</time>
-                      </div>
-                    ) : <span className="muted">Awaiting first price</span>}
-                  </TableCell>
-                  <TableCell>
-                    {item.lastThreeDetections.length ? (
+                    {item.lastThreeDetections.length || item.latestPrice ? (
                       <ul className="price-history-list">
-                        {item.lastThreeDetections.slice(0, 3).map((observation) => (
+                        {(item.lastThreeDetections.length
+                          ? item.lastThreeDetections.slice(0, 3)
+                          : [item.latestPrice!]
+                        ).map((observation) => (
                           <li key={observation.timestamp}>
                             <span>{priceLabel(observation.amount)}</span>
                             <time dateTime={observation.timestamp}>{time.format(new Date(observation.timestamp))}</time>
                           </li>
                         ))}
                       </ul>
-                    ) : <span className="muted">No detections yet</span>}
+                    ) : <span className="muted">Awaiting first price</span>}
                   </TableCell>
                   <TableCell>
                     {item.secondHandOffer?.status === "available" && item.secondHandOffer.latestDetection ? (

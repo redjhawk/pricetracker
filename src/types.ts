@@ -22,6 +22,7 @@ export interface SecondHandOffer {
   status: SecondHandOfferStatus;
   latestDetection: SecondHandOfferDetection | null;
   lastThreeDetections: SecondHandOfferDetection[];
+  priceHistory?: SecondHandOfferDetection[];
   lastCheckedAt: string | null;
 }
 
@@ -37,6 +38,7 @@ export interface TrackedItem {
   status: ItemStatus;
   latestPrice: PriceObservation | null;
   lastThreeDetections: PriceObservation[];
+  priceHistory?: PriceObservation[];
   secondHandOffer: SecondHandOffer | null;
   lastAttempt?: {
     result: "pending" | "success" | "request_error" | "price_not_found" | "unavailable";

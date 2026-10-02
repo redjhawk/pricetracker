@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26.
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02.
 
 ## Conventions
 
@@ -73,10 +73,12 @@ Fields:
 - `platform` is `amazon` or `leboncoin`; `listingId` is the source ASIN or numeric LeBoncoin ad ID. `asin` is the Amazon ASIN and is `null` for LeBoncoin items.
 - `status` is one of `pending`, `active`, `stale`, `retrieval_error`, or `unavailable`.
 - `latestPrice` is `null` until a successful price detection has been stored.
-- `lastThreeDetections` contains up to three successful observations, newest first; it is empty if no price has been detected.
+- `lastThreeDetections` contains up to three recent consecutive item-price periods, newest first. Each entry contains the period's price and timestamp of its latest successful observation. Repeated observations at the same price update that period's timestamp; a different price starts a new period. A later return to an earlier price starts another period. It is empty if no price has been detected.
+- `priceHistory` is included by `GET /api/v1/items/{id}` and contains every successful item-price observation for the tracked item, newest first. It is omitted by the list and add responses.
 - `secondHandOffer.status` is `pending`, `available`, `not_found`, or `check_error`. Only offers explicitly sold by Amazon (including its identified Amazon Resale/Warehouse offers) qualify; all third-party offers are ignored. If seller attribution cannot be verified, the check is an error.
 - `secondHandOffer.latestDetection` is the latest qualifying offer detection, even if a later check finds no offer or fails. The interface should use `status` to distinguish a current offer from an older last detection.
 - `secondHandOffer.lastThreeDetections` contains up to three successful detections of the lowest-priced qualifying Amazon offer, newest first. Each detection includes normalized `condition` (`like_new`, `very_good`, `good`, `acceptable`, or `unknown`) and the original Amazon `conditionLabel`.
+- `secondHandOffer.priceHistory` is included in `GET /api/v1/items/{id}` and contains every successful qualifying Amazon-sold offer detection, newest first. It is omitted by the list and add responses. It is `null` for LeBoncoin because `secondHandOffer` is `null` there.
 - `secondHandOffer.lastCheckedAt` is `null` before the first check.
 - `secondHandOffer` is `null` for LeBoncoin items.
 - A confirmed LeBoncoin free/donation listing has a successful observation with `amountCents: 0`; an absent or unparseable price is not interpreted as free.
@@ -136,6 +138,7 @@ A missing item returns `404 ITEM_NOT_FOUND`. The detail page polls `GET /api/v1/
 `GET /api/v1/items/{id}`
 
 Response `200 OK`: one item response. A missing item returns `404 Not Found`.
+The detail response includes complete `priceHistory` arrays for item prices and, when applicable, Amazon second-hand offers. Histories are unpaginated and include all successful observations retained for that tracked item. Failed collection attempts do not create price observations. The list and add responses return up to three recent consecutive item-price periods in `lastThreeDetections`; the timestamp for each period is its latest successful observation. Amazon second-hand offer detection behavior is unchanged.
 
 ### Add an item
 
@@ -176,7 +179,7 @@ The client may use `code` for predictable UI behavior. `message` is safe to disp
 
 - The list view loads all current items with one request and can filter them locally by title, listing ID, platform, and marketplace.
 - The main list shows the latest qualifying Amazon-sold second-hand offer and its Amazon condition for Amazon items. It distinguishes an available offer, no qualifying offer, a pending check, and a failed/uncertain check. LeBoncoin items have no second-hand-offer data.
-- The details view can show the last three second-hand offer detections and their condition labels.
+- The details view displays every successful item-price detection and every successful Amazon-sold second-hand offer detection with its condition label.
 - The main page can request a refresh of all tracked items and displays progress while the existing item statuses are pending.
 - The details view loads a single item by ID and can render its latest price, recent detections, and collection status.
 - The details view can request an immediate check of its item and reloads server data while that check is pending.

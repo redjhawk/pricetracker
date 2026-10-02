@@ -26,6 +26,7 @@ type SecondHandOffer struct {
 	Status              string                  `json:"status"`
 	LatestDetection     *SecondHandObservation  `json:"latestDetection"`
 	LastThreeDetections []SecondHandObservation `json:"lastThreeDetections"`
+	PriceHistory        []SecondHandObservation `json:"priceHistory,omitempty"`
 	LastCheckedAt       *time.Time              `json:"lastCheckedAt"`
 }
 
@@ -41,6 +42,7 @@ type Item struct {
 	Status              string           `json:"status"`
 	LatestPrice         *Observation     `json:"latestPrice"`
 	LastThreeDetections []Observation    `json:"lastThreeDetections"`
+	PriceHistory        []Observation    `json:"priceHistory,omitempty"`
 	SecondHandOffer     *SecondHandOffer `json:"secondHandOffer"`
 	LastAttempt         *Attempt         `json:"lastAttempt"`
 	NextCheckAt         *time.Time       `json:"nextCheckAt"`

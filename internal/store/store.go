@@ -358,6 +358,14 @@ func (s *Store) List(ctx context.Context) ([]model.Item, error) {
 }
 
 func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
+	return s.get(ctx, id, false)
+}
+
+func (s *Store) GetWithHistory(ctx context.Context, id string) (model.Item, error) {
+	return s.get(ctx, id, true)
+}
+
+func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.Item, error) {
 	var item model.Item
 	var asin, title, thumbnail, next sql.NullString
 	var added string
@@ -377,7 +385,27 @@ func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
 		item.NextCheckAt = &parsed
 	}
 	item.LastThreeDetections = make([]model.Observation, 0, 3)
-	prices, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, observed_at FROM price_observations WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
+	prices, err := s.db.QueryContext(ctx, `
+WITH ordered_observations AS (
+  SELECT id, amount_cents, currency, observed_at,
+         LAG(amount_cents) OVER (ORDER BY observed_at, id) AS previous_amount
+  FROM price_observations
+  WHERE item_id = ?
+), price_periods AS (
+  SELECT id, amount_cents, currency, observed_at,
+         SUM(CASE WHEN previous_amount IS NULL OR amount_cents != previous_amount THEN 1 ELSE 0 END)
+           OVER (ORDER BY observed_at, id) AS period_id
+  FROM ordered_observations
+), latest_in_period AS (
+  SELECT id, amount_cents, currency, observed_at,
+         ROW_NUMBER() OVER (PARTITION BY period_id ORDER BY observed_at DESC, id DESC) AS period_position
+  FROM price_periods
+)
+SELECT amount_cents, currency, observed_at
+FROM latest_in_period
+WHERE period_position = 1
+ORDER BY observed_at DESC, id DESC
+LIMIT 3`, id)
 	if err != nil {
 		return item, err
 	}
@@ -401,6 +429,31 @@ func (s *Store) Get(ctx context.Context, id string) (model.Item, error) {
 	if len(item.LastThreeDetections) > 0 {
 		latest := item.LastThreeDetections[0]
 		item.LatestPrice = &latest
+	}
+	if includeHistory {
+		item.PriceHistory = make([]model.Observation, 0)
+		historyRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, observed_at FROM price_observations
+WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
+		if err != nil {
+			return item, err
+		}
+		for historyRows.Next() {
+			var observation model.Observation
+			var timestamp string
+			if err := historyRows.Scan(&observation.AmountCents, &observation.Currency, &timestamp); err != nil {
+				historyRows.Close()
+				return item, err
+			}
+			observation.Timestamp = parseTimestamp(timestamp)
+			item.PriceHistory = append(item.PriceHistory, observation)
+		}
+		if err := historyRows.Err(); err != nil {
+			historyRows.Close()
+			return item, err
+		}
+		if err := historyRows.Close(); err != nil {
+			return item, err
+		}
 	}
 	if item.Platform == "amazon" {
 		item.SecondHandOffer = &model.SecondHandOffer{Status: "pending", LastThreeDetections: make([]model.SecondHandObservation, 0, 3)}
@@ -438,6 +491,31 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
 		if len(item.SecondHandOffer.LastThreeDetections) > 0 {
 			latest := item.SecondHandOffer.LastThreeDetections[0]
 			item.SecondHandOffer.LatestDetection = &latest
+		}
+		if includeHistory {
+			item.SecondHandOffer.PriceHistory = make([]model.SecondHandObservation, 0)
+			allUsedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at
+FROM second_hand_offer_observations WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
+			if err != nil {
+				return item, err
+			}
+			for allUsedRows.Next() {
+				var detection model.SecondHandObservation
+				var observed string
+				if err := allUsedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
+					allUsedRows.Close()
+					return item, err
+				}
+				detection.Timestamp = parseTimestamp(observed)
+				item.SecondHandOffer.PriceHistory = append(item.SecondHandOffer.PriceHistory, detection)
+			}
+			if err := allUsedRows.Err(); err != nil {
+				allUsedRows.Close()
+				return item, err
+			}
+			if err := allUsedRows.Close(); err != nil {
+				return item, err
+			}
 		}
 	}
 	var result, attempted string

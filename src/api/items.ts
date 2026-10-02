@@ -18,10 +18,12 @@ interface ApiTrackedItem {
   status: ItemStatus;
   latestPrice: ApiPriceObservation | null;
   lastThreeDetections: ApiPriceObservation[];
+  priceHistory?: ApiPriceObservation[];
   secondHandOffer: {
     status: SecondHandOffer["status"];
     latestDetection: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null;
     lastThreeDetections: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
+    priceHistory?: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
     lastCheckedAt: string | null;
   } | null;
   nextCheckAt: string | null;
@@ -69,11 +71,13 @@ function mapItem(item: ApiTrackedItem): TrackedItem {
     ...item,
     latestPrice: mapObservation(item.latestPrice),
     lastThreeDetections: item.lastThreeDetections.map((observation) => mapObservation(observation)!),
+    priceHistory: item.priceHistory?.map((observation) => mapObservation(observation)!),
     secondHandOffer: item.secondHandOffer
       ? {
           ...item.secondHandOffer,
           latestDetection: mapSecondHandDetection(item.secondHandOffer.latestDetection),
           lastThreeDetections: item.secondHandOffer.lastThreeDetections.map((observation) => mapSecondHandDetection(observation)!),
+          priceHistory: item.secondHandOffer.priceHistory?.map((observation) => mapSecondHandDetection(observation)!),
         }
       : null,
   };

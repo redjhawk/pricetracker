@@ -96,7 +96,7 @@ func (s *Service) List(ctx context.Context) ([]model.Item, error) {
 }
 
 func (s *Service) Get(ctx context.Context, id string) (model.Item, error) {
-	item, err := s.store.Get(ctx, id)
+	item, err := s.store.GetWithHistory(ctx, id)
 	if err != nil {
 		return item, err
 	}

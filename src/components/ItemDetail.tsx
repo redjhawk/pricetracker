@@ -38,6 +38,8 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
 
 export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshing, refreshError }: Props) {
   const title = item.title ?? `Listing ${item.listingId}`;
+  const priceHistory = item.priceHistory ?? item.lastThreeDetections;
+  const secondHandHistory = item.secondHandOffer?.priceHistory ?? item.secondHandOffer?.lastThreeDetections ?? [];
 
   return (
     <section className="detail-page" aria-labelledby="detail-heading">
@@ -163,12 +165,12 @@ export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshi
 
       <div className="history-heading">
         <div>
-          <h2>Recent detections</h2>
-          <p>Most recent successful item-price checks</p>
+          <h2>Price history</h2>
+          <p>All successful item-price detections, newest first</p>
         </div>
       </div>
 
-      {item.lastThreeDetections.length === 0 ? (
+      {priceHistory.length === 0 ? (
         <p className="history-empty">No successful detections yet.</p>
       ) : (
         <StructuredListWrapper className="detections-list">
@@ -180,7 +182,7 @@ export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshi
             </StructuredListRow>
           </StructuredListHead>
           <StructuredListBody>
-            {item.lastThreeDetections.slice(0, 3).map((observation, index) => (
+            {priceHistory.map((observation, index) => (
               <StructuredListRow key={`${observation.timestamp}-${index}`}>
                 <StructuredListCell>{index + 1}</StructuredListCell>
                 <StructuredListCell className="detection-price">{priceLabel(observation.amount)}</StructuredListCell>
@@ -196,12 +198,12 @@ export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshi
       {item.secondHandOffer && <>
       <div className="history-heading second-hand-history-heading">
         <div>
-          <h2>Recent Amazon second-hand offers</h2>
-          <p>Only offers sold by Amazon are included</p>
+          <h2>Amazon second-hand price history</h2>
+          <p>All successful detections of offers sold by Amazon, newest first</p>
         </div>
       </div>
 
-      {item.secondHandOffer.lastThreeDetections.length === 0 ? (
+      {secondHandHistory.length === 0 ? (
         <p className="history-empty">No Amazon-sold second-hand offer has been detected yet.</p>
       ) : (
         <StructuredListWrapper className="detections-list">
@@ -214,7 +216,7 @@ export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshi
             </StructuredListRow>
           </StructuredListHead>
           <StructuredListBody>
-            {item.secondHandOffer.lastThreeDetections.map((detection, index) => (
+            {secondHandHistory.map((detection, index) => (
               <StructuredListRow key={`${detection.timestamp}-${index}`}>
                 <StructuredListCell>{index + 1}</StructuredListCell>
                 <StructuredListCell className="detection-price">{euro.format(detection.amount)}</StructuredListCell>
