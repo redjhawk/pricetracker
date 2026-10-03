@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: "platform-tabs.spec.ts",
+  testMatch: ["platform-tabs.spec.ts", "leboncoin-session-settings.spec.ts"],
   fullyParallel: false,
   workers: 1,
   reporter: "list",

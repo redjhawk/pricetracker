@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Button,
   Content,
@@ -12,8 +12,10 @@ import { Add, ChartLine } from "@carbon/icons-react";
 import type { TrackedItem } from "./types";
 import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems, refreshAllItems, refreshItem } from "./api/items";
 import AddItemModal from "./components/AddItemModal";
+import AppMenu from "./components/AppMenu";
 import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
+import SettingsModal from "./components/SettingsModal";
 import TrackedItemsPage from "./components/TrackedItemsPage";
 
 function getItemId(pathname: string) {
@@ -41,6 +43,8 @@ export default function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TrackedItem | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const itemId = getItemId(pathname);
 
   const refreshItems = useCallback(async (quiet = false): Promise<TrackedItem[] | null> => {
@@ -176,6 +180,7 @@ export default function App() {
           <Button kind="primary" size="sm" renderIcon={Add} onClick={() => setAddOpen(true)}>
             Add item
           </Button>
+          <AppMenu onOpenSettings={() => setSettingsOpen(true)} triggerRef={menuButtonRef} />
         </HeaderGlobalBar>
       </Header>
 
@@ -228,6 +233,11 @@ export default function App() {
         item={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
+      />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        launcherButtonRef={menuButtonRef}
       />
     </>
   );
