@@ -1,0 +1,25 @@
+# Independent review decisions: LeBoncoin 403 investigation
+
+Date: 2026-10-03. Adjudicator: `/root/leboncoin_investigation_adjudicator`, distinct from the experiment coordinator, probe developer and reviewer. Reviewer: `/root/leboncoin_investigation_reviewer`.
+
+Scope: diagnostic documentation under [the investigation index](index.md), not a product implementation. Reviewed [report](report.md), [independent review](review.md), repository workflow and adjudicator instructions, all four required skills, the unchanged [approved API](../../../API_SPECIFICATION.md), and selected private probe evidence. Functional/technical feature specifications and new API approval are not applicable because the investigation adds no application behavior.
+
+Reviewed report revision: SHA-256 `b957a3b936c3d2b1928123ac0b72dc0e4ea264fb67aa34fdc5b7e5f30a6544ec`, as identified by the review; repository base `fe76586952fac12a5aa0c884172a5b8e16a38364`. This decision record does not claim independent live reproduction.
+
+## REV-001: Initial manual-run extraction understated
+
+- **Kind:** demonstrated factual documentation defect, not unspecified product behavior or a requested implementation change.
+- **Evidence:** LBC-10 says the first manual run did not establish successful extraction. Independent inspection of `/tmp/pricefollower-leboncoin-diagnostic/manual-initial.json` confirms `snapshots[0].nextDataPresent: true`, listing ID `3245888872`, status `active`, the reported title, and `price_cents: 2690000`; its error indicates a screenshot timeout. The inspected browser probe records the extracted snapshot before its screenshot step. No cookie values, network addresses or challenge identifiers are reproduced here.
+- **Impact and scenario:** a reader reconstructing the acquisition sequence could incorrectly believe that the successful initial response lacked verified listing data. This understates the saved evidence. It does not change the independently recorded restart/reload result or invalidate the later actual Go collector success with the verified session cookie.
+- **Criticality:** **noncritical**. The discrepancy is confined to one diagnostic case's chronology; no production behavior, API contract, persisted application data or user credentials are changed. The central conclusion remains supported by separate browser and collector cases. Nevertheless, accurate reporting is required, so noncritical classification does not excuse leaving the error uncorrected.
+- **Disposition:** **fix**. A narrow wording correction directly reconciles the report with the saved evidence without new functionality, refactoring or additional network activity.
+- **Required action:** replace LBC-10's result with: “Listing response became 200 and the first run captured the correct listing ID, active status, title and `2690000` cents in `__NEXT_DATA__`. A subsequent screenshot timeout interrupted the remaining workflow and closed the browser. LBC-11 separately confirms restart/reload success.” Preserve LBC-11's distinction as a later persisted-profile run. Do not imply that the interrupted first run completed every subsequent export or reload step.
+- **Owner:** experiment coordinator/report author makes the correction; `/root/leboncoin_investigation_reviewer` independently rechecks it against the saved snapshot and records the corrected report revision.
+- **Specification decision:** not applicable. This corrects an evidence statement and neither introduces a product choice nor changes the approved API.
+- **Resolution:** **resolved and independently verified** on 2026-10-03. The coordinator corrected LBC-10, and the reviewer appended a correction recheck to [review.md](review.md), preserving the original finding. Corrected report SHA-256: `e5cce9730b934848819b499c4afc85b72e608b8583547027d842a5f9e1a213ed`; the adjudicator confirmed that the current file matches this reviewed revision.
+- **Recheck evidence:** the reviewer compared corrected LBC-10 against `manual-initial.json`, confirmed successful extraction before the screenshot timeout and the distinction from later LBC-11 restart/reload/export, and reported no new findings. No additional live request was needed for this correction. Independent QA of the diagnostic documentation and relevant actual probe output fields remains pending.
+- **Remaining risk and follow-up:** no residual risk specific to this corrected wording defect is expected. The report's broader limits—temporary evidence, short-term local reuse, unproven remote portability and session lifetime—remain applicable and are not waived by this decision.
+
+## Readiness
+
+All findings in the initial independent review are adjudicated. REV-001 is resolved with independent reviewer verification, and no new findings arose from the correction. There are no unresolved critical findings and no pending user product/API decisions in this diagnostic scope. Independent QA and the coordinator's documentation commit stage remain pending. This decision record does not declare investigation completion or approval of a production cookie integration.
