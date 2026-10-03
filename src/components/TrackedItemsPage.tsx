@@ -37,6 +37,9 @@ interface Props {
   onAdd: () => void;
   onViewDetail: (item: TrackedItem) => void;
   onDelete: (item: TrackedItem) => void;
+  onRefreshItem: (item: TrackedItem) => void;
+  refreshingItemIds: ReadonlySet<string>;
+  itemRefreshError: string | null;
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -50,7 +53,7 @@ const time = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete }: Props) {
+export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete, onRefreshItem, refreshingItemIds, itemRefreshError }: Props) {
   const [search, setSearch] = useState("");
   const platformItems = useMemo(() => items.filter((item) => item.platform === selectedPlatform), [items, selectedPlatform]);
   const filteredItems = useMemo(() => {
@@ -87,6 +90,15 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
           kind="error"
           title="Could not refresh prices"
           subtitle={refreshError}
+          lowContrast
+          className="detail-notification"
+        />
+      )}
+      {itemRefreshError && (
+        <InlineNotification
+          kind="error"
+          title="Could not refresh price"
+          subtitle={itemRefreshError}
           lowContrast
           className="detail-notification"
         />
@@ -227,6 +239,11 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                                     <OverflowMenuItem
                                       itemText={`Open on ${item.platform === "amazon" ? "Amazon" : "LeBoncoin"}`}
                                       onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
+                                    />
+                                    <OverflowMenuItem
+                                      itemText="Refresh price"
+                                      disabled={item.status === "pending" || refreshingItemIds.has(item.id)}
+                                      onClick={() => onRefreshItem(item)}
                                     />
                                     <OverflowMenuItem itemText="Delete" isDelete hasDivider onClick={() => onDelete(item)} />
                                   </OverflowMenu>

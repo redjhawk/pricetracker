@@ -40,6 +40,8 @@ export default function App() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailRefreshing, setDetailRefreshing] = useState(false);
   const [detailRefreshError, setDetailRefreshError] = useState<string | null>(null);
+  const [refreshingItemIds, setRefreshingItemIds] = useState<ReadonlySet<string>>(new Set());
+  const [itemRefreshError, setItemRefreshError] = useState<string | null>(null);
   const [pathname, setPathname] = useState(window.location.pathname);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TrackedItem | null>(null);
@@ -165,6 +167,23 @@ export default function App() {
     }
   }
 
+  async function handleRefreshListItem(item: TrackedItem) {
+    setItemRefreshError(null);
+    setRefreshingItemIds((current) => new Set(current).add(item.id));
+    try {
+      await refreshItem(item.id);
+      await refreshItems(true);
+    } catch (error) {
+      setItemRefreshError(`${item.title ?? item.listingId}: ${errorMessage(error)}`);
+    } finally {
+      setRefreshingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }
+
   const showingDetail = itemId !== null;
 
   return (
@@ -219,6 +238,9 @@ export default function App() {
               onAdd={() => setAddOpen(true)}
               onViewDetail={(item) => navigate(`/items/${encodeURIComponent(item.id)}`)}
               onDelete={setDeleteTarget}
+              onRefreshItem={(item) => void handleRefreshListItem(item)}
+              refreshingItemIds={refreshingItemIds}
+              itemRefreshError={itemRefreshError}
             />
           )}
         </main>
