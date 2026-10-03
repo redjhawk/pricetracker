@@ -1,7 +1,7 @@
 # Functional specification handoff
 
-Status: ready  
-Date: 2026-10-03  
+Status: ready\
+Date: 2026-10-03\
 Role: independent functional specification agent
 
 ## Requested subjects

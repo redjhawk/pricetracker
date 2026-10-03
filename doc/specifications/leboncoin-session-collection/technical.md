@@ -1,7 +1,7 @@
 # Technical specification: LeBoncoin session collection
 
-Status: ready  
-Functional source: [collection requirements](functional.md), FR-LBC-COL-001–010.  
+Status: ready\
+Functional source: [collection requirements](functional.md), FR-LBC-COL-001–010.\
 Dependency: [capture and shared format](../leboncoin-session-capture/technical.md).
 
 ## Requirement mapping

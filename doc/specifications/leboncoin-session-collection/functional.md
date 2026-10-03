@@ -1,7 +1,7 @@
 # Functional specification: LeBoncoin session collection
 
-Status: ready  
-Owner: functional specification agent  
+Status: ready\
+Owner: functional specification agent\
 User decision/reference: The user answered “Yes, manual verification is acceptable” to desktop verification, secure transfer to the Raspberry Pi, and repeating verification when rejected. This subject specifies reuse of that operator-supplied session within the existing collection behavior.
 
 ## Purpose and scope

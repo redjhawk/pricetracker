@@ -1,6 +1,6 @@
 # Commit step result
 
-Status: committed (see `git log` for the three commits named below)
+Status: committed (see `git log` for the four commits named below)
 Coordinator: follow-up coordinator session, 2026-10-03
 
 ## Passed gates
@@ -18,7 +18,7 @@ Coordinator: follow-up coordinator session, 2026-10-03
   3. Workflow records: `doc/specifications/leboncoin-session-capture/`, `doc/specifications/leboncoin-session-collection/`, `doc/changes/leboncoin-session/`.
 - Unrelated working-tree changes preserved: the untracked leftover QA harness `.tmp-session-qa/` is not staged.
 - Staged diff inspection: performed per commit with `git diff --cached --stat`.
-- `git diff --cached --check` actual result: passed for each commit.
+- `git diff --cached --check` actual result: passed for commits 1 and 2. For commit 3 it reported trailing whitespace (Markdown two-space hard line breaks in the header lines of five specification/change files), but the commit was still created because the coordinator's command chain did not stop on the check failure. Correction without amending: a fourth commit replaces those breaks with backslash hard breaks (same rendering); its `git diff --cached --check` passed.
 - Other verification commands and actual results: `go test ./...`, `go test -race ./...`, `go vet ./...` passed; `node --test scripts/capture-leboncoin-session.test.mjs` (Node 22) 13/13 passed.
 
 ## Commit outcome
@@ -27,6 +27,7 @@ Coordinator: follow-up coordinator session, 2026-10-03
   1. `feat(leboncoin): reuse a manually verified session in the collector`
   2. `feat(leboncoin): add desktop session capture helper and operator guide`
   3. `docs(leboncoin): record session specifications, review, QA and decisions`
+  4. `docs(leboncoin): replace trailing-space line breaks in session records`
 - Actual outcome or error: recorded in the coordinator's final handoff and `git log`.
 - Commit reference: resolve the messages using `git log`.
 - If committing was waived, cite the explicit user request: not waived.

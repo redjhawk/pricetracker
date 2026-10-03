@@ -1,7 +1,7 @@
 # Functional specification: LeBoncoin session capture
 
-Status: ready  
-Owner: functional specification agent  
+Status: ready\
+Owner: functional specification agent\
 User decision/reference: The user answered “Yes, manual verification is acceptable” to completing the verification in a browser on their computer, securely transferring the verified session to the PriceFollower Raspberry Pi, and repeating this when rejected. This approval covers that workflow; it does not approve an HTTP contract change.
 
 ## Purpose and scope

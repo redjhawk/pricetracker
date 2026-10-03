@@ -1,8 +1,8 @@
 # Technical specification: LeBoncoin session capture
 
-Status: ready  
-Functional source: [capture requirements](functional.md), FR-LBC-CAP-001–009.  
-Companion: [collection design](../leboncoin-session-collection/technical.md).  
+Status: ready\
+Functional source: [capture requirements](functional.md), FR-LBC-CAP-001–009.\
+Companion: [collection design](../leboncoin-session-collection/technical.md).\
 Evidence: [browser and collector investigation](../../changes/leboncoin-403-investigation/report.md).
 
 ## Requirement mapping
