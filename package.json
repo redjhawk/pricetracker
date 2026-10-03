@@ -14,7 +14,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test:platform-tabs": "playwright test tests/platform-tabs.spec.ts",
-    "test:settings": "playwright test tests/leboncoin-session-settings.spec.ts"
+    "test:settings": "playwright test tests/leboncoin-session-settings.spec.ts",
+    "test:item-refresh": "playwright test tests/item-refresh.spec.ts"
   },
   "dependencies": {
     "@carbon/icons-react": "^11.89.0",
