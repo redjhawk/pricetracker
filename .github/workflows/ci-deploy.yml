@@ -1,0 +1,40 @@
+# Copy to pricetracker/.github/workflows/ci-deploy.yml
+# Runs on the self-hosted runner on barcelona: test, build, then deploy to teruel (Raspberry Pi 2).
+name: ci-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+# No pull_request trigger: the repo is public and must never run fork code on barcelona.
+
+concurrency:
+  group: deploy-teruel
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-deploy:
+    if: github.repository == 'redjhawk/pricetracker'
+    runs-on: [self-hosted, barcelona]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          go mod download
+
+      - name: Go vet and tests
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Frontend type-check and build
+        run: npm run build
+
+      - name: Deploy to teruel
+        run: ./scripts/deploy-armv6.sh teruel
