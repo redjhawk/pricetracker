@@ -11,13 +11,15 @@
 ## Main flow
 
 1. The operator enters a search term.
-2. The page filters the already-loaded items by title, listing ID, ASIN, platform, and marketplace, without sending a separate search request.
+2. The page filters the already-loaded items of the selected platform by title, listing ID, ASIN, platform, and marketplace, ignoring surrounding whitespace and letter case, without sending a separate search request.
 3. The page shows matching rows as the search term changes.
+4. Switching between Amazon and LeBoncoin retains the typed query and applies it to the newly selected platform.
 
 ## Alternatives and errors
 
 - If there are no matches, the page says that no items match the search.
-- If the operator clears the search field, the full loaded collection appears again.
+- A match in the other platform does not appear until that platform's tab is selected.
+- If the operator clears the search field, all loaded items of the selected platform appear again.
 
 ## Postconditions
 

@@ -12,14 +12,17 @@
 
 1. The page requests the tracked-item collection from `GET /api/v1/items`.
 2. The system returns the shared collection, ordered by most recently added item first.
-3. The page shows each item's title or fallback label and thumbnail when available in the **Item** column, with marketplace followed by listing ID below the title. There is no standalone **Marketplace** column. Status and row actions remain available.
+3. The page provides **Amazon** and **LeBoncoin** tabs, initially selecting Amazon. The selected tab shows only that platform's items in their existing order. Each item's title or fallback label and thumbnail when available appear in the **Item** column, with marketplace followed by listing ID below the title. There is no standalone **Marketplace** column. Status and row actions remain available.
 4. A single **Prices** column shows up to three recent consecutive price periods, newest first. The latest price is shown once as the newest period, with its most recent successful observation time.
 5. Repeated successful checks at the same price update that period's displayed time. A changed price starts a new period, including a return to a price seen before an intervening change.
-6. For Amazon items, the page shows the latest qualifying Amazon-sold second-hand offer or its pending, not-found, or check-error state.
+6. The Amazon table has five columns, including the latest qualifying Amazon-sold second-hand offer or its pending, not-found, or check-error state. The LeBoncoin table has four columns and omits that offer column entirely.
+7. The page count includes all tracked items. **Refresh all prices** refreshes the entire collection across both platforms, including when the selected platform has no items.
+8. The selected platform survives detail-page navigation and data updates within the running application. Reloading starts at Amazon.
 
 ## Alternatives and errors
 
 - If the collection is empty, the page explains that no items are tracked and offers the add-item action.
+- If only the selected platform is empty, the page names that platform in its empty feedback. Both tabs remain available, including during loading, errors and an entirely empty collection.
 - While the request is pending, the page shows a loading state.
 - If loading fails, the page shows an error and a retry action.
 - If an item has no successful price observation, its price cell says that the first price is awaited.

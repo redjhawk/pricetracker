@@ -6,6 +6,7 @@ PriceFollower is a self-hosted price tracker for European Amazon and French LeBo
 
 - Track products from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium.
 - Track listings from LeBoncoin France, including explicit donations displayed as “Gratuit”.
+- Browse separate Amazon and LeBoncoin tabs, with search scoped to the selected platform and second-hand offers shown only for Amazon.
 - Collect the first price as soon as a product is added, then check twice daily.
 - View the latest detected price, its timestamp, collection status, and the three latest observations.
 - Track the lowest-priced second-hand offer explicitly sold by Amazon, with its condition and recent history; third-party offers are ignored.
@@ -39,6 +40,17 @@ npm run dev
 Open <http://localhost:5173>. Vite serves the frontend and proxies API requests to the Go server on port `3001`. The development backend seeds sample products into `.data/pricefollower.sqlite` on its first run. This development database is separate from the production data directory.
 
 The API contract is documented in [API_SPECIFICATION.md](API_SPECIFICATION.md). Product scope and behavior are in [doc/FUNCTIONAL_SPECIFICATIONS.md](doc/FUNCTIONAL_SPECIFICATIONS.md), with user and system flows listed in [doc/use-cases/README.md](doc/use-cases/README.md).
+
+### Platform-tab browser tests
+
+With Node.js 22+ and dependencies installed, install Playwright's Chromium browser once and run the focused suite:
+
+```bash
+npx playwright install chromium
+npm run test:platform-tabs
+```
+
+The suite starts its own Vite frontend at `http://127.0.0.1:4173`; that port must be free. It intercepts API requests with in-memory fixtures and blocks external requests, so it needs no Go server or database. To use an existing Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path. Failed tests retain traces in `test-results/`.
 
 ## Raspberry Pi deployment
 

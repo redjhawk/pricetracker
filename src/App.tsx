@@ -27,6 +27,7 @@ function errorMessage(error: unknown) {
 
 export default function App() {
   const [items, setItems] = useState<TrackedItem[]>([]);
+  const [selectedPlatform, setSelectedPlatform] = useState<TrackedItem["platform"]>("amazon");
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -201,6 +202,8 @@ export default function App() {
           ) : (
             <TrackedItemsPage
               items={items}
+              selectedPlatform={selectedPlatform}
+              onPlatformChange={setSelectedPlatform}
               loading={listLoading}
               error={listError}
               refreshError={refreshError}
