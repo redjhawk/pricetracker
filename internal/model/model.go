@@ -69,3 +69,20 @@ type CollectionResult struct {
 	SecondHandCondition      string
 	SecondHandConditionLabel string
 }
+
+// LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
+type LeboncoinSession struct {
+	Value       *string                  `json:"value"`
+	Revision    int64                    `json:"revision"`
+	UpdatedAt   *time.Time               `json:"updatedAt"`
+	Status      string                   `json:"status"` // none, active, expired or revoked
+	ExpiresAt   *time.Time               `json:"expiresAt"`
+	RevokedAt   *time.Time               `json:"revokedAt"`
+	LastAttempt *LeboncoinSessionAttempt `json:"lastAttempt"`
+}
+
+// LeboncoinSessionAttempt is the latest LeBoncoin check that sent the saved session.
+type LeboncoinSessionAttempt struct {
+	Outcome     string    `json:"outcome"` // accepted, rejected or failed
+	AttemptedAt time.Time `json:"attemptedAt"`
+}

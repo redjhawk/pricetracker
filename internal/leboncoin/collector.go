@@ -1,6 +1,7 @@
 package leboncoin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -55,15 +56,6 @@ func ParseURL(raw string) URLResult {
 type Collector struct {
 	client    *http.Client
 	userAgent string
-	session   *sessionStore
-}
-
-func NewCollectorWithSession(userAgent, sessionFile string) *Collector {
-	collector := NewCollector(userAgent)
-	if strings.TrimSpace(sessionFile) != "" {
-		collector.session = &sessionStore{path: strings.TrimSpace(sessionFile), gate: make(chan struct{}, 1)}
-	}
-	return collector
 }
 
 func NewCollector(userAgent string) *Collector {
@@ -110,44 +102,37 @@ type adImages struct {
 	URLs         []string `json:"urls"`
 }
 
-func (c *Collector) Collect(ctx context.Context, item model.Listing) model.CollectionResult {
-	client := c.client
-	var attempt *sessionAttempt
-	if c.session != nil {
-		select {
-		case c.session.gate <- struct{}{}:
-			defer func() { <-c.session.gate }()
-		case <-ctx.Done():
-			return sessionCollectionError()
-		}
-		if ctx.Err() != nil {
-			return sessionCollectionError()
-		}
-		parsed := ParseURL(item.URL)
-		if parsed.Kind != "valid" || parsed.ListingID != item.ListingID {
-			return sessionCollectionError()
-		}
-		item.URL = parsed.Canonical
-		if err := c.session.load(); err != nil {
-			log.Print(err)
-			return sessionCollectionError()
-		}
-		attempt = &sessionAttempt{baseline: c.session.current.Cookie, candidate: c.session.current.Cookie}
-		defer c.session.finish(attempt)
-		local := *c.client
-		local.Jar = attempt
-		local.CheckRedirect = func(request *http.Request, via []*http.Request) error {
-			request.Header.Del("Cookie")
-			if len(via) >= 4 || !allowedSessionURL(request.URL) {
-				return errSession
-			}
-			return nil
-		}
-		client = &local
+// CollectWithSession collects a listing. With a nil session it uses the
+// sessionless path; otherwise it sends the saved datadome cookie only to
+// allowed LeBoncoin HTTPS origins and reports the session outcome.
+func (c *Collector) CollectWithSession(ctx context.Context, item model.Listing, session *Session) (model.CollectionResult, SessionOutcome) {
+	if session == nil {
+		return c.collect(ctx, item, c.client, nil), SessionOutcome{}
 	}
+	attempt := &sessionAttempt{candidate: &Session{Value: session.Value, ExpiresAt: session.ExpiresAt}}
+	parsed := ParseURL(item.URL)
+	if parsed.Kind != "valid" || parsed.ListingID != item.ListingID {
+		// No request was sent, so there is no session outcome to record.
+		return c.collectionError(item, fmt.Errorf("unsupported listing URL"), attempt), SessionOutcome{}
+	}
+	item.URL = parsed.Canonical
+	local := *c.client
+	local.Jar = attempt
+	local.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		request.Header.Del("Cookie")
+		if len(via) >= 4 || !allowedSessionURL(request.URL) {
+			return fmt.Errorf("unsupported LeBoncoin session redirect")
+		}
+		return nil
+	}
+	result := c.collect(ctx, item, &local, attempt)
+	return result, attempt.outcome()
+}
+
+func (c *Collector) collect(ctx context.Context, item model.Listing, client *http.Client, attempt *sessionAttempt) model.CollectionResult {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL, nil)
 	if err != nil {
-		return c.collectionError(item, err)
+		return c.collectionError(item, err, attempt)
 	}
 	request.Header.Set("User-Agent", c.userAgent)
 	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
@@ -166,10 +151,14 @@ func (c *Collector) Collect(ctx context.Context, item model.Listing) model.Colle
 	request.Header.Set("Sec-Fetch-User", "?1")
 
 	startedAt := time.Now()
-	log.Printf("LeBoncoin request started listing=%s url=%s", item.ListingID, request.URL.String())
+	if attempt == nil {
+		log.Printf("LeBoncoin request started listing=%s url=%s", item.ListingID, request.URL.String())
+	} else {
+		log.Printf("LeBoncoin session request started listing=%s", item.ListingID)
+	}
 	response, err := client.Do(request)
 	if err != nil {
-		return c.collectionError(item, err)
+		return c.collectionError(item, err, attempt)
 	}
 	defer response.Body.Close()
 	if attempt == nil {
@@ -182,31 +171,37 @@ func (c *Collector) Collect(ctx context.Context, item model.Listing) model.Colle
 		return model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."}
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return c.collectionError(item, fmt.Errorf("LeBoncoin returned HTTP %d", response.StatusCode))
+		if attempt != nil && response.StatusCode == http.StatusForbidden {
+			attempt.rejected = true
+		}
+		return c.collectionError(item, fmt.Errorf("LeBoncoin returned HTTP %d", response.StatusCode), attempt)
 	}
 	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if mediaType != "text/html" && mediaType != "application/xhtml+xml" {
-		return c.collectionError(item, fmt.Errorf("LeBoncoin returned an unexpected content type: %q", response.Header.Get("Content-Type")))
+		return c.collectionError(item, fmt.Errorf("LeBoncoin returned an unexpected content type: %q", response.Header.Get("Content-Type")), attempt)
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 5<<20))
 	if err != nil {
-		return c.collectionError(item, err)
+		return c.collectionError(item, err, attempt)
+	}
+	if attempt != nil && bytes.Contains(body, []byte("captcha-delivery.com")) {
+		attempt.rejected = true // DataDome challenge marker; verification below still takes precedence
 	}
 	match := nextDataPattern.FindSubmatch(body)
 	if len(match) != 2 {
-		return c.collectionError(item, fmt.Errorf("LeBoncoin __NEXT_DATA__ listing script was not present in the %d-byte page", len(body)))
+		return c.collectionError(item, fmt.Errorf("LeBoncoin __NEXT_DATA__ listing script was not present in the %d-byte page", len(body)), attempt)
 	}
 	var data pageData
 	if err := json.Unmarshal(match[1], &data); err != nil {
-		return c.collectionError(item, fmt.Errorf("parse LeBoncoin listing data: %w", err))
+		return c.collectionError(item, fmt.Errorf("parse LeBoncoin listing data: %w", err), attempt)
 	}
 	ad := data.Props.PageProps.Ad
 	if ad.ListingID == 0 {
-		return c.collectionError(item, fmt.Errorf("LeBoncoin page did not contain an ad"))
+		return c.collectionError(item, fmt.Errorf("LeBoncoin page did not contain an ad"), attempt)
 	}
 	expectedID, err := strconv.ParseInt(item.ListingID, 10, 64)
 	if err != nil || ad.ListingID != expectedID {
-		return c.collectionError(item, fmt.Errorf("LeBoncoin page ad ID %d did not match requested listing %s", ad.ListingID, item.ListingID))
+		return c.collectionError(item, fmt.Errorf("LeBoncoin page ad ID %d did not match requested listing %s", ad.ListingID, item.ListingID), attempt)
 	}
 	if attempt != nil {
 		attempt.verified = true
@@ -269,14 +264,16 @@ func firstImage(images adImages) string {
 	return ""
 }
 
-func sessionCollectionError() model.CollectionResult {
-	log.Print("LeBoncoin session collection failed; verify the private session files or renew the session")
-	return model.CollectionResult{Result: "request_error", Message: "LeBoncoin session collection failed. Check the private session files or renew the session."}
-}
-
-func (c *Collector) collectionError(item model.Listing, err error) model.CollectionResult {
-	if c.session != nil {
-		return sessionCollectionError()
+// collectionError never logs session-assisted error details, which could echo
+// cookie values or upstream content.
+func (c *Collector) collectionError(item model.Listing, err error, attempt *sessionAttempt) model.CollectionResult {
+	if attempt != nil {
+		if attempt.rejected {
+			log.Printf("LeBoncoin rejected the saved session listing=%s", item.ListingID)
+			return model.CollectionResult{Result: "request_error", Message: "LeBoncoin rejected the saved session. Capture a new session and save it in Settings."}
+		}
+		log.Printf("LeBoncoin session-assisted check failed listing=%s", item.ListingID)
+		return model.CollectionResult{Result: "request_error", Message: "LeBoncoin could not be reached for a price check."}
 	}
 	log.Printf("LeBoncoin collection error listing=%s url=%s: %v", item.ListingID, item.URL, err)
 	return model.CollectionResult{Result: "request_error", Message: "LeBoncoin could not be reached for a price check."}

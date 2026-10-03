@@ -31,12 +31,18 @@ type collector interface {
 	Collect(context.Context, model.Listing) model.CollectionResult
 }
 
+// leboncoinCollector lets tests replace the LeBoncoin collector.
+type leboncoinCollector interface {
+	CollectWithSession(context.Context, model.Listing, *leboncoin.Session) (model.CollectionResult, leboncoin.SessionOutcome)
+}
+
 func (e *Error) Error() string { return e.Message }
 
 type Service struct {
 	config        config.Config
 	store         *store.Store
 	collectors    map[string]collector
+	leboncoin     leboncoinCollector
 	mu            sync.Mutex
 	inFlight      map[string]time.Time
 	workerContext context.Context
@@ -48,10 +54,9 @@ type Service struct {
 func New(cfg config.Config, database *store.Store) *Service {
 	workerContext, stopWorkers := context.WithCancel(context.Background())
 	return &Service{
-		config: cfg, store: database,
+		config: cfg, store: database, leboncoin: leboncoin.NewCollector(cfg.UserAgent),
 		collectors: map[string]collector{
-			"amazon":    amazon.NewCollector(cfg.UserAgent),
-			"leboncoin": leboncoin.NewCollectorWithSession(cfg.UserAgent, cfg.LeboncoinSessionFile),
+			"amazon": amazon.NewCollector(cfg.UserAgent),
 		},
 		inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2),
@@ -232,14 +237,19 @@ func (s *Service) collectReserved(ctx context.Context, id string) {
 		log.Printf("load listing %s for collection: %v", id, err)
 		return
 	}
-	requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
-	defer cancel()
-	collector, exists := s.collectors[item.Platform]
-	if !exists {
-		log.Printf("no collector registered for platform %q on item %s", item.Platform, id)
-		return
+	var result model.CollectionResult
+	if item.Platform == "leboncoin" {
+		result = s.collectLeboncoin(ctx, item)
+	} else {
+		collector, exists := s.collectors[item.Platform]
+		if !exists {
+			log.Printf("no collector registered for platform %q on item %s", item.Platform, id)
+			return
+		}
+		requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
+		result = collector.Collect(requestContext, item)
+		cancel()
 	}
-	result := collector.Collect(requestContext, item)
 	if _, err := s.store.Listing(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return
 	} else if err != nil {
@@ -251,6 +261,66 @@ func (s *Service) collectReserved(ctx context.Context, id string) {
 	if err != nil {
 		log.Printf("save collection result for item %s: %v", id, err)
 	}
+}
+
+// collectLeboncoin reads the saved session at the start of every attempt,
+// before the request timeout starts, and records the session outcome only if
+// the session did not change during the attempt.
+func (s *Service) collectLeboncoin(ctx context.Context, item model.Listing) model.CollectionResult {
+	stored, err := s.store.LeboncoinSession(ctx)
+	if err != nil {
+		log.Print("LeBoncoin session could not be read; check skipped")
+		return model.CollectionResult{Result: "request_error", Message: "The LeBoncoin session could not be read. The check will be retried at the next scheduled time."}
+	}
+	if stored.Status == "expired" || stored.Status == "revoked" {
+		log.Print("LeBoncoin session expired or revoked; check skipped")
+		return model.CollectionResult{Result: "request_error", Message: "The saved LeBoncoin session has expired or was revoked. Save a new session in Settings."}
+	}
+	requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
+	defer cancel()
+	if stored.Status == "none" {
+		result, _ := s.leboncoin.CollectWithSession(requestContext, item, nil)
+		return result
+	}
+	session := &leboncoin.Session{Value: *stored.Value, ExpiresAt: stored.ExpiresAt}
+	result, outcome := s.leboncoin.CollectWithSession(requestContext, item, session)
+	if outcome.Attempt == "" {
+		return result // no request was sent; nothing to record for the session
+	}
+	applied, err := s.store.FinishLeboncoinSessionAttempt(ctx, stored.Revision, store.LeboncoinSessionOutcome(outcome), time.Now().UTC())
+	if err != nil {
+		log.Print("LeBoncoin session update could not be saved; the stored session is unchanged")
+	} else if !applied {
+		log.Print("LeBoncoin session changed during a check; that check's session update was discarded")
+	}
+	return result
+}
+
+// LeboncoinSession returns the saved LeBoncoin session settings.
+func (s *Service) LeboncoinSession(ctx context.Context) (model.LeboncoinSession, error) {
+	return s.store.LeboncoinSession(ctx)
+}
+
+// SaveLeboncoinSession saves pasted session input, or clears the session when
+// the input is blank. It never starts a price check.
+func (s *Service) SaveLeboncoinSession(ctx context.Context, raw string, revision int64) (model.LeboncoinSession, error) {
+	value, err := leboncoin.ParseSessionInput(raw)
+	var inputError *leboncoin.SessionInputError
+	if errors.As(err, &inputError) {
+		return model.LeboncoinSession{}, &Error{Status: 400, Code: "INVALID_SESSION", Message: inputError.Message}
+	}
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	var stored *string
+	if value != "" {
+		stored = &value
+	}
+	session, err := s.store.SaveLeboncoinSession(ctx, stored, revision, time.Now().UTC())
+	if errors.Is(err, store.ErrSessionChanged) {
+		return model.LeboncoinSession{}, &Error{Status: 409, Code: "SESSION_CHANGED", Message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving."}
+	}
+	return session, err
 }
 
 func (s *Service) releaseCollection(id string) {

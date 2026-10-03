@@ -99,6 +99,17 @@ CREATE TABLE IF NOT EXISTS second_hand_offer_observations (
   observed_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS second_hand_offer_item_time ON second_hand_offer_observations(item_id, observed_at DESC);
+CREATE TABLE IF NOT EXISTS leboncoin_session (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 4096),
+  expires_at TEXT,
+  revoked_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  updated_at TEXT,
+  last_attempt_at TEXT,
+  last_attempt_outcome TEXT CHECK (last_attempt_outcome IS NULL OR last_attempt_outcome IN ('accepted', 'rejected', 'failed'))
+);
+INSERT OR IGNORE INTO leboncoin_session (id, revision) VALUES (1, 0);
 `)
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
@@ -707,4 +718,164 @@ func parseTimestamp(value string) time.Time {
 
 func IsUniqueConstraint(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
+}
+
+// ErrSessionChanged reports that the stored LeBoncoin session revision differs from the expected one.
+var ErrSessionChanged = errors.New("LeBoncoin session changed")
+
+// LeboncoinSessionOutcome is what a session-assisted attempt reports to the store.
+type LeboncoinSessionOutcome struct {
+	Attempt   string // accepted, rejected or failed
+	Renewed   bool
+	Value     string
+	ExpiresAt *time.Time
+	Revoked   bool
+}
+
+type leboncoinSessionRow struct {
+	value, expiresAt, revokedAt, updatedAt, lastAttemptAt, lastAttemptOutcome sql.NullString
+	revision                                                                  int64
+}
+
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func readLeboncoinSession(ctx context.Context, q rowQuerier) (leboncoinSessionRow, error) {
+	var row leboncoinSessionRow
+	err := q.QueryRowContext(ctx, `SELECT value, expires_at, revoked_at, revision, updated_at, last_attempt_at, last_attempt_outcome
+FROM leboncoin_session WHERE id = 1`).Scan(&row.value, &row.expiresAt, &row.revokedAt, &row.revision, &row.updatedAt, &row.lastAttemptAt, &row.lastAttemptOutcome)
+	return row, err
+}
+
+func (row leboncoinSessionRow) model(now time.Time) model.LeboncoinSession {
+	session := model.LeboncoinSession{
+		Value:     nullString(row.value),
+		Revision:  row.revision,
+		UpdatedAt: optionalTimestamp(row.updatedAt),
+		ExpiresAt: optionalTimestamp(row.expiresAt),
+		RevokedAt: optionalTimestamp(row.revokedAt),
+	}
+	switch {
+	case session.Value == nil:
+		session.Status = "none"
+	case session.RevokedAt != nil:
+		session.Status = "revoked"
+	case session.ExpiresAt != nil && !session.ExpiresAt.After(now):
+		session.Status = "expired"
+	default:
+		session.Status = "active"
+	}
+	if row.lastAttemptAt.Valid && row.lastAttemptOutcome.Valid {
+		session.LastAttempt = &model.LeboncoinSessionAttempt{Outcome: row.lastAttemptOutcome.String, AttemptedAt: parseTimestamp(row.lastAttemptAt.String)}
+	}
+	return session
+}
+
+// LeboncoinSession returns the saved session with its status derived at the current time.
+func (s *Store) LeboncoinSession(ctx context.Context) (model.LeboncoinSession, error) {
+	return s.leboncoinSessionAt(ctx, time.Now())
+}
+
+func (s *Store) leboncoinSessionAt(ctx context.Context, now time.Time) (model.LeboncoinSession, error) {
+	row, err := readLeboncoinSession(ctx, s.db)
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	return row.model(now), nil
+}
+
+// SaveLeboncoinSession replaces (or, with a nil value, clears) the session if
+// the stored revision still equals expectedRevision. Clearing an empty session
+// changes nothing.
+func (s *Store) SaveLeboncoinSession(ctx context.Context, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	defer tx.Rollback()
+	row, err := readLeboncoinSession(ctx, tx)
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	if row.revision != expectedRevision {
+		return model.LeboncoinSession{}, ErrSessionChanged
+	}
+	if value == nil && !row.value.Valid {
+		return row.model(now), nil
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE leboncoin_session SET value = ?, expires_at = NULL, revoked_at = NULL,
+last_attempt_at = NULL, last_attempt_outcome = NULL, revision = revision + 1, updated_at = ?
+WHERE id = 1 AND revision = ?`, value, now.UTC().Format(timestampLayout), expectedRevision); err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	row, err = readLeboncoinSession(ctx, tx)
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	return row.model(now), nil
+}
+
+// FinishLeboncoinSessionAttempt records a session-assisted attempt's renewal,
+// revocation and outcome, only if the session revision is still startRevision.
+// It reports whether the update was applied.
+func (s *Store) FinishLeboncoinSessionAttempt(ctx context.Context, startRevision int64, outcome LeboncoinSessionOutcome, now time.Time) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	row, err := readLeboncoinSession(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	if row.revision != startRevision {
+		return false, nil
+	}
+	stamp := sql.NullString{String: now.UTC().Format(timestampLayout), Valid: true}
+	next := row
+	if outcome.Revoked {
+		next.revokedAt = stamp
+		next.revision++
+		next.updatedAt = stamp
+	} else if outcome.Renewed {
+		renewedExpiry := optionalTimestampText(outcome.ExpiresAt)
+		if !row.value.Valid || row.value.String != outcome.Value {
+			next.value = sql.NullString{String: outcome.Value, Valid: true}
+			next.expiresAt = renewedExpiry
+			next.revokedAt = sql.NullString{}
+			next.revision++
+			next.updatedAt = stamp
+		} else {
+			// An expiry-only change is invisible in Settings and keeps the revision.
+			next.expiresAt = renewedExpiry
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE leboncoin_session SET value = ?, expires_at = ?, revoked_at = ?, revision = ?,
+updated_at = ?, last_attempt_at = ?, last_attempt_outcome = ? WHERE id = 1 AND revision = ?`,
+		next.value, next.expiresAt, next.revokedAt, next.revision, next.updatedAt, stamp, outcome.Attempt, startRevision); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func optionalTimestamp(value sql.NullString) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	parsed := parseTimestamp(value.String)
+	return &parsed
+}
+
+func optionalTimestampText(value *time.Time) sql.NullString {
+	if value == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value.UTC().Format(timestampLayout), Valid: true}
 }

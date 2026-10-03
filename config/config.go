@@ -10,16 +10,15 @@ import (
 )
 
 type Config struct {
-	Development          bool
-	Host                 string
-	Port                 int
-	Timezone             string
-	CheckTimes           []string
-	StaleAfter           time.Duration
-	DataDirectory        string
-	UserAgent            string
-	LeboncoinSessionFile string
-	Location             *time.Location
+	Development   bool
+	Host          string
+	Port          int
+	Timezone      string
+	CheckTimes    []string
+	StaleAfter    time.Duration
+	DataDirectory string
+	UserAgent     string
+	Location      *time.Location
 }
 
 func Load() (Config, error) {
@@ -69,16 +68,15 @@ func Load() (Config, error) {
 	}
 	userAgent := envOr("AMAZON_USER_AGENT", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36")
 	return Config{
-		Development:          development,
-		Host:                 host,
-		Port:                 port,
-		Timezone:             timezone,
-		CheckTimes:           checkTimes,
-		StaleAfter:           time.Duration(staleHours) * time.Hour,
-		DataDirectory:        filepath.Clean(dataDirectory),
-		UserAgent:            userAgent,
-		LeboncoinSessionFile: strings.TrimSpace(os.Getenv("LEBONCOIN_SESSION_FILE")),
-		Location:             location,
+		Development:   development,
+		Host:          host,
+		Port:          port,
+		Timezone:      timezone,
+		CheckTimes:    checkTimes,
+		StaleAfter:    time.Duration(staleHours) * time.Hour,
+		DataDirectory: filepath.Clean(dataDirectory),
+		UserAgent:     userAgent,
+		Location:      location,
 	}, nil
 }
 

@@ -37,6 +37,10 @@ func (s *Server) Handler() http.Handler { return s.handler }
 func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	path := r.URL.Path
+	if path == "/api/v1/settings/leboncoin-session" {
+		s.handleLeboncoinSession(w, r)
+		return
+	}
 	if path == "/api/v1/items" && r.Method == http.MethodGet {
 		items, err := s.service.List(r.Context())
 		if err != nil {
@@ -152,6 +156,61 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", "API route was not found.")
+}
+
+func (s *Server) handleLeboncoinSession(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		session, err := s.service.LeboncoinSession(r.Context())
+		if err != nil {
+			serverError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"session": session})
+	case http.MethodPut:
+		var body struct {
+			Value    *string `json:"value"`
+			Revision *int64  `json:"revision"`
+		}
+		const invalidRequest = "Request must include a session value (use an empty string to remove it) and the revision from Settings."
+		r.Body = http.MaxBytesReader(w, r.Body, 32_768)
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&body); err != nil {
+			var tooLarge *http.MaxBytesError
+			var wrongType *json.UnmarshalTypeError
+			switch {
+			case errors.As(err, &tooLarge):
+				writeError(w, http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", "Request body is too large.")
+			case errors.As(err, &wrongType):
+				writeError(w, http.StatusBadRequest, "INVALID_REQUEST", invalidRequest)
+			default:
+				writeError(w, http.StatusBadRequest, "INVALID_JSON", "Request body must be valid JSON.")
+			}
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				writeError(w, http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", "Request body is too large.")
+				return
+			}
+			writeError(w, http.StatusBadRequest, "INVALID_JSON", "Request body must contain one JSON value.")
+			return
+		}
+		if body.Value == nil || body.Revision == nil || *body.Revision < 0 {
+			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", invalidRequest)
+			return
+		}
+		session, err := s.service.SaveLeboncoinSession(r.Context(), *body.Value, *body.Revision)
+		if err != nil {
+			serviceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"session": session})
+	default:
+		w.Header().Set("Allow", "GET, PUT")
+		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
+	}
 }
 
 func (s *Server) handleFrontend(w http.ResponseWriter, r *http.Request) {
