@@ -7,3 +7,4 @@
 - [Development workflow](workflow/WORKFLOW.md) defines specification, API, implementation, review, adjudication, and QA handoffs.
 - [Workflow templates](workflow/templates/) provide subject specifications, review decisions, and QA execution records.
 - [Agent roles](../.agents/roles/) contain the reusable specialist instructions.
+- [Architecture and TDD readiness](architecture/TDD_READINESS.md) assesses current testability, minimal prerequisites and the limits of weekly token estimates.
