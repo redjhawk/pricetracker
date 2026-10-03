@@ -20,6 +20,21 @@ The script builds the React app, embeds its files, and writes `release/pricefoll
 
 Confirm the Pi's processor and OS architecture before choosing the target. The Go SQLite driver is pure Go and supports Linux ARM, so the release does not need a C compiler or a native module installed on the Pi.
 
+## Deploy an ARMv6 release in one command
+
+After installing dependencies above, use a configured SSH target:
+
+```bash
+./scripts/deploy-armv6.sh pi@raspberry-pi
+./scripts/deploy-armv6.sh pi@raspberry-pi /tmp/pricefollower-release
+```
+
+This rebuilds using `build-release.sh 6`, creates the remote staging directory, transfers the executable and installer using `copy-dist.sh`, then runs the installer with `sudo bash` over an SSH terminal. Success requires `systemctl is-active` to confirm the service is active. Failures stop subsequent stages; no rollback or continuous health monitoring is provided.
+
+The optional staging directory defaults to `pricefollower` relative to the SSH user's home; the binary is its child `pricefollower/pricefollower`. Absolute and home-relative paths, including `./pricefollower`, are accepted. Paths allow only ASCII letters, digits, underscores, dots, hyphens and slashes; spaces, shell metacharacters, literal `~`, root, dot and `..` segments are rejected. Staging under `/opt/pricefollower` or `/var/lib/pricefollower` is rejected. Choose an ordinary staging directory without symlink aliases into those locations. Installed files and persistent SQLite data retain the existing installer locations; no database is uploaded or deleted by the wrapper.
+
+Targets accept ASCII hostnames or SSH aliases containing letters, digits, dots, underscores and hyphens, starting with a letter or digit, optionally preceded by a username and `@`. Usernames start with a letter, digit or underscore and use the same characters. Use an SSH config alias for IPv6 addresses or custom ports. Local Go, npm, SSH and rsync are required. The ARMv6-compatible remote Linux device needs SSH, rsync, Bash, sudo, systemd and the existing installer prerequisites. Sudo is required even when connecting as root. Interactive sudo authentication uses the SSH terminal; unattended deployment needs preconfigured SSH authentication and sudo privileges. The wrapper stores no credentials.
+
 ## Install and run manually
 
 Upload the executable and installer to the Pi's `/tmp` directory with the deployment script:
