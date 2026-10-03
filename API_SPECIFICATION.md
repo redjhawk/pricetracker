@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02.
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03.
 
 ## Conventions
 
@@ -251,3 +251,81 @@ Only euro-priced marketplaces are supported in v1: `amazon.de`, `amazon.fr`, `am
 3. The status and last-attempt result values are approved.
 4. `201 Created` is returned immediately while the first collection attempt runs asynchronously.
 5. The list returns all tracked items in one response for the initial limit of around 100.
+
+## LeBoncoin session settings (approved 2026-10-03)
+
+**Status: approved by the user on 2026-10-03** (proposal revision 1, unchanged) for change [leboncoin-session-settings](doc/changes/leboncoin-session-settings/index.md); approval evidence in its [API record](doc/changes/leboncoin-session-settings/api-step.md). Technical sources: [settings](doc/specifications/leboncoin-session-settings/technical.md), [collection rev. 2](doc/specifications/leboncoin-session-collection/technical.md).
+
+The application stores one global LeBoncoin `datadome` session value in SQLite. These endpoints read and replace it. There is no authentication (as for all endpoints); the full value is returned by design (user decision 2 of 2026-10-03) and appears in no other response. Responses carry the existing `Cache-Control: no-store`.
+
+### Session settings object
+
+```json
+{
+  "session": {
+    "value": "Xyz~AbC123_example",
+    "revision": 7,
+    "updatedAt": "2026-10-03T18:00:00.000Z",
+    "status": "active",
+    "expiresAt": "2027-10-03T18:00:00.000Z",
+    "revokedAt": null,
+    "lastAttempt": {
+      "outcome": "rejected",
+      "attemptedAt": "2026-10-03T20:00:00.000Z"
+    }
+  }
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `value` | string or `null` | Saved `datadome` value (1–4096 characters), `null` when no session is saved. |
+| `revision` | integer ≥ 0 | Change token. Increases when the operator saves or clears the session, when collection stores a renewed value, and when LeBoncoin revokes the session. Must be sent back on save. |
+| `updatedAt` | string or `null` | Time of the last stored change; `null` if never set. |
+| `status` | `none` \| `active` \| `expired` \| `revoked` | `none`: no value. `active`: value used for LeBoncoin checks. `expired`: a known expiry supplied by LeBoncoin has passed. `revoked`: LeBoncoin deleted the cookie. `expired`/`revoked` values are kept for display but not used; LeBoncoin checks record `request_error` until a new value or an empty value is saved. |
+| `expiresAt` | string or `null` | Known expiry from a LeBoncoin renewal; `null` for a pasted value or a session cookie. |
+| `revokedAt` | string or `null` | When LeBoncoin revoked the value; non-null only with `status: "revoked"`. |
+| `lastAttempt` | object or `null` | Latest LeBoncoin check that sent this session (since it was last saved by the operator); `null` when unused. `outcome`: `accepted` (LeBoncoin returned the requested listing), `rejected` (HTTP 403 or verification challenge), `failed` (any other failure, including network errors and unavailable listings). `attemptedAt`: UTC time. |
+
+The UI shows a warning for `status` `expired`/`revoked`, otherwise for `lastAttempt.outcome` `rejected` or `failed`; no warning for `none`, `null` or `accepted`.
+
+### Get the LeBoncoin session
+
+```text
+GET /api/v1/settings/leboncoin-session
+```
+
+`200 OK` with the session settings object. With no saved session: `{"session": {"value": null, "revision": 0, "updatedAt": null, "status": "none", "expiresAt": null, "revokedAt": null, "lastAttempt": null}}` (revision may be higher if a session was saved and cleared before). `500 INTERNAL_ERROR` if it cannot be read.
+
+### Save or clear the LeBoncoin session
+
+```text
+PUT /api/v1/settings/leboncoin-session
+```
+
+Request (JSON, at most 32 768 bytes):
+
+```json
+{ "value": "Cookie: a=1; datadome=Xyz~AbC123_example; b=2", "revision": 7 }
+```
+
+- `value` (string, required): the field content as typed. The server trims surrounding whitespace and accepts either the raw value or a cookie string (optionally prefixed with `Cookie:` or `Set-Cookie:`, case-insensitive) from which it extracts the `datadome` pair; other pairs and attributes are discarded and never stored. An empty or whitespace-only string clears the session.
+- `revision` (integer, required): the `revision` received when the settings were loaded.
+
+Success `200 OK` with the new session settings object: the extracted value, `status: "active"`, `expiresAt: null`, `revokedAt: null`, `lastAttempt: null`, and an incremented `revision`; or, for a clear, `value: null` and `status: "none"`. Clearing when no value is saved returns the unchanged object. Saving never starts a price check; the next LeBoncoin check (scheduled or requested) uses the new state.
+
+Errors (existing error envelope):
+
+| Status | `code` | When | Example `message` (safe to display) |
+| --- | --- | --- | --- |
+| 400 | `INVALID_JSON` | Body is not one JSON value | “Request body must be valid JSON.” |
+| 400 | `INVALID_REQUEST` | `value` not a string, or `revision` missing / not a non-negative integer | “Request must include a session value (use an empty string to remove it) and the revision from Settings.” |
+| 400 | `INVALID_SESSION` | Input unusable: longer than 8192 characters; cookie string without `datadome`; empty `datadome` value; several different `datadome` values; value with whitespace, control characters, `;`, `,`, `"`, `\` or other invalid cookie characters; value longer than 4096 characters | “No datadome cookie was found in the pasted text.” |
+| 409 | `SESSION_CHANGED` | `revision` differs from the stored one (another save, automatic renewal, or revocation since loading). Nothing is changed. | “The LeBoncoin session changed after Settings was opened. Reopen Settings before saving.” |
+| 413 | `REQUEST_TOO_LARGE` | Body over 32 768 bytes | “Request body is too large.” |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than GET/PUT (`Allow: GET, PUT`) | “This method is not allowed for the route.” |
+| 500 | `INTERNAL_ERROR` | Storage failure; nothing is partially saved | “The server could not complete the request.” |
+
+### Effect on existing endpoints
+
+No item endpoint, field, status or result value changes. For LeBoncoin items checked with a saved session, `lastAttempt.message` (free text) may read “LeBoncoin rejected the saved session. Capture a new session and save it in Settings.” or “The saved LeBoncoin session has expired or was revoked. Save a new session in Settings.” or “The LeBoncoin session could not be read. The check will be retried at the next scheduled time.” with `result: "request_error"`. The session value never appears in item responses or messages.
