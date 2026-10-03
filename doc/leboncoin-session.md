@@ -1,114 +1,102 @@
-# Manually verified LeBoncoin sessions
+# LeBoncoin session from Settings
 
-When LeBoncoin asks for verification, use a dedicated desktop browser to complete it yourself, then transfer the resulting private session file to the Raspberry Pi. This workflow exports only the applicable `datadome` cookie. It does not use your personal browser profile or require a LeBoncoin login. Desktop success does not guarantee acceptance from the Pi's device or network, and the session can expire or be rejected later.
+When LeBoncoin answers PriceFollower with a verification challenge (HTTP 403), you can give the application a session that you verified yourself in a browser. You capture it on a desktop computer with a small helper, then paste it into **Settings › LeBonCoin session** in the PriceFollower interface. No file, server shell access, environment variable or restart is needed.
 
-## Capture on your desktop
+The helper uses a dedicated browser window with a fresh temporary profile: it does not read your personal browser profile and you do not sign in to LeBoncoin. It never clicks or solves a challenge for you; you complete any verification yourself. A session that works on your desktop is not guaranteed to be accepted from the server's device or network, and LeBoncoin can expire or reject it at any time.
 
-Use Node.js 22 or newer, the repository dependencies (`npm ci`), and a graphical POSIX desktop with Chrome or Chromium. Windows filesystem permissions are not supported by this helper. If using Playwright's bundled browser, install it with `npx playwright install chromium`; otherwise pass your installed browser's executable through `--browser`.
+## Prerequisites
 
-Create a private directory outside the repository. Its existing parents must be real directories, without symbolic links:
+- A desktop computer with a graphical session (Linux with X11 or Wayland, or macOS). Run the helper from a terminal opened in that desktop session.
+- Google Chrome or Chromium installed. The helper finds `google-chrome`, `google-chrome-stable`, `chromium` or `chromium-browser` on your `PATH` (on macOS, Google Chrome in `/Applications`), then Playwright's browser if installed. Pass `--browser <path>` to choose another executable.
+- Node.js 20.19 or newer for the helper.
+- A copy of this repository with its dependencies installed: run `npm ci` once in the repository.
+- An active LeBoncoin France listing URL.
 
-```bash
-install -d -m 0700 "$HOME/.pricefollower-session"
-node scripts/capture-leboncoin-session.mjs \
-  --url 'https://www.leboncoin.fr/ad/voitures/3245888872' \
-  --output "$HOME/.pricefollower-session/session.json" \
-  --browser /opt/google/chrome/chrome
-```
-
-The listing above is an example used during investigation. Substitute any supported active LeBoncoin France listing; the example might later be removed. Omit `--browser` to use the installed Playwright browser. Quote paths containing spaces.
-
-The helper opens an isolated visible browser, visits LeBoncoin and the requested listing, and waits for you to complete any verification. Do not sign in. It confirms a successful page response, matching active listing identity, and an applicable cookie before exporting. It never clicks or solves a challenge. If the page is unavailable, cancel and try another active listing.
-
-The default total deadline is 600 seconds; `--timeout-seconds` accepts integers from 1 through 3600. Ctrl+C cancels. Timeout, cancellation, browser failure, or incomplete verification returns a nonzero exit status and preserves any previous export. Successful renewal replaces the file atomically with mode 0600. Existing symlinks, nonregular targets, unsafe ownership/permissions, and destinations inside the repository are rejected. A successful message names the output file without printing its contents.
-
-Normal exits close the dedicated browser and remove its temporary profile. SIGKILL or power loss can leave private `pricefollower-capture-*` directories under your system temporary directory; after confirming no capture process is running, remove only the directories belonging to that interrupted capture. Do not reuse these as browser profiles. Keep the exported file out of source control, backups shared with others, chat, URLs, and application forms.
-
-## Install the application release
-
-Build and deploy using the existing release procedure, substituting your SSH target:
+## Capture a session
 
 ```bash
-./scripts/deploy-armv6.sh pi@raspberry-pi
+node scripts/capture-leboncoin-session.mjs --url 'https://www.leboncoin.fr/ad/voitures/3245888872'
 ```
 
-This builds the ARMv6 release and installs the existing `pricefollower` systemd service. For build-only verification use `./scripts/build-release.sh 6`. See [deployment instructions](../DEPLOYMENT.md). No Node.js or browser service is required on the Pi. The session transfer is separate from the application release.
+The listing above is only an example; use any active LeBoncoin France listing. Options:
 
-## Transfer and install the session
+- `--browser <path>`: browser executable to open, for example `--browser /usr/bin/google-chrome`.
+- `--timeout-seconds <1-3600>`: how long to wait for you (default 600 seconds).
+- `--help`: show usage.
 
-Use your normal SSH host-key verification and account permissions; do not disable host-key checking. The commands below use the example target `pi@raspberry-pi`. First create a unique mode-0700 staging directory owned by your SSH account on the Pi. Run these commands in the same local shell:
+What you see:
 
-```bash
-LBC_TARGET=pi@raspberry-pi
-LBC_STAGE=$(ssh "$LBC_TARGET" 'umask 077; mktemp -d "$HOME/.pricefollower-session-transfer.XXXXXXXX"')
-# Check that the returned absolute path contains only safe shell characters.
-case "$LBC_STAGE" in
-  /*) ;;
-  *) echo 'Invalid staging path' >&2; exit 1 ;;
-esac
-case "$LBC_STAGE" in
-  *[!a-zA-Z0-9_./-]*) echo 'Unsupported staging path' >&2; exit 1 ;;
-esac
-scp "$HOME/.pricefollower-session/session.json" "$LBC_TARGET:$LBC_STAGE/session.json"
-```
+1. A first message, `PriceFollower LeBoncoin session capture — checking prerequisites…`, immediately.
+2. `Opening <browser> with a temporary profile…`, then `A new browser window is open…`. The window can open behind your terminal or editor: if you do not see it, look for a “ready” notification or switch windows (Alt+Tab or Activities).
+3. `Waiting for you to complete any LeBoncoin verification in that window. Deadline: HH:MM:SS.` Complete any LeBoncoin verification in that window and leave it open. `Page loaded; checking the listing…` appears each time a LeBoncoin page loads.
+4. On success the helper closes its window and prints:
 
-The protected staging directory prevents access by other local users even during transfer. Next, open an interactive SSH shell in that staging directory:
+   ```text
+   Session captured. Paste the next line into Settings › LeBonCoin session in PriceFollower. Keep it private: do not share it in chats, tickets or logs.
+   datadome=<value>
+   ```
 
-```bash
-ssh -t "$LBC_TARGET" "cd -- '$LBC_STAGE' && exec bash"
-```
+The `datadome=…` line is the only output on standard output; all messages go to standard error. Press Ctrl+C at any time to cancel.
 
-In that remote shell, run the following block. It installs through a temporary file on the final filesystem and renames atomically. Enter your normal sudo password if prompted; the cookie itself is never a command argument:
+## Paste it into Settings
 
-```bash
-sudo bash -s -- "$PWD" <<'REMOTE'
-set -eu
-stage=$1
-source_file="$stage/session.json"
-target_dir=/var/lib/pricefollower/leboncoin
-install -d -o pricefollower -g pricefollower -m 0700 "$target_dir"
-umask 077
-private_file=$(mktemp "$target_dir/.session-install.XXXXXXXX")
-trap 'rm -f -- "$private_file"' EXIT
-install -o pricefollower -g pricefollower -m 0600 "$source_file" "$private_file"
-mv -fT -- "$private_file" "$target_dir/session.json"
-rm -f -- "$source_file"
-rmdir -- "$stage"
-REMOTE
-exit
-```
+1. Copy the whole `datadome=…` line.
+2. In PriceFollower, select the profile icon at the top right of the header, then **Settings**.
+3. Paste the line into **LeBonCoin session** and save. The application keeps only the datadome value. You can also paste the raw value or a cookie string containing `datadome=…`.
 
-If an installation command fails, retain your desktop export, resolve the reported permission/setup issue, and retry. Delete any unused remote staging directory through SSH after confirming it belongs to this transfer. Never use a world-readable temporary copy. This setup supports one running PriceFollower process owning the session directory.
+The session is stored in the application's database and applies to the next LeBoncoin price check, without a restart. Saving does not start a check by itself.
 
-## Enable once, then renew without restarting
+## Check the result
 
-On the Pi, create a systemd drop-in:
+Refresh a LeBoncoin item from its details page, or use the main refresh control, then check the attempt status and the newly detected price. A rejected attempt keeps the last successful price.
 
-```bash
-sudo install -d -m 0755 /etc/systemd/system/pricefollower.service.d
-sudo tee /etc/systemd/system/pricefollower.service.d/leboncoin-session.conf >/dev/null <<'UNIT'
-[Service]
-Environment=LEBONCOIN_SESSION_FILE=/var/lib/pricefollower/leboncoin/session.json
-UNIT
-sudo systemctl daemon-reload
-sudo systemctl restart pricefollower
-sudo systemctl is-active pricefollower
-```
+Reopen **Settings**: if the most recent attempt that used the saved session failed, the modal shows when, and whether LeBoncoin rejected the session. If it says the session is expired or revoked, it is no longer used.
 
-The application installer preserves this drop-in. The service keeps verified cookie updates in the private companion file `session.json.state.json`. That file belongs to the collector: do not copy an old sidecar over a newer import or edit it manually. Keep both files in the service-owned mode-0700 directory.
+## Renew or clear
 
-If diagnostics report a malformed, unreadable, or unsafe sidecar, replacing the import alone does not repair that sidecar. On the Pi, stop the service (`sudo systemctl stop pricefollower`), check the ownership and modes with `sudo ls -ld /var/lib/pricefollower/leboncoin /var/lib/pricefollower/leboncoin/session.json.state.json` without printing contents, and remove only the broken collector sidecar with `sudo rm -- /var/lib/pricefollower/leboncoin/session.json.state.json`. Install a freshly verified import using the procedure above before starting the service again (`sudo systemctl start pricefollower`); do not deliberately restore an old revoked session by deleting its state. Restore directory ownership to `pricefollower:pricefollower` and mode 0700 if needed.
+- **Renew** when Settings reports a rejection, expiry or revocation, or when LeBoncoin checks fail with a verification challenge: run the helper again and paste the new line into Settings. The application also saves renewed cookies that LeBoncoin sends during successful checks.
+- **Clear** by saving an empty **LeBonCoin session** field. LeBoncoin checks then run without a session.
 
-Open your existing PriceFollower interface, select LeBoncoin, and refresh the listing from its details page, or use the main refresh control. Check the attempt status and newly detected price. A saved file or a running service alone does not establish successful server collection. On a rejection/403, the previous successful price remains available and the attempt records the existing collection error. Safe service diagnostics can be read with `sudo journalctl -u pricefollower --since '10 minutes ago'`; do not print session-file contents.
+## Keep the value secret
 
-For renewal, repeat desktop capture and the protected transfer/install sequence. The collector reads the replacement on the next collection attempt; no service restart is needed. If the renewed session is rejected from the Pi, repeat human verification as needed; neither portability nor lifetime is guaranteed.
+The printed value gives access to your verified LeBoncoin session. It stays in your terminal scrollback and clipboard: do not paste it into chats, tickets, URLs or shared logs. Anyone who can open the PriceFollower interface can read it in Settings.
 
-To disable session-assisted collection, remove `/etc/systemd/system/pricefollower.service.d/leboncoin-session.conf`, run `sudo systemctl daemon-reload`, and restart `pricefollower`. Remove private session files when no longer needed.
+## Failure messages
 
-## Focused helper checks
+Every run ends with one final message and a nonzero exit status on failure; no session value is printed on failure.
+
+| Message starts with | What to do |
+| --- | --- |
+| `Usage:` | Pass `--url <listing-url>` and only the options listed above. |
+| `… is no longer supported. The session is now printed here…` | Remove the old output-file option; the session is printed for pasting into Settings. |
+| `Use a supported HTTPS LeBoncoin listing URL.` | Use a `https://www.leboncoin.fr/ad/<category>/<number>` listing URL. |
+| `Timeout must be an integer` | Use a whole number of seconds from 1 to 3600. |
+| `Node.js 20.19 or newer is required` | Install a newer Node.js. |
+| `Repository dependencies are missing.` | Run `npm ci` in the repository. |
+| `No graphical display was found` | Run the helper from a terminal inside your desktop session, not over SSH without a display. |
+| `This helper supports Linux and macOS desktops only.` | Use a Linux or macOS desktop. |
+| `The browser at … was not found` / `No Chrome or Chromium browser was found.` | Install Google Chrome or Chromium, or pass a correct `--browser` path. |
+| `The browser exited during startup` / `The browser started but …` | Check that the browser starts normally from this desktop session, or pass another `--browser`. |
+| `Browser debugging port collision` | Retry. |
+| `The browser window was closed before verification finished.` | Run again and leave the window open until the helper reports success. |
+| `The browser was quit before verification finished.` | Run again without quitting the browser. |
+| `The browser exited unexpectedly` | Retry; if it repeats, start the browser manually to check it works. |
+| `Lost the connection to the browser` | Retry. |
+| `Capture timed out after N seconds: …` | The reason says what was last seen: a verification page still shown, a page that is not the requested active listing (check the URL or try another listing), a listing page that could not be loaded, or no page yet. Retry with more time or another listing. |
+| `The listing loaded but LeBoncoin did not set a usable datadome cookie.` | Retry, or try another active listing. |
+| `Capture cancelled.` | You pressed Ctrl+C or the helper was stopped. |
+| `Capture failed because of an unexpected error` | Retry; the message names only the error type. |
+
+The helper always closes its browser and removes its temporary profile. Only a forced kill (SIGKILL) or power loss can leave a `pricefollower-capture-*` directory in your system temporary directory; after checking that no capture is running, remove that directory.
+
+## Helper tests
 
 ```bash
 node --test scripts/capture-leboncoin-session.test.mjs
 ```
 
-These tests use synthetic session values, private temporary directories, and mocked browser/process interfaces. Live desktop verification and successful Pi collection remain separate operator checks.
+These tests use synthetic values and simulated browsers. A real capture and a successful check from the server remain separate operator checks.
+
+## Previous file-based workflow
+
+Earlier versions transferred a session file to the server. That file-based workflow was removed; see the [deprecation record](deprecated/leboncoin-session-file.md) for its description and for cleaning up an existing deployment.

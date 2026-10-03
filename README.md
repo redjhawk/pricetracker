@@ -76,7 +76,7 @@ sudo /tmp/install-pricefollower.sh /tmp/pricefollower
 
 The installer creates the `pricefollower` service user and group, installs the app in `/opt/pricefollower`, and stores the SQLite database in `/var/lib/pricefollower`. The web interface and API are served from port `3001`. See [DEPLOYMENT.md](DEPLOYMENT.md) for details and updates.
 
-For LeBoncoin verification challenges, follow the [manual session capture and Raspberry Pi renewal guide](doc/leboncoin-session.md).
+For LeBoncoin verification challenges, follow [LeBoncoin verification: capture a session and paste it in Settings](doc/leboncoin-session.md).
 
 ## Project status
 

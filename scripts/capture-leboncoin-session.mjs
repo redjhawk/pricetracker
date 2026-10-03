@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Keep this module parseable by older Node.js versions so the runtime check can explain itself.
 import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import os from 'node:os';
@@ -8,17 +9,27 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from '@playwright/test';
 
-const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const usage = 'Usage: node scripts/capture-leboncoin-session.mjs --url <listing-url> --output <private-file> [--browser <executable-path>] [--timeout-seconds <1-3600>]';
+const usage = 'Usage: node scripts/capture-leboncoin-session.mjs --url <listing-url> [--browser <executable-path>] [--timeout-seconds <1-3600>]';
+const outputRemoved = '--output is no longer supported. The session is now printed here; paste it into Settings › LeBonCoin session in PriceFollower.';
+const startupMilliseconds = 20000;
+const settleMilliseconds = 1000;
+const noCookieMilliseconds = 15000;
+const timeoutReasons = {
+  challenge: 'LeBoncoin was still showing a verification page',
+  'not-listing': 'the page was not the requested active listing (check the URL or try another active listing)',
+  'navigation-error': 'the listing page could not be loaded',
+  'no-cookie': 'the listing loaded but LeBoncoin had not set a usable datadome cookie',
+  none: 'no page loaded yet',
+};
 class CaptureError extends Error {}
 const fail = message => { throw new CaptureError(message); };
 
 export function parseArguments(args) {
+  if (args.some(arg => arg === '--output' || arg.startsWith('--output='))) fail(outputRemoved);
   if (args.length === 1 && args[0] === '--help') return { help: true };
   const options = { timeoutSeconds: 600 };
-  const names = { '--url': 'url', '--output': 'output', '--browser': 'browser', '--timeout-seconds': 'timeoutSeconds' };
+  const names = { '--url': 'url', '--browser': 'browser', '--timeout-seconds': 'timeoutSeconds' };
   const seen = new Set();
   for (let i = 0; i < args.length; i += 2) {
     const key = names[args[i]];
@@ -26,7 +37,7 @@ export function parseArguments(args) {
     seen.add(key);
     options[key] = args[i + 1];
   }
-  if (!options.url || !options.output) fail(usage);
+  if (!options.url) fail(usage);
   if (!/^\d+$/.test(String(options.timeoutSeconds)) || Number(options.timeoutSeconds) < 1 || Number(options.timeoutSeconds) > 3600) fail('Timeout must be an integer from 1 through 3600 seconds.');
   options.timeoutSeconds = Number(options.timeoutSeconds);
   return options;
@@ -52,7 +63,8 @@ export function verifiedListing(listing, document, snapshot) {
   } catch { return false; }
 }
 
-export function sessionExport(cookies, listing, now = new Date()) {
+// Returns the only text printed on stdout: the single applicable datadome cookie.
+export function sessionLine(cookies, listing, now = new Date()) {
   const target = new URL(listing.url);
   const candidates = cookies.filter(cookie => cookie.name === 'datadome');
   if (candidates.length !== 1) fail('A single applicable datadome cookie is required; complete verification or retry.');
@@ -60,57 +72,56 @@ export function sessionExport(cookies, listing, now = new Date()) {
   const domains = ['leboncoin.fr', '.leboncoin.fr', 'www.leboncoin.fr', '.www.leboncoin.fr'];
   const domainApplies = cookie.domain?.startsWith('.') ? target.hostname === cookie.domain.slice(1) || target.hostname.endsWith(cookie.domain) : target.hostname === cookie.domain;
   const pathApplies = typeof cookie.path === 'string' && cookie.path.startsWith('/') && !/[\x00-\x1f\x7f]/.test(cookie.path) && (target.pathname === cookie.path || target.pathname.startsWith(cookie.path.endsWith('/') ? cookie.path : cookie.path + '/'));
-  if (!domains.includes(cookie.domain) || !domainApplies || !pathApplies || typeof cookie.secure !== 'boolean' || typeof cookie.value !== 'string' || cookie.value.length > 4096 || !/^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/.test(cookie.value)) fail('The applicable datadome cookie has invalid scope or metadata.');
-  let expiresAt = null;
+  if (!domains.includes(cookie.domain) || !domainApplies || !pathApplies || typeof cookie.value !== 'string' || cookie.value.length > 4096 || !/^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/.test(cookie.value)) fail('The applicable datadome cookie has invalid scope or value.');
   if (cookie.expires !== -1) {
     const expiry = new Date(cookie.expires * 1000);
-    if (typeof cookie.expires !== 'number' || !Number.isFinite(cookie.expires) || !Number.isFinite(expiry.getTime()) || expiry <= now || expiry.getUTCFullYear() > 9999) fail('The datadome cookie is expired or has invalid expiry metadata.');
-    expiresAt = expiry.toISOString();
+    if (typeof cookie.expires !== 'number' || !Number.isFinite(expiry.getTime()) || expiry <= now) fail('The datadome cookie is expired or has invalid expiry metadata.');
   }
-  return { version: 1, capturedAt: now.toISOString(), cookie: { name: 'datadome', value: cookie.value, domain: cookie.domain, path: cookie.path, secure: cookie.secure, expiresAt } };
+  return `datadome=${cookie.value}`;
 }
 
-export async function validateDestination(output) {
-  if (process.platform === 'win32' || !process.getuid) fail('Capture requires a POSIX desktop with private file permissions.');
-  const destination = path.resolve(output);
-  if (destination === repository || destination.startsWith(repository + path.sep)) fail('Keep the session file outside the repository.');
-  const directory = path.dirname(destination);
-  let current = path.parse(directory).root;
-  for (const segment of directory.slice(current.length).split(path.sep).filter(Boolean)) {
-    current = path.join(current, segment);
-    const stat = await fs.lstat(current);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) fail('Output parent directories must be real directories, without symlinks.');
-  }
-  const parent = await fs.lstat(directory);
-  if (parent.uid !== process.getuid() || (parent.mode & 0o777) !== 0o700) fail('Output directory must be owned by you with mode 0700.');
-  try {
-    const stat = await fs.lstat(destination);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0) fail('Existing output must be an owned private regular file, without symlinks.');
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  return destination;
+export function checkRuntime(version) {
+  const [major, minor] = version.split('.').map(Number);
+  if (major < 20 || (major === 20 && minor < 19)) fail(`Node.js 20.19 or newer is required (found v${version}). Install a newer Node.js, then retry.`);
 }
 
-export async function writeSession(output, value, signal, io = fs) {
-  signal?.throwIfAborted();
-  const destination = await validateDestination(output);
-  const contents = JSON.stringify(value) + '\n';
-  if (Buffer.byteLength(contents) > 16384) fail('Session export exceeds the supported size.');
-  const temporary = path.join(path.dirname(destination), `.session-${randomUUID()}.tmp`);
-  let handle;
-  try {
-    handle = await io.open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-    await handle.writeFile(contents, 'utf8');
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    await validateDestination(destination);
-    signal?.throwIfAborted();
-    await io.rename(temporary, destination);
-  } finally {
-    await handle?.close().catch(() => {});
-    await fs.rm(temporary, { force: true });
-  }
+export async function loadPlaywright(importer = () => import('@playwright/test')) {
+  try { return (await importer()).chromium; }
+  catch { fail('Repository dependencies are missing. Run npm ci in the repository, then retry.'); }
 }
+
+export function checkDisplay(env, platform) {
+  if (platform === 'win32') fail('This helper supports Linux and macOS desktops only.');
+  if (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) fail('No graphical display was found (DISPLAY and WAYLAND_DISPLAY are not set). Run the helper from a terminal in your desktop session.');
+}
+
+const isExecutable = candidate => fs.access(candidate, constants.X_OK);
+
+export async function findBrowser(requested, { env, platform, access = isExecutable, chromium }) {
+  const usable = async candidate => { try { await access(candidate); return true; } catch { return false; } };
+  if (requested) {
+    if (await usable(requested)) return requested;
+    fail(`The browser at ${requested} was not found or is not executable.`);
+  }
+  const directories = (env.PATH || '').split(path.delimiter).filter(Boolean);
+  const candidates = platform === 'darwin'
+    ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+    : ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].flatMap(name => directories.map(directory => path.join(directory, name)));
+  try { candidates.push(chromium.executablePath()); } catch {}
+  for (const candidate of candidates) if (candidate && await usable(candidate)) return candidate;
+  fail('No Chrome or Chromium browser was found. Install Google Chrome or Chromium, or pass --browser <path>.');
+}
+
+const describeExit = exit => exit?.signal ? `signal ${exit.signal}` : exit ? `exit code ${exit.code}` : 'it could not be started';
+
+export function browserEndMessage({ pageClosed, exit, error }) {
+  if (error || (exit && (exit.code !== 0 || exit.signal))) return `The browser exited unexpectedly${exit ? ` (${describeExit(exit)})` : ''} before verification finished. Retry; if it repeats, start the browser manually to check it works.`;
+  if (pageClosed) return 'The browser window was closed before verification finished. Run the helper again and leave the window open until it reports success.';
+  if (exit) return 'The browser was quit before verification finished.';
+  return 'Lost the connection to the browser before verification finished. Retry the capture.';
+}
+
+export const timeoutMessage = (seconds, reason) => `Capture timed out after ${seconds} seconds: ${timeoutReasons[reason]}.`;
 
 async function availablePort() {
   const server = net.createServer();
@@ -132,121 +143,188 @@ async function abortable(operation, signal) {
   finally { signal.removeEventListener('abort', listener); }
 }
 
-export async function openBrowser(options, signal, dependencies = {}) {
-  const executable = options.browser || chromium.executablePath();
-  try { await fs.access(executable, constants.X_OK); }
-  catch { fail('Browser executable unavailable. Run npx playwright install chromium or pass --browser <executable-path>.'); }
+// timers/promises rejects with a generic AbortError; surface the abort reason instead.
+const pauseFor = (milliseconds, signal) => delay(milliseconds, undefined, { signal }).catch(error => { signal.throwIfAborted(); throw error; });
+
+// Un-minimize and raise the window; focus-stealing prevention may still keep it behind.
+async function showWindow(context, page, signal) {
+  const session = await abortable(context.newCDPSession(page), signal);
+  const { windowId } = await abortable(session.send('Browser.getWindowForTarget'), signal);
+  if (!windowId) fail('The browser started but did not open a window within 20 seconds.');
+  await abortable(session.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } }), signal).catch(() => {});
+  await abortable(page.bringToFront(), signal).catch(() => {});
+  await session.detach().catch(() => {});
+}
+
+export async function openBrowser(executablePath, signal, dependencies = {}) {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'pricefollower-capture-'));
-  let child, browser, exited = false, closing;
+  let child, browser, closing, settleTimer;
+  let exit = null, spawnFailed = false, connected = false;
+  const ending = {};
+  const ended = new AbortController();
+  // Collect the rest of the end sequence briefly, then report one classified reason.
+  const noteEnd = change => {
+    if (!connected || closing) return;
+    Object.assign(ending, change);
+    if (settleTimer === undefined) settleTimer = setTimeout(() => ended.abort(new CaptureError(browserEndMessage(ending))), settleMilliseconds);
+  };
   const terminate = signalName => {
     try {
       if (child?.pid) process.kill(-child.pid, signalName);
       else child?.kill(signalName);
     } catch (error) { if (error.code !== 'ESRCH') throw error; }
   };
-  const close = () => closing ??= (async () => {
-    if (browser) await Promise.race([browser.close().catch(() => {}), delay(1000)]);
-    if (child && !exited) {
-      terminate('SIGTERM');
-      await Promise.race([new Promise(resolve => child.once('exit', resolve)), delay(1500)]);
-      if (!exited) {
-        terminate('SIGKILL');
-        await Promise.race([new Promise(resolve => child.once('exit', resolve)), delay(1000)]);
+  const running = () => child && !exit && !spawnFailed;
+  const close = () => {
+    if (closing) return closing;
+    return closing = (async () => {
+      clearTimeout(settleTimer);
+      if (browser) await Promise.race([browser.close().catch(() => {}), delay(1000)]);
+      if (running()) {
+        terminate('SIGTERM');
+        await Promise.race([new Promise(resolve => child.once('exit', resolve)), delay(1500)]);
+        if (running()) {
+          terminate('SIGKILL');
+          await Promise.race([new Promise(resolve => child.once('exit', resolve)), delay(1000)]);
+        }
       }
-    }
-    // Chrome descendants share this task-owned process group.
-    terminate('SIGKILL');
-    await fs.rm(profile, { recursive: true, force: true });
-  })();
+      // Chrome descendants share this task-owned process group.
+      terminate('SIGKILL');
+      await fs.rm(profile, { recursive: true, force: true });
+    })();
+  };
+  const startupFailure = () => fail(`The browser exited during startup (${describeExit(exit)}). Check that it starts from this desktop session, or pass another --browser.`);
   try {
     await fs.chmod(profile, 0o700);
     signal.throwIfAborted();
     const port = await (dependencies.availablePort || availablePort)();
     const marker = `data:text/plain,pricefollower-${randomUUID()}`;
-    child = (dependencies.spawn || spawn)(executable, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, marker], { stdio: 'ignore', detached: true });
-    child.once('exit', () => { exited = true; });
-    child.once('error', () => { exited = true; });
-    const startupEnd = Date.now() + 20000;
+    child = (dependencies.spawn || spawn)(executablePath, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, marker], { stdio: 'ignore', detached: true });
+    child.on('exit', (code, signalName) => { exit = { code, signal: signalName }; noteEnd({ exit }); });
+    child.on('error', () => { spawnFailed = true; noteEnd({ error: true }); });
+    const startupEnd = Date.now() + startupMilliseconds;
+    const startupSignal = () => AbortSignal.any([signal, AbortSignal.timeout(Math.max(1, startupEnd - Date.now()))]);
     while (!browser && Date.now() < startupEnd) {
       signal.throwIfAborted();
-      if (exited) fail('Browser exited before capture connected. Check your graphical desktop and browser setup.');
+      if (exit || spawnFailed) startupFailure();
       try {
         const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.min(1000, Math.max(1, startupEnd - Date.now())))]);
         const response = await (dependencies.fetch || fetch)(`http://127.0.0.1:${port}/json/list`, { signal: requestSignal });
         const targets = await response.json();
         // A fresh random startup target proves this endpoint belongs to our child.
         if (!Array.isArray(targets) || !targets.some(target => target.type === 'page' && target.url === marker)) fail('Browser debugging port collision; retry capture.');
-        browser = await (dependencies.connect || chromium.connectOverCDP.bind(chromium))(`http://127.0.0.1:${port}`, { timeout: Math.min(1000, Math.max(1, startupEnd - Date.now())) });
+        browser = await dependencies.connect(`http://127.0.0.1:${port}`, { timeout: Math.min(1000, Math.max(1, startupEnd - Date.now())) });
       } catch (error) {
         if (error instanceof CaptureError) throw error;
-        await delay(200, undefined, { signal });
+        await pauseFor(200, signal);
       }
     }
     signal.throwIfAborted();
-    if (!browser || exited) fail('Browser connection did not start within 20 seconds.');
+    if (exit || spawnFailed) startupFailure();
+    if (!browser) fail('The browser started but could not be controlled within 20 seconds. Retry the capture.');
     const context = browser.contexts()[0];
     const page = context?.pages().find(candidate => candidate.url() === marker);
     if (!page) fail('Could not confirm the isolated browser session.');
-    return { close, waitForSession: listing => waitForSession(page, context, listing, signal, () => exited || !browser.isConnected()) };
+    connected = true;
+    browser.on('disconnected', () => noteEnd({ disconnected: true }));
+    page.on('close', () => noteEnd({ pageClosed: true }));
+    try { await showWindow(context, page, startupSignal()); }
+    catch (error) {
+      signal.throwIfAborted();
+      if (exit || spawnFailed) startupFailure();
+      if (error instanceof CaptureError) throw error;
+      fail('The browser started but did not open a window within 20 seconds.');
+    }
+    const waitSignal = AbortSignal.any([signal, ended.signal]);
+    return { close, waitForSession: (listing, options) => waitForSession(page, context, listing, waitSignal, options) };
   } catch (error) { await close(); throw error; }
 }
 
-export async function waitForSession(page, context, listing, signal, disconnected = () => false) {
-  let document = null;
+function captchaFrame(page) {
+  return page.frames().some(frame => {
+    try { return /(^|\.)captcha-delivery\.com$/.test(new URL(frame.url()).hostname); } catch { return false; }
+  });
+}
+
+// Classify a polled page that is not (yet) the verified listing.
+function observe(document, page) {
+  if (document?.status === 403 || captchaFrame(page)) return 'challenge';
+  if (!document?.ready) return undefined;
+  if (document.status >= 500) return 'navigation-error';
+  return 'not-listing';
+}
+
+export async function waitForSession(page, context, listing, signal, { observation, log, now = Date.now, pause = milliseconds => pauseFor(milliseconds, signal) }) {
+  let document = null, noCookieSince;
   const mainDocument = request => request.isNavigationRequest() && request.frame() === page.mainFrame();
   page.on('request', request => { if (mainDocument(request)) document = { request, ready: false }; });
   page.on('response', response => {
     if (response.request() === document?.request) document = { request: response.request(), url: response.url(), status: response.status(), ready: false };
   });
-  page.on('requestfailed', request => { if (request === document?.request) document = null; });
-  page.on('domcontentloaded', () => { if (document?.status) document.ready = true; });
+  page.on('requestfailed', request => { if (request === document?.request) { document = null; observation.reason = 'navigation-error'; } });
+  page.on('domcontentloaded', () => {
+    if (!document?.status) return;
+    document.ready = true;
+    try { if (/(^|\.)leboncoin\.fr\.?$/i.test(new URL(document.url).hostname)) log('Page loaded; checking the listing…'); } catch {}
+  });
   for (const url of ['https://www.leboncoin.fr/', listing.url]) {
     try { await abortable(page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }), signal); }
-    catch (error) { signal.throwIfAborted(); if (error.name !== 'TimeoutError') document = null; }
+    catch (error) {
+      signal.throwIfAborted();
+      if (error.name !== 'TimeoutError') { document = null; observation.reason = 'navigation-error'; }
+    }
   }
   while (true) {
     signal.throwIfAborted();
-    if (page.isClosed() || disconnected()) fail('Browser closed before a verified listing was captured.');
     const observed = document;
     let snapshot;
     try {
       snapshot = await abortable(page.evaluate(() => ({ url: location.href, data: document.querySelector('script#__NEXT_DATA__')?.textContent })), signal);
     } catch { signal.throwIfAborted(); }
+    let reason;
     if (snapshot && observed === document && verifiedListing(listing, observed, snapshot)) {
-      const cookies = await abortable(context.cookies(listing.url), signal);
-      if (observed !== document || page.url() !== snapshot.url) continue;
-      // Missing cookies may arrive just after the document; keep waiting safely.
-      try { return sessionExport(cookies, listing); } catch (error) { if (!(error instanceof CaptureError)) throw error; }
+      let cookies;
+      try { cookies = await abortable(context.cookies(listing.url), signal); } catch { signal.throwIfAborted(); }
+      if (cookies && observed === document && page.url() === snapshot.url) {
+        // Cookies may arrive just after the document; keep waiting within the grace period.
+        try { return sessionLine(cookies, listing, new Date(now())); } catch (error) { if (!(error instanceof CaptureError)) throw error; }
+        reason = 'no-cookie';
+      }
+    } else if (snapshot && observed === document) reason = observe(observed, page);
+    if (reason) observation.reason = reason;
+    if (reason !== 'no-cookie') noCookieSince = undefined;
+    else {
+      if (noCookieSince === undefined) noCookieSince = now();
+      if (now() - noCookieSince >= noCookieMilliseconds) fail('The listing loaded but LeBoncoin did not set a usable datadome cookie. Retry, or try another active listing.');
     }
-    await delay(1000, undefined, { signal });
+    await pause(1000);
   }
 }
 
-export async function capture(options, dependencies = {}) {
-  const listing = parseListingURL(options.url);
-  const output = await validateDestination(options.output);
+export async function capture(options, listing, executablePath, dependencies) {
+  const { log, chromium } = dependencies;
+  const observation = { reason: 'none' };
   const controller = new AbortController();
   const signal = dependencies.signal ? AbortSignal.any([controller.signal, dependencies.signal]) : controller.signal;
-  const timer = setTimeout(() => controller.abort(new CaptureError('Capture timed out. Complete verification and try again.')), options.timeoutSeconds * 1000);
-  const log = dependencies.log || console.log;
+  const deadline = new Date(Date.now() + options.timeoutSeconds * 1000);
+  const timer = setTimeout(() => controller.abort(new CaptureError(timeoutMessage(options.timeoutSeconds, observation.reason))), options.timeoutSeconds * 1000);
   let browser;
   try {
-    signal.throwIfAborted();
-    log('Opening an isolated visible browser. Complete any LeBoncoin verification yourself. Press Ctrl+C to cancel.');
-    browser = await (dependencies.openBrowser || openBrowser)(options, signal);
-    signal.throwIfAborted();
-    log('Waiting for the requested active listing and its verified session…');
-    const exported = await abortable(browser.waitForSession(listing), signal);
-    signal.throwIfAborted();
-    await writeSession(output, exported, signal);
-    log(`Session saved privately to ${output}. Server acceptance must be checked separately.`);
+    log(`Opening ${executablePath} with a temporary profile…`);
+    browser = await (dependencies.openBrowser || openBrowser)(executablePath, signal, { connect: (...args) => chromium.connectOverCDP(...args) });
+    log('A new browser window is open. If you do not see it, look for a ‘ready’ notification or switch windows (Alt+Tab / Activities).');
+    log(`Waiting for you to complete any LeBoncoin verification in that window. Deadline: ${deadline.toLocaleTimeString('en-GB', { hour12: false })}. Press Ctrl+C to cancel.`);
+    return await abortable(browser.waitForSession(listing, { observation, log }), signal);
   } finally {
     clearTimeout(timer);
     await browser?.close();
   }
 }
 
-export async function main(args = process.argv.slice(2)) {
+export async function main(args = process.argv.slice(2), dependencies = {}) {
+  const log = dependencies.error || (message => console.error(message));
+  const print = dependencies.output || (line => process.stdout.write(line + '\n'));
+  log('PriceFollower LeBoncoin session capture — checking prerequisites…');
   const controller = new AbortController();
   let exitCode = 1;
   const interrupt = () => { exitCode = 130; controller.abort(new CaptureError('Capture cancelled.')); };
@@ -254,13 +332,23 @@ export async function main(args = process.argv.slice(2)) {
   process.once('SIGINT', interrupt);
   process.once('SIGTERM', terminate);
   try {
+    checkRuntime(dependencies.nodeVersion || process.versions.node);
     const options = parseArguments(args);
-    if (options.help) { console.log(usage); return 0; }
-    await capture(options, { signal: controller.signal });
+    if (options.help) { print(usage); return 0; }
+    const listing = parseListingURL(options.url);
+    const chromium = await loadPlaywright(dependencies.importPlaywright);
+    const env = dependencies.env || process.env;
+    const platform = dependencies.platform || process.platform;
+    checkDisplay(env, platform);
+    const executablePath = await findBrowser(options.browser, { env, platform, access: dependencies.access, chromium });
+    controller.signal.throwIfAborted();
+    const line = await capture(options, listing, executablePath, { log, chromium, signal: controller.signal, openBrowser: dependencies.openBrowser });
+    log('Session captured. Paste the next line into Settings › LeBonCoin session in PriceFollower. Keep it private: do not share it in chats, tickets or logs.');
+    print(line);
     return 0;
   } catch (error) {
-    const diagnostic = controller.signal.aborted ? 'Capture cancelled.' : error instanceof CaptureError ? error.message : 'Capture failed. Check the browser setup and private output permissions, then retry.';
-    console.error(diagnostic);
+    // Raw error messages may contain URLs or cookie material, so only fixed messages are shown.
+    log(controller.signal.aborted ? 'Capture cancelled.' : error instanceof CaptureError ? error.message : `Capture failed because of an unexpected error (${error?.name || 'Error'}).`);
     return exitCode;
   } finally {
     process.removeListener('SIGINT', interrupt);
