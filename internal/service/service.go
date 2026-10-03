@@ -51,7 +51,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 		config: cfg, store: database,
 		collectors: map[string]collector{
 			"amazon":    amazon.NewCollector(cfg.UserAgent),
-			"leboncoin": leboncoin.NewCollector(cfg.UserAgent),
+			"leboncoin": leboncoin.NewCollectorWithSession(cfg.UserAgent, cfg.LeboncoinSessionFile),
 		},
 		inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2),
