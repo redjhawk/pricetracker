@@ -1,6 +1,6 @@
 # Technical specification: <subject>
 
-Status: draft | needs-clarification | ready | approved (when required) | superseded
+Status: draft | needs-clarification | ready | superseded
 Functional specification: <link and revision>
 
 ## Requirement mapping
@@ -19,11 +19,11 @@ Functional specification: <link and revision>
 
 ## API
 
-<Methods/paths, request/response fields and nullability, statuses, safe errors, asynchronous semantics, compatibility. Reference API_SPECIFICATION.md; state no contract change when appropriate. This draft does not constitute approval.>
+<Methods/paths, request/response fields and nullability, statuses, safe errors, asynchronous semantics, compatibility. Reference API_SPECIFICATION.md; state no contract change when appropriate.>
 
 ## Scope and refactoring
 
-<Exact change boundary, dependencies, risks. For each proposed refactor, explain need, impact, and before/after options; record the user's choice before doing it.>
+<Exact change boundary, dependencies, risks. For each proposed refactor, explain need, impact, and before/after options; record the decision and rationale before doing it.>
 
 ## Verification and unresolved questions
 

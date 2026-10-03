@@ -19,7 +19,7 @@ Record real URLs only after obtaining them from the running app or verified fixt
 
 ## Coverage and limitations
 
-<Empty data, invalid input, duplicates, unavailable listing, network/server failure, refresh repetition, navigation, keyboard operation, deletion and concurrency as relevant to the approved subject. Record blocked or unavailable cases honestly.>
+<Empty data, invalid input, duplicates, unavailable listing, network/server failure, refresh repetition, navigation, keyboard operation, deletion and concurrency as relevant to the specified subject. Record blocked or unavailable cases honestly.>
 
 ## Handoff and cleanup
 

@@ -56,7 +56,7 @@ Keep prices exact (for example, integer euro cents where suitable), timestamps i
 
 ## API-first coordination
 
-When a requested feature requires both backend and frontend changes, define the API contract first and present it to the user for confirmation. Do not implement either tier before confirmation. Include endpoint/method, request and response shapes, validation and errors, and client-visible status semantics. Once confirmed, implement backend and frontend against that contract. Backend-only work using an existing confirmed API does not require a new approval.
+When a requested feature requires both backend and frontend changes, define the API contract first in `API_SPECIFICATION.md`; it needs no user confirmation (see AGENTS.md). Do not implement either tier before the contract is defined. Include endpoint/method, request and response shapes, validation and errors, and client-visible status semantics. Then implement backend and frontend against that contract.
 
 Keep response schemas explicit and stable. The API must distinguish the latest successful price from the most recent collection attempt; a failure never overwrites a valid observation. Validate Amazon URLs on the server and only accept configured European Amazon hosts. Do not expose internal errors or stack traces to clients.
 

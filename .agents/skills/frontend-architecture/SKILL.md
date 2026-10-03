@@ -44,7 +44,7 @@ V1 is a shared no-login interface for European Amazon listings. Show euro item p
 
 ## API-first coordination
 
-When a requested feature requires both frontend and backend changes, define the API contract first and present it to the user for confirmation. Do not implement either tier before confirmation. The contract should state endpoint/method, request and response shapes, validation/errors, and states the UI needs to render. Once confirmed, implement the frontend against that contract. For an existing confirmed API or a frontend-only change, proceed without requesting a new contract confirmation.
+When a requested feature requires both frontend and backend changes, define the API contract first in `API_SPECIFICATION.md`; it needs no user confirmation (see AGENTS.md). Do not implement either tier before the contract is defined. The contract should state endpoint/method, request and response shapes, validation/errors, and states the UI needs to render. Then implement the frontend against that contract.
 
 ## Keep it simple
 

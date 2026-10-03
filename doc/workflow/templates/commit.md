@@ -6,7 +6,7 @@ Coordinator:
 ## Passed gates
 
 - Specification and final diff consistency:
-- Required user/API approval evidence or unchanged approved contract:
+- API contract changes and recorded rationale, or unchanged contract:
 - Review report and decisions; no unresolved critical findings:
 - Required QA report and passed results:
 

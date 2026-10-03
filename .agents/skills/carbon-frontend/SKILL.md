@@ -25,7 +25,7 @@ Treat server data as potentially pending, stale, unavailable, or partially loade
 ## Implementation guidance
 
 - Before making UI changes, identify the relevant files and the data contract/API already present. Coordinate with actual backend contracts instead of fabricating response fields.
-- For any feature that requires changes to both frontend and backend, use API-first development: draft the API contract before implementation and present it to the user for confirmation. Do not implement either tier until the user confirms the contract. Once confirmed, implement both tiers against that contract. A change confined to the frontend that uses an already-confirmed API does not require a new confirmation.
+- For any feature that requires changes to both frontend and backend, use API-first development: define the API contract before implementation; it needs no user confirmation (see AGENTS.md). Then implement both tiers against that contract.
 - The proposed contract should define the endpoint/method, request and response shapes, validation and error behavior, and any loading/status semantics the UI depends on. Keep it focused on the requested feature.
 - For a new screen request, clarify its purpose, content, component set, layout, representative data, and files from the request/context; do not expand scope with unrelated screens or files.
 - Use Carbon components for interactive controls, data display, notifications, and loading/empty/error states when suitable components exist.

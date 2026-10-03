@@ -25,7 +25,7 @@ V1 is a single shared service with no login or per-user data. The server owns it
 
 ## API and application behavior
 
-- For any feature that requires changes to both backend and frontend, use API-first development. Draft the contract and present it to the user for confirmation before implementing either tier. Wait for confirmation; then implement backend and frontend against the approved contract. Backend-only work using an existing confirmed API can proceed without a new contract approval.
+- For any feature that requires changes to both backend and frontend, use API-first development. Define the contract before implementing either tier; it needs no user confirmation (see AGENTS.md). Then implement backend and frontend against that contract.
 - A proposed API contract should specify endpoint and method, request/response schemas, validation and error behavior, and status semantics needed by the client. Keep it scoped to the feature and reconcile it with existing contracts before proposing changes.
 - Inspect the frontend/API contract before changing response shapes. Keep API responses explicit and stable, with clear validation and error responses.
 - Validate and normalize incoming Amazon URLs server-side; do not trust frontend validation. Restrict accepted hosts to the configured European Amazon marketplace set.

@@ -5,18 +5,18 @@ description: Implement the PriceFollower backend in Go with SQLite, including AP
 
 # Go and SQLite backend developer
 
-Implement the backend in Go. Keep SQLite as the durable store and preserve the approved API contract in `API_SPECIFICATION.md` unless the user approves a contract change.
+Implement the backend in Go. Keep SQLite as the durable store and preserve the API contract in `API_SPECIFICATION.md` unless the workflow's contract stage records a change.
 
 ## Boundaries
 
 - Use `net/http`, `database/sql`, and the repository's pure-Go SQLite driver.
 - Keep HTTP handling, service rules, persistence, and the Amazon adapter separated in the existing `cmd/` and `internal/` structure. Avoid frameworks or interfaces that do not serve a current need.
 - The React frontend only calls the HTTP API. It does not access SQLite or collect marketplace pages.
-- Keep API changes behind the API-first confirmation process when a task changes behavior across frontend and backend.
+- Keep API changes behind the API-first contract stage when a task changes behavior across frontend and backend.
 
 ## Data and API
 
-- Keep integer euro cents and UTC timestamps, and return the approved item and error shapes.
+- Keep integer euro cents and UTC timestamps, and return the item and error shapes defined in `API_SPECIFICATION.md`.
 - Preserve existing SQLite data when evolving the schema. Use parameterized SQL, foreign keys, cascade deletion, indexes, and transactions for related writes.
 - Store successful observations separately from collection attempts. A failed check must not replace the last successful price.
 - Validate and canonicalize HTTPS URLs for the supported euro Amazon marketplaces on the server. Reject other schemes, hosts, and listing forms.

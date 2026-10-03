@@ -42,4 +42,4 @@ Scheduler -> service -> Amazon collector -> service -> store
 
 V1 is a shared, no-login tracker for European Amazon listings. It returns latest price, up to three detections, and collection state. Do not add authentication, alerts, trends, other platforms, or infrastructure layers without a user requirement.
 
-For any frontend/backend behavior change, draft and receive approval for the API contract before implementing either tier. Backend-only changes that preserve the approved API may proceed directly.
+For any frontend/backend behavior change, define the API contract before implementing either tier; it needs no user confirmation (see AGENTS.md). Backend-only changes that preserve the contract may proceed directly.

@@ -1,8 +1,8 @@
 # Functional specification: <subject>
 
-Status: draft | needs-clarification | ready | approved (when required) | superseded
+Status: draft | needs-clarification | ready | superseded
 Owner: functional specification agent
-User decision/reference: <message or record; never infer approval>
+User decision/reference: <user message or existing record for functional decisions; never assume>
 
 ## Purpose and scope
 

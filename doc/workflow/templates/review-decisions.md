@@ -14,10 +14,10 @@ Repeat this section for every finding, including questions about unspecified beh
 - Evidence: <file/line, actual behavior, requirement or explicit specification gap>.
 - Impact and scenario: <who/what is affected and how>.
 - Criticality: <critical / non-critical>, because <concrete consequence and reasoning>.
-- Disposition: <fix / defer / reject; leave blank until a required user decision arrives>.
+- Disposition: <fix / defer / reject; leave blank until a required user functional decision arrives>.
 - Reason: <why this disposition; deferral/rejection must explain why leaving the code is acceptable and remaining risk>.
-- Specification decision: <required user clarification/approval and reference, or not applicable>.
-- Resolution: <awaiting user decision / pending / fixed / deferred / rejected; implementation evidence, verification, reviewer recheck>.
+- Specification decision: <required user functional clarification and reference, or not applicable>.
+- Resolution: <awaiting user functional decision / pending / fixed / deferred / rejected; implementation evidence, verification, reviewer recheck>.
 - Follow-up: <owner and tracking reference for deferred work>.
 
 ## Release readiness
