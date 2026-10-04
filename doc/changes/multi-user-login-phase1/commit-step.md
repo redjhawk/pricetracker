@@ -11,6 +11,8 @@ Owner: coordinator
 
 ## Stacked pull requests
 
+Tooling limitation: in this run, creating any extra branch (`git checkout -b`, `git branch`) was refused by the sandbox, and only `git push -u origin HEAD` is allowed. All commits were pushed on `ai-dev/issue-15-20261004-2056` and no pull request over 500 lines was opened. The table below is the planned split; each branch should point to the last commit of its part (see `git log`, one part per feature commit and its fix commits).
+
 They must be merged in order. Each PR targets the previous PR's branch; the first one targets `master`.
 
 | # | Branch | Content | Changed lines |
