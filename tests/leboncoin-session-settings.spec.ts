@@ -9,7 +9,7 @@ const item = {
   status: "active", latestPrice: { amountCents: 1299, currency: "EUR", timestamp },
   lastThreeDetections: [{ amountCents: 1299, currency: "EUR", timestamp }],
   secondHandOffer: null, lastAttempt: { result: "success", timestamp, message: null },
-  nextCheckAt: null, addedAt: timestamp,
+  nextCheckAt: null, addedAt: timestamp, purchaseGoal: "",
 };
 const noSession = {
   value: null as string | null, revision: 0, updatedAt: null as string | null,

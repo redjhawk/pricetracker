@@ -427,6 +427,17 @@ input {
   }
 }
 
+.purchase-goal {
+  margin-block: var(--cds-spacing-07);
+}
+
+.purchase-goal-actions {
+  display: flex;
+  gap: var(--cds-spacing-04);
+  align-items: center;
+  margin-block-start: var(--cds-spacing-04);
+}
+
 .ai-review {
   margin-block: var(--cds-spacing-07);
 }

@@ -6,7 +6,7 @@ const baseItem = {
   marketplace: "leboncoin.fr", url: "https://www.leboncoin.fr/ad/velos/1234567890", thumbnailUrl: null,
   status: "active", latestPrice: { amountCents: 15000, currency: "EUR", timestamp },
   lastThreeDetections: [{ amountCents: 15000, currency: "EUR", timestamp }], secondHandOffer: null,
-  lastAttempt: null, nextCheckAt: null, addedAt: timestamp,
+  lastAttempt: null, nextCheckAt: null, addedAt: timestamp, purchaseGoal: "",
 };
 const content = {
   price: { rating: "fair", explanation: "Typical market price." },

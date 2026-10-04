@@ -139,8 +139,8 @@ export default function App() {
     setPathname(path);
   }
 
-  async function handleAdd(url: string) {
-    const item = await apiAddItem(url);
+  async function handleAdd(url: string, purchaseGoal: string) {
+    const item = await apiAddItem(url, purchaseGoal);
     setItems((current) => [item, ...current.filter((existing) => existing.id !== item.id)]);
     setListError(null);
   }
@@ -251,6 +251,7 @@ export default function App() {
                 onAiReviewRefresh={() => void handleAiReviewRefresh(detailItem.id)}
                 aiReviewRequesting={aiReviewRequesting}
                 aiReviewError={aiReviewError}
+                onPurchaseGoalSaved={() => void getItem(detailItem.id).then(setDetailItem).catch((error) => setDetailError(errorMessage(error)))}
               />
             ) : null
           ) : (

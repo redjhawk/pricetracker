@@ -13,7 +13,7 @@ const amazon = {
     lastThreeDetections: [usedPrice], lastCheckedAt: timestamp,
   },
   lastAttempt: { result: "success", timestamp, message: null },
-  nextCheckAt: null, addedAt: timestamp,
+  nextCheckAt: null, addedAt: timestamp, purchaseGoal: "",
 };
 const leboncoin = {
   ...amazon, id: "leboncoin-one", title: "LeBoncoin bicycle", platform: "leboncoin",
@@ -76,7 +76,7 @@ async function mockApi(context: BrowserContext, initialItems: FixtureItem[] = [a
         await route.fulfill({ status: 202, json: { requestedAt: timestamp, itemsQueued: state.items.length } });
       }
     } else if (method === "POST" && path === "/api/v1/items") {
-      expect(request.postDataJSON()).toEqual({ url: state.addedItem.url });
+      expect(request.postDataJSON()).toEqual({ url: state.addedItem.url, purchaseGoal: "" });
       state.items.unshift(state.addedItem);
       await route.fulfill({ status: 201, json: state.addedItem });
     } else {
