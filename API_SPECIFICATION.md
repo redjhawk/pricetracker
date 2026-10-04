@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined).
 
 ## Conventions
 
@@ -448,3 +448,42 @@ No body. Fetches the current listing from LeBoncoin and reviews it asynchronousl
 | 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
 
 Deleting an item deletes its reviews.
+
+## LeBoncoin purchase goal (2026-10-04)
+
+Agent-defined per AGENTS.md for [LeBoncoin purchase goal](doc/specifications/leboncoin-purchase-goal/technical.md). Rationale: the operator states a free-text purchase goal per LeBoncoin item that is included in every AI review; editing it must start a new review. Additive and backward compatible.
+
+### Item response change
+
+All item responses (list, add, details) add `purchaseGoal`: string, `""` when no goal is set; always `""` for Amazon items. Leading/trailing whitespace is trimmed; no maximum length is enforced. Review objects do not include the goal.
+
+### Add an item change
+
+`POST /api/v1/items` accepts an optional `purchaseGoal` string: `{ "url": "https://www.leboncoin.fr/ad/...", "purchaseGoal": "Install a light Linux distro" }`. It is trimmed and stored for LeBoncoin items and ignored for Amazon items. A non-string value returns `400 INVALID_JSON`. The request body limit is 1 MiB (`413 REQUEST_TOO_LARGE` above it). Other behavior is unchanged.
+
+### Update the purchase goal
+
+```text
+PUT /api/v1/items/{id}/purchase-goal
+```
+
+Request: `{ "purchaseGoal": "Install a light Linux distro" }` (`""` clears the goal; body limit 1 MiB).
+
+`200 OK`: `{ "purchaseGoal": "Install a light Linux distro", "changed": true, "reviewStarted": true }`.
+
+- `purchaseGoal`: the stored (trimmed) value.
+- `changed`: `false` when the trimmed value equals the stored one; nothing is written and no review starts.
+- `reviewStarted`: `true` when a change requested a new AI review (asynchronous; fetches the listing like `POST /ai-review`). If a review is already running, one more review runs after it finishes, using the newest goal. `false` when unchanged or no Claude token is saved.
+
+| Status | `code` | When | Example `message` |
+| --- | --- | --- | --- |
+| 400 | `INVALID_JSON` | Invalid JSON, more than one value, or `purchaseGoal` missing/not a string | "Request body must be valid JSON." |
+| 404 | `ITEM_NOT_FOUND` | Unknown item | "Tracked item was not found." |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than PUT (`Allow: PUT`) | "This method is not allowed for the route." |
+| 413 | `REQUEST_TOO_LARGE` | Body over 1 MiB | "Request body is too large." |
+| 422 | `PURCHASE_GOAL_UNSUPPORTED` | Amazon item | "Purchase goals are available for LeBoncoin items only." |
+| 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
+
+### Effect on AI reviews
+
+Every review (automatic, manual, or goal change) reads the item's goal when the review runs. A non-empty goal is sent to Claude as the buyer's purchase goal, delimited as untrusted data; an empty goal leaves the request unchanged. The review structure is unchanged.
