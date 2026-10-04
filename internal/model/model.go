@@ -47,15 +47,17 @@ type Item struct {
 	LastAttempt         *Attempt         `json:"lastAttempt"`
 	NextCheckAt         *time.Time       `json:"nextCheckAt"`
 	AddedAt             time.Time        `json:"addedAt"`
+	PurchaseGoal        string           `json:"purchaseGoal"`
 }
 
 type Listing struct {
-	ID          string
-	Platform    string
-	ListingID   string
-	ASIN        string
-	Marketplace string
-	URL         string
+	ID           string
+	Platform     string
+	ListingID    string
+	ASIN         string
+	Marketplace  string
+	URL          string
+	PurchaseGoal string
 }
 
 type CollectionResult struct {

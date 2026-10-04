@@ -107,10 +107,20 @@ func (s *Service) reserveReview(id string) (model.ClaudeToken, reviewOutcome, er
 	return token, reviewStarted, nil
 }
 
+// releaseReview releases a review reservation, whether or not the review ran,
+// and starts one more review when the purchase goal changed meanwhile.
 func (s *Service) releaseReview(id string) {
 	s.mu.Lock()
+	again := s.reviewAgain[id]
+	delete(s.reviewAgain, id)
 	delete(s.reviewing, id)
 	s.mu.Unlock()
+	if !again {
+		return
+	}
+	if _, err := s.startReview(id, nil, true); err != nil {
+		log.Printf("restart AI review for item %s: %v", id, err)
+	}
 }
 
 // launchReview stores the pending attempt and runs a reserved review.
@@ -181,7 +191,7 @@ func (s *Service) reviewListing(ctx context.Context, id, token string, details *
 	}
 	reviewContext, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
-	content, err := s.claude.Review(reviewContext, token, claude.ReviewInput{Listing: *details, URL: listing.URL, PriceHistory: history})
+	content, err := s.claude.Review(reviewContext, token, claude.ReviewInput{Listing: *details, URL: listing.URL, PriceHistory: history, PurchaseGoal: listing.PurchaseGoal})
 	if err != nil {
 		return reviewResult{}, err
 	}

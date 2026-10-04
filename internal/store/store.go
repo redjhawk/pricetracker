@@ -133,6 +133,7 @@ INSERT OR IGNORE INTO claude_token (id, revision) VALUES (1, 0);
 	for _, column := range []struct{ name, declaration string }{
 		{"platform", "TEXT NOT NULL DEFAULT 'amazon'"},
 		{"listing_id", "TEXT NOT NULL DEFAULT ''"},
+		{"purchase_goal", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := s.ensureItemColumn(ctx, column.name, column.declaration); err != nil {
 			return err
@@ -396,8 +397,8 @@ func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.
 	var item model.Item
 	var asin, title, thumbnail, next sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal)
 	if err != nil {
 		return item, err
 	}
@@ -587,9 +588,9 @@ func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bo
 }
 
 func (s *Store) Insert(ctx context.Context, item model.Listing, canonicalURL string, nextCheck time.Time) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
-		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout))
+	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at, purchase_goal)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
+		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout), item.PurchaseGoal)
 	return err
 }
 
@@ -649,9 +650,19 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal)
 	return item, err
+}
+
+// SetPurchaseGoal replaces the item's purchase goal and reports whether the item exists.
+func (s *Store) SetPurchaseGoal(ctx context.Context, id, goal string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, "UPDATE items SET purchase_goal = ? WHERE id = ?", goal, id)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count > 0, err
 }
 
 func (s *Store) RecordSuccess(ctx context.Context, id string, result model.CollectionResult, timestamp time.Time) error {

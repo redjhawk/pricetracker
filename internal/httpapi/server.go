@@ -61,9 +61,10 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	if path == "/api/v1/items" && r.Method == http.MethodPost {
 		var body struct {
-			URL string `json:"url"`
+			URL          string `json:"url"`
+			PurchaseGoal string `json:"purchaseGoal"`
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 32_768)
+		r.Body = http.MaxBytesReader(w, r.Body, maxGoalBodyBytes)
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&body); err != nil {
 			var tooLarge *http.MaxBytesError
@@ -82,7 +83,7 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "INVALID_URL", "A listing URL is required.")
 			return
 		}
-		item, err := s.service.Add(r.Context(), body.URL)
+		item, err := s.service.Add(r.Context(), body.URL, body.PurchaseGoal)
 		if err != nil {
 			serviceError(w, err)
 			return
@@ -127,6 +128,16 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"requestedAt": requestedAt, "itemsQueued": 1})
+		return
+	}
+	const purchaseGoalSuffix = "/purchase-goal"
+	if strings.HasPrefix(path, itemPrefix) && strings.HasSuffix(path, purchaseGoalSuffix) {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, itemPrefix), purchaseGoalSuffix)
+		if id == "" || strings.Contains(id, "/") {
+			writeError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", "API route was not found.")
+			return
+		}
+		s.handlePurchaseGoal(w, r, id)
 		return
 	}
 	const aiReviewSuffix = "/ai-review"
