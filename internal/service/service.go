@@ -309,7 +309,7 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 // before the request timeout starts, and records the session outcome only if
 // the session did not change during the attempt.
 func (s *Service) collectLeboncoin(ctx context.Context, item model.Listing) model.CollectionResult {
-	stored, err := s.store.LeboncoinSession(ctx)
+	stored, err := s.store.LeboncoinSession(ctx, item.OwnerID)
 	if err != nil {
 		log.Print("LeBoncoin session could not be read; check skipped")
 		return model.CollectionResult{Result: "request_error", Message: "The LeBoncoin session could not be read. The check will be retried at the next scheduled time."}
@@ -329,7 +329,7 @@ func (s *Service) collectLeboncoin(ctx context.Context, item model.Listing) mode
 	if outcome.Attempt == "" {
 		return result // no request was sent; nothing to record for the session
 	}
-	applied, err := s.store.FinishLeboncoinSessionAttempt(ctx, stored.Revision, store.LeboncoinSessionOutcome(outcome), time.Now().UTC())
+	applied, err := s.store.FinishLeboncoinSessionAttempt(ctx, item.OwnerID, stored.Revision, store.LeboncoinSessionOutcome(outcome), time.Now().UTC())
 	if err != nil {
 		log.Print("LeBoncoin session update could not be saved; the stored session is unchanged")
 	} else if !applied {
@@ -340,7 +340,7 @@ func (s *Service) collectLeboncoin(ctx context.Context, item model.Listing) mode
 
 // LeboncoinSession returns the saved LeBoncoin session settings.
 func (s *Service) LeboncoinSession(ctx context.Context) (model.LeboncoinSession, error) {
-	return s.store.LeboncoinSession(ctx)
+	return s.store.LeboncoinSession(ctx, ownerFrom(ctx))
 }
 
 // SaveLeboncoinSession saves pasted session input, or clears the session when
@@ -358,7 +358,7 @@ func (s *Service) SaveLeboncoinSession(ctx context.Context, raw string, revision
 	if value != "" {
 		stored = &value
 	}
-	session, err := s.store.SaveLeboncoinSession(ctx, stored, revision, time.Now().UTC())
+	session, err := s.store.SaveLeboncoinSession(ctx, ownerFrom(ctx), stored, revision, time.Now().UTC())
 	if errors.Is(err, store.ErrSessionChanged) {
 		return model.LeboncoinSession{}, &Error{Status: 409, Code: "SESSION_CHANGED", Message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving."}
 	}
