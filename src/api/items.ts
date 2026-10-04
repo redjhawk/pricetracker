@@ -29,6 +29,7 @@ interface ApiTrackedItem {
   } | null;
   nextCheckAt: string | null;
   addedAt: string;
+  purchaseGoal: string;
   aiReview?: AiReviewState | null;
 }
 
@@ -81,10 +82,10 @@ export async function getItem(id: string): Promise<TrackedItem> {
   return mapItem(item);
 }
 
-export async function addItem(url: string): Promise<TrackedItem> {
+export async function addItem(url: string, purchaseGoal: string): Promise<TrackedItem> {
   const item = await request<ApiTrackedItem>("/api/v1/items", {
     method: "POST",
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, purchaseGoal }),
   });
   return mapItem(item);
 }
@@ -99,6 +100,13 @@ export function refreshAllItems(): Promise<{ requestedAt: string; itemsQueued: n
 
 export function refreshItem(id: string): Promise<{ requestedAt: string; itemsQueued: number }> {
   return request<{ requestedAt: string; itemsQueued: number }>(`/api/v1/items/${encodeURIComponent(id)}/refresh`, { method: "POST" });
+}
+
+export function savePurchaseGoal(id: string, purchaseGoal: string): Promise<{ purchaseGoal: string; changed: boolean; reviewStarted: boolean }> {
+  return request<{ purchaseGoal: string; changed: boolean; reviewStarted: boolean }>(`/api/v1/items/${encodeURIComponent(id)}/purchase-goal`, {
+    method: "PUT",
+    body: JSON.stringify({ purchaseGoal }),
+  });
 }
 
 export function requestAiReview(id: string): Promise<{ requestedAt: string; alreadyRunning: boolean }> {

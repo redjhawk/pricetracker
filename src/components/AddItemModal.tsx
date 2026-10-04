@@ -1,20 +1,22 @@
 import { useState } from "react";
-import { InlineLoading, InlineNotification, Modal, TextInput } from "@carbon/react";
+import { InlineLoading, InlineNotification, Modal, TextArea, TextInput } from "@carbon/react";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdded: (url: string) => Promise<void>;
+  onAdded: (url: string, purchaseGoal: string) => Promise<void>;
 }
 
 export default function AddItemModal({ open, onClose, onAdded }: Props) {
   const [url, setUrl] = useState("");
+  const [purchaseGoal, setPurchaseGoal] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function close() {
     if (submitting) return;
     setUrl("");
+    setPurchaseGoal("");
     setError("");
     onClose();
   }
@@ -27,8 +29,9 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
     setSubmitting(true);
     setError("");
     try {
-      await onAdded(url.trim());
+      await onAdded(url.trim(), purchaseGoal);
       setUrl("");
+      setPurchaseGoal("");
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The item could not be added.");
@@ -73,6 +76,15 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
         invalid={Boolean(error)}
         invalidText={error}
         helperText="Supported: European Amazon marketplaces and French LeBoncoin listings"
+      />
+      <TextArea
+        id="add-item-purchase-goal"
+        labelText="Purchase goal (optional)"
+        helperText="LeBoncoin only. Sent to the AI review, e.g. what you will use the item for."
+        rows={3}
+        value={purchaseGoal}
+        onChange={(event) => setPurchaseGoal(event.target.value)}
+        disabled={submitting}
       />
     </Modal>
   );

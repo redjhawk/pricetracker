@@ -47,6 +47,7 @@ export interface TrackedItem {
   } | null;
   nextCheckAt: string | null;
   addedAt: string;
+  purchaseGoal: string;
   aiReview?: AiReviewState | null;
 }
 

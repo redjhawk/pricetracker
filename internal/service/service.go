@@ -48,6 +48,7 @@ type Service struct {
 	mu            sync.Mutex
 	inFlight      map[string]time.Time
 	reviewing     map[string]bool // items with a running AI review
+	reviewAgain   map[string]bool // items whose goal changed during a running review
 	workerContext context.Context
 	stopWorkers   context.CancelFunc
 	workers       sync.WaitGroup
@@ -61,7 +62,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 		collectors: map[string]collector{
 			"amazon": amazon.NewCollector(cfg.UserAgent),
 		},
-		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
+		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2),
 	}
 }
@@ -111,7 +112,8 @@ func (s *Service) Get(ctx context.Context, id string) (model.Item, error) {
 	return s.withInFlight(item), nil
 }
 
-func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
+// Add tracks a listing; the trimmed purchase goal is kept for LeBoncoin items only.
+func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.Item, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	amazonURL := amazon.ParseURL(rawURL)
 	leboncoinURL := leboncoin.ParseURL(rawURL)
@@ -122,7 +124,7 @@ func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
 		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: rawURL}
 		canonical = amazonURL.Canonical
 	case leboncoinURL.Kind == "valid":
-		itemListing = model.Listing{Platform: "leboncoin", ListingID: leboncoinURL.ListingID, Marketplace: leboncoinURL.Marketplace, URL: leboncoinURL.URL}
+		itemListing = model.Listing{Platform: "leboncoin", ListingID: leboncoinURL.ListingID, Marketplace: leboncoinURL.Marketplace, URL: leboncoinURL.URL, PurchaseGoal: strings.TrimSpace(purchaseGoal)}
 		canonical = leboncoinURL.Canonical
 	case amazonURL.Kind == "invalid" && leboncoinURL.Kind == "invalid":
 		return model.Item{}, &Error{Status: 400, Code: "INVALID_URL", Message: "Enter a valid HTTPS Amazon or LeBoncoin listing URL."}

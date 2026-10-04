@@ -92,7 +92,7 @@ func waitReviews(t *testing.T, service *Service, id string, afterCollection bool
 
 func TestNewItemIsReviewedOnlyWithToken(t *testing.T) {
 	service, _, reviewer, _ := newReviewService(t, true)
-	item, err := service.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123")
+	item, err := service.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestNewItemIsReviewedOnlyWithToken(t *testing.T) {
 	}
 
 	without, _, reviewerWithout, _ := newReviewService(t, false)
-	item, err = without.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123")
+	item, err = without.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestRequestAIReviewErrorsAndUnretrievedListing(t *testing.T) {
 	withToken.leboncoin = fakeLeboncoin(func(context.Context, model.Listing, *leboncoin.Session) (model.CollectionResult, leboncoin.SessionOutcome) {
 		return model.CollectionResult{Result: "unavailable", Message: "gone"}, leboncoin.SessionOutcome{}
 	})
-	item, err := withToken.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123")
+	item, err := withToken.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123", "")
 	if err != nil {
 		t.Fatal(err)
 	}

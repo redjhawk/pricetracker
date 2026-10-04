@@ -14,6 +14,7 @@ import {
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
 import AiReview from "./AiReview";
+import PurchaseGoal from "./PurchaseGoal";
 import StatusTag from "./StatusTag";
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
   onAiReviewRefresh: () => void;
   aiReviewRequesting: boolean;
   aiReviewError: string | null;
+  onPurchaseGoalSaved: () => void;
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -50,6 +52,7 @@ export default function ItemDetail({
   onAiReviewRefresh,
   aiReviewRequesting,
   aiReviewError,
+  onPurchaseGoalSaved,
 }: Props) {
   const title = item.title ?? `Listing ${item.listingId}`;
   const priceHistory = item.priceHistory ?? item.lastThreeDetections;
@@ -176,6 +179,10 @@ export default function ItemDetail({
           ) : <p className="summary-empty">Amazon offer check unavailable.</p>}
         </article>}
       </div>
+
+      {item.platform === "leboncoin" && (
+        <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+      )}
 
       {item.platform === "leboncoin" && item.aiReview && (
         <AiReview
