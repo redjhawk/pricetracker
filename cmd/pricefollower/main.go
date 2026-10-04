@@ -20,9 +20,47 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		log.Fatal(err)
+	switch {
+	case len(os.Args) == 1:
+		if err := run(); err != nil {
+			log.Fatal(err)
+		}
+	case len(os.Args) == 2 && os.Args[1] == "admin-password":
+		if err := resetAdminPassword(); err != nil {
+			log.Fatal(err)
+		}
+	default:
+		fmt.Fprintln(os.Stderr, "Usage: pricefollower [admin-password]")
+		fmt.Fprintln(os.Stderr, "  admin-password  create the admin account or reset its password, and print the new password")
+		os.Exit(2)
 	}
+}
+
+// resetAdminPassword runs on the device only; it does not start the server.
+func resetAdminPassword() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	database, err := store.Open(cfg)
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	users := service.New(cfg, database)
+	defer users.Close()
+	password, created, err := users.ResetAdminPassword(context.Background())
+	if err != nil {
+		return fmt.Errorf("set administrator password: %w", err)
+	}
+	if created {
+		fmt.Println("Administrator account created.")
+	} else {
+		fmt.Println("Administrator password reset; administrator sessions ended.")
+	}
+	fmt.Println("Username: admin")
+	fmt.Println("Password: " + password)
+	return nil
 }
 
 func run() error {
