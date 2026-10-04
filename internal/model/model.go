@@ -68,6 +68,28 @@ type CollectionResult struct {
 	SecondHandAmountCents    int64
 	SecondHandCondition      string
 	SecondHandConditionLabel string
+	Listing                  *ListingDetails // LeBoncoin only; kept in memory for AI reviews, never persisted
+}
+
+// ListingDetails is the full LeBoncoin listing content sent to an AI review.
+type ListingDetails struct {
+	Title       string
+	Description string
+	PriceCents  *int64 // nil if not detected; 0 for free/donation listings
+	ImageURLs   []string
+	Attributes  []ListingAttribute
+	Category    string
+	City        string
+	Zipcode     string
+	Department  string
+	Region      string
+	PublishedAt string
+	SellerType  string // "private", "pro" or ""
+}
+
+type ListingAttribute struct {
+	Label string
+	Value string
 }
 
 // LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
