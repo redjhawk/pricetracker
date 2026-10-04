@@ -39,6 +39,16 @@ input {
   padding-block: var(--cds-spacing-07) var(--cds-spacing-05);
 }
 
+.login-page {
+  display: flex;
+  justify-content: center;
+  padding: var(--cds-spacing-10) var(--cds-spacing-05);
+}
+
+.login-form {
+  width: min(100%, 24rem);
+}
+
 .page-heading {
   display: flex;
   align-items: flex-end;
