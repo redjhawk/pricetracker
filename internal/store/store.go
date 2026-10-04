@@ -47,6 +47,14 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.createAIReviewSchema(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("fail interrupted AI reviews: %w", err)
+	}
 	return s, nil
 }
 

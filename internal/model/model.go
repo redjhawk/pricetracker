@@ -120,6 +120,32 @@ type AIFairPrice struct {
 	SuggestedOfferCents int64 `json:"suggestedOfferCents"`
 }
 
+// AIReview is one stored review attempt.
+type AIReview struct {
+	ID           int64            `json:"id"`
+	Status       string           `json:"status"` // pending, succeeded or failed
+	PriceCents   *int64           `json:"priceCents"`
+	CreatedAt    time.Time        `json:"createdAt"`
+	CompletedAt  *time.Time       `json:"completedAt"`
+	Review       *AIReviewContent `json:"review"`
+	ErrorMessage *string          `json:"errorMessage"`
+}
+
+// AIReviewState is the aiReview field of a LeBoncoin item details response.
+type AIReviewState struct {
+	TokenConfigured bool       `json:"tokenConfigured"`
+	Running         bool       `json:"running"`
+	LastAttempt     *AIReview  `json:"lastAttempt"`
+	Latest          *AIReview  `json:"latest"`
+	History         []AIReview `json:"history"`
+}
+
+// ItemDetails is the item details response; AIReview is null for Amazon items.
+type ItemDetails struct {
+	Item
+	AIReview *AIReviewState `json:"aiReview"`
+}
+
 type AIDescriptionPhotos struct {
 	Matches     *bool    `json:"matches"`
 	Explanation string   `json:"explanation"`
