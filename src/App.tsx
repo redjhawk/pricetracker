@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Button,
   Content,
@@ -7,6 +7,7 @@ import {
   HeaderName,
   InlineLoading,
   InlineNotification,
+  Loading,
 } from "@carbon/react";
 import { Add, ChartLine } from "@carbon/icons-react";
 import type { TrackedItem } from "./types";
@@ -19,7 +20,11 @@ import {
   refreshItem,
   requestAiReview,
 } from "./api/items";
+import { getSession, logout, type SessionState } from "./api/auth";
+import { authRequiredEvent } from "./api/client";
 import AddItemModal from "./components/AddItemModal";
+import AdminPage from "./components/AdminPage";
+import LoginPage from "./components/LoginPage";
 import AppMenu from "./components/AppMenu";
 import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
@@ -35,7 +40,74 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "The server could not be reached.";
 }
 
+// App loads the session state first, then shows the screen for the mode and the logged-in user.
 export default function App() {
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  const loadSession = useCallback(() => {
+    getSession()
+      .then((current) => { setSession(current); setSessionError(null); })
+      .catch((error) => setSessionError(errorMessage(error)));
+  }, []);
+
+  useEffect(() => {
+    loadSession();
+    window.addEventListener(authRequiredEvent, loadSession);
+    return () => window.removeEventListener(authRequiredEvent, loadSession);
+  }, [loadSession]);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      window.location.assign("/");
+    }
+  }
+
+  if (sessionError) {
+    return (
+      <main id="main-content" className="page-shell page-feedback">
+        <InlineNotification kind="error" title="Could not reach Price follower" subtitle={sessionError} lowContrast hideCloseButton />
+        <Button kind="tertiary" onClick={loadSession}>Retry</Button>
+      </main>
+    );
+  }
+  if (!session) return <Loading description="Loading Price follower" />;
+  if (session.user?.role === "admin") {
+    return (
+      <>
+        <AppHeader>
+          <AppMenu onLogout={() => void handleLogout()} />
+        </AppHeader>
+        <Content className="app-content">
+          <main id="main-content" className="page-shell"><AdminPage /></main>
+        </Content>
+      </>
+    );
+  }
+  if (!session.user && (session.mode === "protected" || window.location.pathname === "/login")) {
+    return <LoginPage openMode={session.mode === "open"} />;
+  }
+  return <TrackerApp openMode={session.mode === "open"} onLogout={session.user ? () => void handleLogout() : undefined} />;
+}
+
+function AppHeader({ onHome, children }: { onHome?: () => void; children: ReactNode }) {
+  return (
+    <Header aria-label="Price follower">
+      <HeaderName href="/" prefix="" onClick={(event) => {
+        if (!onHome) return;
+        event.preventDefault();
+        onHome();
+      }}>
+        <span className="brand-mark"><ChartLine size={20} /> Price follower</span>
+      </HeaderName>
+      <HeaderGlobalBar>{children}</HeaderGlobalBar>
+    </Header>
+  );
+}
+
+function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () => void }) {
   const [items, setItems] = useState<TrackedItem[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState<TrackedItem["platform"]>("amazon");
   const [listLoading, setListLoading] = useState(true);
@@ -215,20 +287,13 @@ export default function App() {
 
   return (
     <>
-      <Header aria-label="Price follower">
-        <HeaderName href="/" prefix="" onClick={(event) => {
-          event.preventDefault();
-          navigate("/");
-        }}>
-          <span className="brand-mark"><ChartLine size={20} /> Price follower</span>
-        </HeaderName>
-        <HeaderGlobalBar>
-          <Button kind="primary" size="sm" renderIcon={Add} onClick={() => setAddOpen(true)}>
-            Add item
-          </Button>
-          <AppMenu onOpenSettings={() => setSettingsOpen(true)} triggerRef={menuButtonRef} />
-        </HeaderGlobalBar>
-      </Header>
+      <AppHeader onHome={() => navigate("/")}>
+        {openMode && <Button kind="ghost" size="sm" href="/login">Log in</Button>}
+        <Button kind="primary" size="sm" renderIcon={Add} onClick={() => setAddOpen(true)}>
+          Add item
+        </Button>
+        <AppMenu onOpenSettings={() => setSettingsOpen(true)} onLogout={onLogout} triggerRef={menuButtonRef} />
+      </AppHeader>
 
       <Content className="app-content">
         <main id="main-content" className="page-shell">
