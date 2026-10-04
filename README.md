@@ -14,7 +14,7 @@ PriceFollower is a self-hosted price tracker for European Amazon and French LeBo
 - Manually refresh an item from its details page.
 - Keep checking after stale prices or collection failures.
 - Delete tracked products and their stored price history.
-- Use one shared collection without accounts or login.
+- Use one shared collection without login, or add local users: each user logs in and has their own items, Claude token and LeBoncoin session; an `admin` account only manages users.
 - Run the backend and React frontend in development mode with sample data.
 - Build a self-contained Linux ARM executable with the frontend embedded for Raspberry Pi deployment.
 
@@ -75,6 +75,12 @@ sudo /tmp/install-pricefollower.sh /tmp/pricefollower
 ```
 
 The installer creates the `pricefollower` service user and group, installs the app in `/opt/pricefollower`, and stores the SQLite database in `/var/lib/pricefollower`. The web interface and API are served from port `3001`. See [DEPLOYMENT.md](DEPLOYMENT.md) for details and updates.
+
+To add users, create the administrator account on the Pi; the command prints a generated password, and running it again resets it:
+
+```bash
+sudo -u pricefollower PRICEFOLLOWER_DATA_DIR=/var/lib/pricefollower /opt/pricefollower/pricefollower admin-password
+```
 
 For LeBoncoin verification challenges, follow [LeBoncoin verification: capture a session and paste it in Settings](doc/leboncoin-session.md).
 
