@@ -58,6 +58,7 @@ type Listing struct {
 	Marketplace  string
 	URL          string
 	PurchaseGoal string
+	OwnerID      int64 // 0 is the open-mode owner
 }
 
 type CollectionResult struct {
