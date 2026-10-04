@@ -16,6 +16,7 @@ import (
 
 	"pricefollower.local/config"
 	"pricefollower.local/internal/amazon"
+	"pricefollower.local/internal/claude"
 	"pricefollower.local/internal/leboncoin"
 	"pricefollower.local/internal/model"
 	"pricefollower.local/internal/store"
@@ -43,7 +44,8 @@ type Service struct {
 	store         *store.Store
 	collectors    map[string]collector
 	leboncoin     leboncoinCollector
-	mu            sync.Mutex
+	claude        claudeClient
+	mu           sync.Mutex
 	inFlight      map[string]time.Time
 	workerContext context.Context
 	stopWorkers   context.CancelFunc
@@ -54,7 +56,7 @@ type Service struct {
 func New(cfg config.Config, database *store.Store) *Service {
 	workerContext, stopWorkers := context.WithCancel(context.Background())
 	return &Service{
-		config: cfg, store: database, leboncoin: leboncoin.NewCollector(cfg.UserAgent),
+		config: cfg, store: database, leboncoin: leboncoin.NewCollector(cfg.UserAgent), claude: claude.NewClient(),
 		collectors: map[string]collector{
 			"amazon": amazon.NewCollector(cfg.UserAgent),
 		},
