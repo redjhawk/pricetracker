@@ -110,3 +110,32 @@ func TestLoginLockoutAndSessionExpiry(t *testing.T) {
 		t.Fatal("session valid after logout")
 	}
 }
+
+func TestFailureDuringLockKeepsItAndOldEntriesArePruned(t *testing.T) {
+	service, _ := newSessionService(t)
+	now := time.Date(2026, 10, 4, 9, 0, 0, 0, time.UTC)
+	for attempt := 0; attempt < 5; attempt++ {
+		service.recordLoginFailure("alice", now)
+	}
+	lockedUntil := service.loginFailures["alice"].lockedUntil
+	// A request that passed the lock check before the lock was set fails afterwards.
+	service.recordLoginFailure("alice", now.Add(10*time.Second))
+	if entry := service.loginFailures["alice"]; !entry.lockedUntil.Equal(lockedUntil) {
+		t.Fatalf("lock changed by a failure during the lock: %+v", entry)
+	}
+	service.now = func() time.Time { return now.Add(30 * time.Second) }
+	if _, _, err := service.Login(context.Background(), "alice", "x"); errorCode(err) != "LOGIN_LOCKED" {
+		t.Fatalf("still locked: %v", err)
+	}
+	service.recordLoginFailure("bob", now)
+	service.recordLoginFailure("carol", now.Add(2*time.Hour))
+	if _, kept := service.loginFailures["alice"]; kept {
+		t.Fatal("expired lock not pruned")
+	}
+	if _, kept := service.loginFailures["bob"]; kept {
+		t.Fatal("old failure not pruned")
+	}
+	if entry := service.loginFailures["carol"]; entry.count != 1 {
+		t.Fatalf("carol %+v", entry)
+	}
+}

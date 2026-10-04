@@ -86,7 +86,7 @@ Without regular users, PriceFollower works without login (open mode). To add use
 sudo -u pricefollower PRICEFOLLOWER_DATA_DIR=/var/lib/pricefollower /opt/pricefollower/pricefollower admin-password
 ```
 
-The command prints `Username: admin` and a new random password; keep it safe. Run the same command again to reset a forgotten administrator password: the old password stops working and the administrator's open sessions end. It cannot be run from the browser and it does not change other users' passwords. The installer prints this command at the end, and `deploy-armv6.sh --admin-password` runs it after deploying.
+The command prints `Username: admin` and a new random password; keep it safe. The password stays in the terminal scrollback, so do not run the command (or `deploy-armv6.sh --admin-password`) where the output is logged, such as CI jobs or shared terminals. Run the same command again to reset a forgotten administrator password: the old password stops working and the administrator's open sessions end. It cannot be run from the browser and it does not change other users' passwords. The installer prints this command at the end, and `deploy-armv6.sh --admin-password` runs it after deploying.
 
 Then open the application, choose "Log in", and log in as `admin` to add users. Creating the first user turns on login for everyone and gives that user the existing items and settings.
 

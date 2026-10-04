@@ -27,10 +27,16 @@ const SessionDuration = 30 * 24 * time.Hour
 const (
 	maxFailedLogins = 5
 	loginLockTime   = time.Minute
+	// failureMemory is how long an unlocked username's failures are remembered.
+	failureMemory = time.Hour
 )
 
-// passwordIterations is the PBKDF2 cost for new hashes; tests lower it.
-var passwordIterations = 600_000
+// passwordIterations is the PBKDF2 cost for new hashes (about 1 s on ARMv6); tests lower it.
+// Stored hashes carry their own count, so it can change without a migration.
+var passwordIterations = 100_000
+
+// hashSlot allows one PBKDF2 computation at a time, so password checks cannot saturate the CPU.
+var hashSlot = make(chan struct{}, 1)
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
@@ -38,6 +44,7 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 type loginFailures struct {
 	count       int
 	lockedUntil time.Time
+	lastFailure time.Time
 }
 
 var (
@@ -45,13 +52,23 @@ var (
 	dummyHash     string
 )
 
+func pbkdf2Key(ctx context.Context, password string, salt []byte, iterations, length int) ([]byte, error) {
+	select {
+	case hashSlot <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-hashSlot }()
+	return pbkdf2.Key(sha256.New, password, salt, iterations, length)
+}
+
 // HashPassword returns a salted PBKDF2-SHA256 hash in the stored text format.
-func HashPassword(password string) (string, error) {
+func HashPassword(ctx context.Context, password string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key, err := pbkdf2.Key(sha256.New, password, salt, passwordIterations, 32)
+	key, err := pbkdf2Key(ctx, password, salt, passwordIterations, 32)
 	if err != nil {
 		return "", err
 	}
@@ -59,19 +76,23 @@ func HashPassword(password string) (string, error) {
 	return fmt.Sprintf("pbkdf2-sha256$%d$%s$%s", passwordIterations, encoding.EncodeToString(salt), encoding.EncodeToString(key)), nil
 }
 
-func passwordMatches(stored, password string) bool {
+// passwordMatches reports whether password matches the stored hash; err is only a cancelled wait.
+func passwordMatches(ctx context.Context, stored, password string) (bool, error) {
 	parts := strings.Split(stored, "$")
 	if len(parts) != 4 || parts[0] != "pbkdf2-sha256" {
-		return false
+		return false, nil
 	}
 	iterations, err := strconv.Atoi(parts[1])
 	salt, saltErr := base64.RawStdEncoding.DecodeString(parts[2])
 	want, keyErr := base64.RawStdEncoding.DecodeString(parts[3])
 	if err != nil || saltErr != nil || keyErr != nil || iterations < 1 {
-		return false
+		return false, nil
 	}
-	got, err := pbkdf2.Key(sha256.New, password, salt, iterations, len(want))
-	return err == nil && subtle.ConstantTimeCompare(got, want) == 1
+	got, err := pbkdf2Key(ctx, password, salt, iterations, len(want))
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	return err == nil && subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 
 func randomText(bytes int) (string, error) {
@@ -94,7 +115,7 @@ func (s *Service) ResetAdminPassword(ctx context.Context) (string, bool, error) 
 	if err != nil {
 		return "", false, err
 	}
-	hash, err := HashPassword(password)
+	hash, err := HashPassword(ctx, password)
 	if err != nil {
 		return "", false, err
 	}
@@ -114,7 +135,7 @@ func (s *Service) CreateUser(ctx context.Context, username, password string) (st
 	if length > 256 {
 		return store.User{}, &Error{Status: 400, Code: "PASSWORD_TOO_LONG", Message: "The password must have at most 256 characters."}
 	}
-	hash, err := HashPassword(password)
+	hash, err := HashPassword(ctx, password)
 	if err != nil {
 		return store.User{}, err
 	}
@@ -151,12 +172,17 @@ func (s *Service) Login(ctx context.Context, username, password string) (string,
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", store.User{}, err
 	}
+	stored := user.PasswordHash
 	if err != nil {
 		// Unknown usernames cost the same hash check, so timing does not reveal them.
-		dummyHashOnce.Do(func() { dummyHash, _ = HashPassword("not a password") })
-		passwordMatches(dummyHash, password)
+		dummyHashOnce.Do(func() { dummyHash, _ = HashPassword(context.Background(), "not a password") })
+		stored = dummyHash
 	}
-	if err != nil || !passwordMatches(user.PasswordHash, password) {
+	matches, cancelled := passwordMatches(ctx, stored, password)
+	if cancelled != nil {
+		return "", store.User{}, cancelled
+	}
+	if err != nil || !matches {
 		s.recordLoginFailure(key, now)
 		return "", store.User{}, &Error{Status: 401, Code: "INVALID_CREDENTIALS", Message: "Incorrect username or password."}
 	}
@@ -182,12 +208,18 @@ func (s *Service) Login(ctx context.Context, username, password string) (string,
 func (s *Service) recordLoginFailure(key string, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	failures := s.loginFailures[key]
-	if !failures.lockedUntil.IsZero() {
-		failures = loginFailures{} // the previous lock expired: start counting again
+	// Forget expired locks and old failures, so the map cannot grow without bound.
+	for other, entry := range s.loginFailures {
+		expired := !entry.lockedUntil.IsZero() && !now.Before(entry.lockedUntil)
+		if expired || (entry.lockedUntil.IsZero() && now.Sub(entry.lastFailure) > failureMemory) {
+			delete(s.loginFailures, other)
+		}
 	}
+	// A failure while still locked (a request that started before the lock) keeps the lock as is.
+	failures := s.loginFailures[key]
 	failures.count++
-	if failures.count >= maxFailedLogins {
+	failures.lastFailure = now
+	if failures.lockedUntil.IsZero() && failures.count >= maxFailedLogins {
 		failures.lockedUntil = now.Add(loginLockTime)
 	}
 	s.loginFailures[key] = failures
