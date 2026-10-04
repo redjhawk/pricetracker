@@ -1,49 +1,48 @@
 # Functional specification: Claude token settings
 
-Status: needs-clarification
+Status: ready
 Owner: functional specification agent
-User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04), quoted in the [change index](../../changes/leboncoin-ai-review/index.md). No functional decision beyond the request is recorded yet; see open questions.
+User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04) and user decisions D-1–D-3 recorded in the [change index](../../changes/leboncoin-ai-review/index.md).
 
 ## Purpose and scope
 
-Let the operator provide the Claude credential used for AI reviews of LeBoncoin items ([LeBoncoin AI review](../leboncoin-ai-review/functional.md)) from the existing **Settings** modal, the "same place where I can set the leboncoin token" (user request). Actor: the operator of the shared, no-login interface.
+Let the operator provide the Claude token used for AI reviews of LeBoncoin items ([LeBoncoin AI review](../leboncoin-ai-review/functional.md)) from the existing **Settings** modal, the "same place where I can set the leboncoin token" (user request). Actor: the operator of the shared, no-login interface.
 
-Included: a second entry in the existing Settings modal ([LeBoncoin session settings](../leboncoin-session-settings/functional.md)); saving, replacing and removing the credential; durable server-side storage; error states.
+Included: a second entry in the existing Settings modal ([LeBoncoin session settings](../leboncoin-session-settings/functional.md)); saving with verification, replacing and removing the token; durable server-side storage; error states.
 
-Excluded: login flows inside the app, multiple credentials, billing/usage display, changes to the existing "LeBonCoin session" entry behavior.
+Excluded: login flows inside the app, Anthropic API keys, multiple tokens, billing/usage display, changes to the existing "LeBonCoin session" entry behavior.
 
-Term: the **Claude credential** is the "login token" named in the request; its exact kind is unresolved (Q-CLT-1).
+Term: the **Claude token** is a Claude Pro/Max subscription token produced by the `claude setup-token` command (D-1).
 
 ## Requirements
 
 | ID | Trigger / precondition | Required behavior | Observable acceptance criteria |
 | --- | --- | --- | --- |
-| FR-CLT-SET-001 | The operator opens **Settings** (FR-LBC-SET-001). | The modal contains, in addition to "LeBonCoin session", one entry for the Claude credential (label depends on Q-CLT-1) with help text stating what to paste and how to obtain it. This amends the single-entry rule of FR-LBC-SET-001. | The modal shows two labelled entries; the LeBonCoin session entry otherwise behaves per FR-LBC-SET-001–019. |
-| FR-CLT-SET-002 | The modal is loading or failed to load (FR-LBC-SET-002/003). | The Claude entry follows the same rules: unusable while loading or after a load failure, so an unloaded field can never remove a saved credential. | During loading or after a load error, the Claude entry and Save cannot be used. |
-| FR-CLT-SET-003 | Settings are loaded. | Show the credential's current state. Clear vs. masked display is unresolved (Q-CLT-3). | Given no saved credential, the entry is empty and the help states AI reviews are unavailable until one is saved. |
-| FR-CLT-SET-004 | The operator saves a non-empty Claude entry. | Trim surrounding whitespace and store the credential server-side, replacing any previous one. Input containing internal whitespace or control characters is rejected with a message on the entry and nothing changes. Verification against Claude on save is unresolved (Q-CLT-4). | After a successful save the modal closes; AI reviews started afterwards use the new credential without restart. |
-| FR-CLT-SET-005 | The operator wants to remove the credential. | Removal mechanism unresolved (Q-CLT-3). | Pending Q-CLT-3. |
-| FR-CLT-SET-006 | Save in progress, save failure, cancel/Escape. | Same rules as FR-LBC-SET-009/010/011. One Save applies both entries; a validation error in either entry saves neither. | Given an invalid Claude entry and a valid LeBoncoin change, Save changes nothing and marks the Claude entry invalid. |
-| FR-CLT-SET-007 | The application restarts with its existing database. | The credential persists in application storage; no file, environment variable or shell access is needed. | After restart the modal shows the same state and reviews keep working. |
-| FR-CLT-SET-008 | Any use of the application. | The credential never appears outside the Settings modal: not in URLs, item responses, review texts, error messages, logs or diagnostics, nor in browser storage after the modal closes. | Item responses, review errors and server logs never contain the credential. |
-| FR-CLT-SET-009 | The latest AI review attempt failed because Claude rejected the credential (invalid, expired, revoked, quota/usage limit). | Show a warning next to the Claude entry with the failure date/time and advice to replace the credential. A newly saved credential starts without the warning. | Given a rejected credential, reopening Settings shows the warning; after saving a new credential it is gone. |
+| FR-CLT-SET-001 | The operator opens **Settings** (FR-LBC-SET-001). | The modal contains, in addition to "LeBonCoin session", a "Claude token" entry with help text stating to paste the token printed by `claude setup-token` (Claude Pro/Max subscription). This amends the single-entry rule of FR-LBC-SET-001. | The modal shows two labelled entries; the LeBonCoin session entry otherwise behaves per FR-LBC-SET-001–019. |
+| FR-CLT-SET-002 | The modal is loading or failed to load (FR-LBC-SET-002/003). | The Claude entry is unusable while loading or after a load failure, so an unloaded field can never remove a saved token. | During loading or after a load error, the Claude entry and Save cannot be used. |
+| FR-CLT-SET-003 | Settings are loaded. | Show the saved token in full, in clear, like the LeBoncoin session (D-2). | Given a saved token, the entry shows its exact value. Given none, the entry is empty and the help states AI reviews are unavailable until one is saved. |
+| FR-CLT-SET-004 | The operator saves a non-empty Claude entry that differs from the saved value. | Trim surrounding whitespace; reject internal whitespace or control characters with a message on the entry. Otherwise verify the token with Claude before storing (D-3); store it server-side, replacing any previous one, only if Claude accepts it. | After a successful save the modal closes; AI reviews started afterwards use the new token without restart. |
+| FR-CLT-SET-011 | Verification on save fails (Claude rejects the token, or Claude cannot be reached). | Refuse the save: nothing is stored (neither entry), the modal stays open with the operator's input, and a message on the Claude entry states the token was refused or could not be verified. | Given an invalid token, Save shows the error and reopening Settings shows the previous state. |
+| FR-CLT-SET-005 | The operator empties the Claude entry and saves. | Remove the saved token (D-2); no verification needed. | Afterwards the entry is empty and items show "Configure a Claude token in Settings" (FR-LBC-AIR-008). |
+| FR-CLT-SET-006 | Save in progress, save failure, cancel/Escape, concurrent change. | Same rules as FR-LBC-SET-009/010/011/017. Save shows progress during verification. One Save applies both entries; an error in either entry saves neither. | Given an invalid Claude entry and a valid LeBoncoin change, Save changes nothing and marks the Claude entry invalid. |
+| FR-CLT-SET-007 | The application restarts with its existing database. | The token persists in application storage; no file, environment variable or shell access is needed. | After restart the modal shows the same token and reviews keep working. |
+| FR-CLT-SET-008 | Any use of the application. | The token never appears outside the Settings modal: not in URLs, item responses, review texts, error messages, logs or diagnostics, nor in browser storage after the modal closes. | Item responses, review errors and server logs never contain the token. |
+| FR-CLT-SET-009 | The latest AI review attempt failed because Claude rejected the token (invalid, expired, revoked, usage limit). | Show a warning next to the Claude entry with the failure date/time and advice to replace the token. A newly saved token starts without the warning. | Given a rejected token, reopening Settings shows the warning; after saving a new token it is gone. |
 | FR-CLT-SET-010 | Keyboard, assistive technology, ~400 px viewport. | FR-LBC-SET-019 accessibility rules apply to the new entry. | Visible label; errors announced and associated with the entry; usable at ~400 px without horizontal scrolling. |
 
 ## States and corner cases
 
-- Loading, load failed, no credential, credential saved, rejected-credential warning, saving, save failed, validation error.
-- Concurrent change from another browser: whether FR-LBC-SET-017 "warn and reload" also applies is part of Q-CLT-3.
-- Shared application: one global credential used by all reviews.
+- Loading, load failed, no token, token saved, rejected-token warning, saving/verifying, verification refused, save failed, validation error.
+- Saving an unchanged token does not require re-verification.
+- Shared application: one global token used by all reviews.
 
 ## Open questions
 
-- Q-CLT-1 (blocking): kind of "login token" — (a) Claude Pro/Max subscription OAuth token from `claude setup-token`; (b) Anthropic API key (`sk-ant-api…`, pay-per-use); (c) accept either.
-- Q-CLT-3 (blocking): visibility and removal — (a) like the LeBoncoin session: full value in clear, empty save removes it, warn-and-reload on concurrent change; (b) masked ("configured", last 4 characters), replace by typing a new value, separate Remove action.
-- Q-CLT-4: verify on save — (a) Save checks the credential with Claude and refuses an invalid one; (b) store as-is, rejection reported on the next review (FR-CLT-SET-009).
+None.
 
 ## Traceability
 
-- Request: [change index](../../changes/leboncoin-ai-review/index.md).
+- Request and decisions: [change index](../../changes/leboncoin-ai-review/index.md) D-1–D-3.
 - [LeBoncoin session settings](../leboncoin-session-settings/functional.md) FR-LBC-SET-001–019.
 - [LeBoncoin AI review](../leboncoin-ai-review/functional.md).
-- Technical handoff target: `doc/specifications/claude-token-settings/technical.md` (after questions are resolved).
+- Technical handoff target: `doc/specifications/claude-token-settings/technical.md`.

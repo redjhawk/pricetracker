@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03.
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md).
 
 ## Conventions
 
@@ -329,3 +329,122 @@ Errors (existing error envelope):
 ### Effect on existing endpoints
 
 No item endpoint, field, status or result value changes. For LeBoncoin items checked with a saved session, `lastAttempt.message` (free text) may read “LeBoncoin rejected the saved session. Capture a new session and save it in Settings.” or “The saved LeBoncoin session has expired or was revoked. Save a new session in Settings.” or “The LeBoncoin session could not be read. The check will be retried at the next scheduled time.” with `result: "request_error"`. The session value never appears in item responses or messages.
+
+## Claude token settings and AI reviews (2026-10-04)
+
+**Status: defined by the technical specification agent on 2026-10-04** for change [leboncoin-ai-review](doc/changes/leboncoin-ai-review/index.md) (no user confirmation required, AGENTS.md). Technical sources: [Claude token settings](doc/specifications/claude-token-settings/technical.md), [LeBoncoin AI review](doc/specifications/leboncoin-ai-review/technical.md). Additive: all earlier contracts above are unchanged. Responses carry the existing `Cache-Control: no-store`.
+
+### Claude token object
+
+```json
+{ "claudeToken": { "value": "sk-ant-oat01-example", "updatedAt": "2026-10-04T09:00:00.000Z", "lastRejectedAt": null } }
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `value` | string or `null` | Saved Claude subscription token (1–1024 characters), `null` when none. Returned in full by design (D-2); appears in no other response. |
+| `updatedAt` | string or `null` | Last save/clear time. |
+| `lastRejectedAt` | string or `null` | Time of the latest AI review attempt where Claude rejected this token (HTTP 401/403) or reported a usage limit (429). Cleared by any save and by a later successful review. The UI shows a replace-token warning when non-null. |
+
+### Get the Claude token
+
+```text
+GET /api/v1/settings/claude-token
+```
+
+`200 OK` with the Claude token object (`{"claudeToken": {"value": null, "updatedAt": null, "lastRejectedAt": null}}` when never set). `405` for other methods (`Allow: GET`). `500 INTERNAL_ERROR` on storage failure.
+
+### Save settings (both Settings entries, atomically)
+
+```text
+PUT /api/v1/settings
+```
+
+Request (JSON, at most 32 768 bytes); at least one part required:
+
+```json
+{
+  "leboncoinSession": { "value": "datadome=Xyz~AbC123_example", "revision": 7 },
+  "claudeToken": { "value": "sk-ant-oat01-example" }
+}
+```
+
+- `leboncoinSession` (optional): same `value`/`revision` semantics and validation as `PUT /api/v1/settings/leboncoin-session`.
+- `claudeToken` (optional): `value` string as typed. The server trims surrounding whitespace; empty clears the token (no verification). A non-empty value equal to the stored token changes nothing and is not verified. Otherwise the server verifies it with a minimal Claude request before storing.
+- Validation order: LeBoncoin input, Claude token format, Claude verification, then one transaction (LeBoncoin revision check and both writes). The first error is returned and **nothing** is saved.
+
+Success `200 OK`: `{ "session": <session settings object>, "claudeToken": <Claude token object content> }`. Saving never starts a price check or an AI review.
+
+| Status | `code` | When | Example `message` (safe to display) |
+| --- | --- | --- | --- |
+| 400 | `INVALID_JSON` | Body is not one JSON value | "Request body must be valid JSON." |
+| 400 | `INVALID_REQUEST` | No part present, or a part with missing/wrongly typed fields | "Request must include the LeBoncoin session and/or the Claude token to save." |
+| 400 | `INVALID_SESSION` | As in the LeBoncoin session endpoint | "No datadome cookie was found in the pasted text." |
+| 400 | `INVALID_CLAUDE_TOKEN` | Token contains whitespace, control or non-ASCII characters, or exceeds 1024 characters | "The Claude token must not contain spaces, line breaks or other control characters." |
+| 422 | `CLAUDE_TOKEN_REJECTED` | Claude answered 401/403 to the verification request | "Claude refused this token. Create a new one with claude setup-token." |
+| 502 | `CLAUDE_UNREACHABLE` | Network error, timeout (20 s), 429, 5xx or other unexpected answer during verification | "The token could not be verified because Claude could not be reached. Try again." |
+| 409 | `SESSION_CHANGED` | LeBoncoin `revision` is stale | "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." |
+| 413 | `REQUEST_TOO_LARGE` | Body over 32 768 bytes | "Request body is too large." |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than PUT (`Allow: PUT`) | "This method is not allowed for the route." |
+| 500 | `INTERNAL_ERROR` | Storage failure; nothing partially saved | "The server could not complete the request." |
+
+`PUT /api/v1/settings/leboncoin-session` remains available with its existing behavior.
+
+### AI review in the item details response
+
+`GET /api/v1/items/{id}` adds `aiReview`: an object for LeBoncoin items, `null` for Amazon items. `GET /api/v1/items` (list) does not include it. All other item fields are unchanged.
+
+```json
+"aiReview": {
+  "tokenConfigured": true,
+  "running": false,
+  "lastAttempt": { "id": 12, "status": "failed", "priceCents": null, "createdAt": "2026-10-04T10:00:00.000Z", "completedAt": "2026-10-04T10:00:20.000Z", "review": null, "errorMessage": "Claude could not be reached. Try again later." },
+  "latest": { "id": 11, "status": "succeeded", "priceCents": 15000, "createdAt": "2026-10-03T10:00:00.000Z", "completedAt": "2026-10-03T10:00:40.000Z", "errorMessage": null, "review": {
+    "price": { "rating": "fair", "explanation": "…" },
+    "condition": { "rating": "good", "explanation": "…" },
+    "recommendation": { "rating": "negotiate", "explanation": "…" },
+    "fairPrice": { "minCents": 12000, "maxCents": 16000, "suggestedOfferCents": 13000 },
+    "risks": [],
+    "missingInformation": ["Charger not shown"],
+    "sellerQuestions": ["Is the original charger included?"],
+    "descriptionVsPhotos": { "matches": true, "explanation": "…", "mismatches": [] }
+  } },
+  "history": [ "…succeeded review objects, same shape as latest…" ]
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `tokenConfigured` | boolean | A Claude token is saved. When false, no review is started and the refresh action is unavailable. |
+| `running` | boolean | A review for this item is in progress (at most one). Clients poll the details endpoint (e.g. every 3 s) while true. |
+| `lastAttempt` | review or `null` | Most recent review attempt of any status (`pending` while running). |
+| `latest` | review or `null` | Most recent `succeeded` review; `null` if none ("no review yet"). |
+| `history` | review[] | `succeeded` reviews, newest first (includes `latest`), at most 50. |
+
+Review object: `id` (integer); `status` (`pending`, `succeeded` or `failed`); `priceCents` (integer euro cents the review was based on, `0` = free, `null` when unknown or not succeeded); `createdAt`; `completedAt` (string, `null` while pending); `review` (object when `succeeded`, else `null`); `errorMessage` (safe English text when `failed`, else `null`; never contains the token).
+
+`review` fields: `price.rating` one of `good_deal`, `fair`, `overpriced`; `condition.rating` one of `excellent`, `good`, `fair`, `poor`, or `null` when it cannot be assessed from photos; `recommendation.rating` one of `buy`, `negotiate`, `avoid`; each with a non-empty English `explanation`. `fairPrice`: `minCents ≤ maxCents` and `suggestedOfferCents`, integers ≥ 0. `risks` (empty = no risk signs found), `missingInformation`, `sellerQuestions`: string arrays. `descriptionVsPhotos`: `matches` boolean or `null` (cannot compare), `explanation` string, `mismatches` string array.
+
+Failure messages: "Claude rejected the token. Replace it in Settings.", "Claude usage limit reached. Try again later.", "Claude could not be reached. Try again later.", "Claude returned an unusable review. Try again.", "The listing could not be retrieved from LeBoncoin.", "The review was interrupted by a server restart."
+
+Automatic reviews (server-side, asynchronous): after the first collection of a newly added LeBoncoin item, and after any collection whose recorded price differs from the previous recorded price; only when a token is saved and no review is running for the item.
+
+### Request an AI review
+
+```text
+POST /api/v1/items/{id}/ai-review
+```
+
+No body. Fetches the current listing from LeBoncoin and reviews it asynchronously; does not record a price.
+
+`202 Accepted`: `{ "requestedAt": "2026-10-04T10:00:00.000Z", "alreadyRunning": false }`. If a review is already running, no new one starts and `alreadyRunning` is `true`.
+
+| Status | `code` | When | Example `message` |
+| --- | --- | --- | --- |
+| 404 | `ITEM_NOT_FOUND` | Unknown item | "Tracked item was not found." |
+| 409 | `CLAUDE_TOKEN_MISSING` | No Claude token saved | "Configure a Claude token in Settings." |
+| 422 | `AI_REVIEW_UNSUPPORTED` | Amazon item | "AI reviews are available for LeBoncoin items only." |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than POST (`Allow: POST`) | "This method is not allowed for the route." |
+| 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
+
+Deleting an item deletes its reviews.
