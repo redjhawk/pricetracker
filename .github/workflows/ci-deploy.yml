@@ -1,5 +1,6 @@
 # Copy to pricetracker/.github/workflows/ci-deploy.yml
-# Runs on the self-hosted runner on barcelona: test, build, then deploy to teruel (Raspberry Pi 2).
+# Runs on the deploy runner on barcelona (no Claude token there): test, build, then deploy to the
+# target device. DEPLOY_HOST and DEPLOY_USER come from the runner-deploy Deployment in k3s.
 name: ci-deploy
 
 on:
@@ -9,7 +10,7 @@ on:
 # No pull_request trigger: the repo is public and must never run fork code on barcelona.
 
 concurrency:
-  group: deploy-teruel
+  group: deploy-target
   cancel-in-progress: false
 
 permissions:
@@ -18,7 +19,7 @@ permissions:
 jobs:
   test-and-deploy:
     if: github.repository == 'redjhawk/pricetracker'
-    runs-on: [self-hosted, barcelona]
+    runs-on: [self-hosted, barcelona-deploy]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -36,5 +37,12 @@ jobs:
       - name: Frontend type-check and build
         run: npm run build
 
-      - name: Deploy to teruel
-        run: ./scripts/deploy-armv6.sh teruel
+      - name: Check the target device is reachable
+        run: |
+          : "${DEPLOY_HOST:?DEPLOY_HOST is not set on the runner (k3s runner-deploy env)}"
+          : "${DEPLOY_USER:?DEPLOY_USER is not set on the runner (k3s runner-deploy env)}"
+          getent hosts "$DEPLOY_HOST" || { echo "::error::Cannot resolve $DEPLOY_HOST from barcelona"; exit 1; }
+          ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" true
+
+      - name: Deploy to the target device
+        run: ./scripts/deploy-armv6.sh "$DEPLOY_USER@$DEPLOY_HOST"

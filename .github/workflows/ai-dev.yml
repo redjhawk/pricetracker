@@ -1,7 +1,7 @@
 # Copy to pricetracker/.github/workflows/ai-dev.yml
 # AI developer: an issue labelled "ai-dev" (or an "@claude" comment) makes Claude implement it on a
 # branch, following AGENTS.md and the project skills/roles. You review and merge the PR; merging to
-# main triggers ci-deploy. Runs on the self-hosted runner on barcelona.
+# main triggers ci-deploy. Runs on the dev runner on barcelona (no deploy key there).
 name: ai-dev
 
 on:
@@ -26,7 +26,7 @@ jobs:
         (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-dev')) ||
         (github.event_name != 'issues' && contains(github.event.comment.body, '@claude'))
       )
-    runs-on: [self-hosted, barcelona]
+    runs-on: [self-hosted, barcelona-dev]
     timeout-minutes: 120
     permissions:
       contents: write
