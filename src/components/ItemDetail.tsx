@@ -13,6 +13,7 @@ import {
 } from "@carbon/react";
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
+import AiReview from "./AiReview";
 import StatusTag from "./StatusTag";
 
 interface Props {
@@ -22,6 +23,9 @@ interface Props {
   onRefresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
+  onAiReviewRefresh: () => void;
+  aiReviewRequesting: boolean;
+  aiReviewError: string | null;
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -36,7 +40,17 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   timeZoneName: "short",
 });
 
-export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshing, refreshError }: Props) {
+export default function ItemDetail({
+  item,
+  onBack,
+  onDelete,
+  onRefresh,
+  refreshing,
+  refreshError,
+  onAiReviewRefresh,
+  aiReviewRequesting,
+  aiReviewError,
+}: Props) {
   const title = item.title ?? `Listing ${item.listingId}`;
   const priceHistory = item.priceHistory ?? item.lastThreeDetections;
   const secondHandHistory = item.secondHandOffer?.priceHistory ?? item.secondHandOffer?.lastThreeDetections ?? [];
@@ -162,6 +176,16 @@ export default function ItemDetail({ item, onBack, onDelete, onRefresh, refreshi
           ) : <p className="summary-empty">Amazon offer check unavailable.</p>}
         </article>}
       </div>
+
+      {item.platform === "leboncoin" && item.aiReview && (
+        <AiReview
+          state={item.aiReview}
+          currentPriceCents={item.latestPrice ? Math.round(item.latestPrice.amount * 100) : null}
+          onRefresh={onAiReviewRefresh}
+          requesting={aiReviewRequesting}
+          requestError={aiReviewError}
+        />
+      )}
 
       <div className="history-heading">
         <div>

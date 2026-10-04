@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { ItemStatus, PriceObservation, SecondHandOffer, SecondHandOfferDetection, TrackedItem } from "../types";
+import type { AiReviewState, ItemStatus, PriceObservation, SecondHandOffer, SecondHandOfferDetection, TrackedItem } from "../types";
 
 interface ApiPriceObservation {
   amountCents: number;
@@ -29,6 +29,7 @@ interface ApiTrackedItem {
   } | null;
   nextCheckAt: string | null;
   addedAt: string;
+  aiReview?: AiReviewState | null;
 }
 
 function mapObservation(observation: ApiPriceObservation | null): PriceObservation | null {
@@ -98,4 +99,8 @@ export function refreshAllItems(): Promise<{ requestedAt: string; itemsQueued: n
 
 export function refreshItem(id: string): Promise<{ requestedAt: string; itemsQueued: number }> {
   return request<{ requestedAt: string; itemsQueued: number }>(`/api/v1/items/${encodeURIComponent(id)}/refresh`, { method: "POST" });
+}
+
+export function requestAiReview(id: string): Promise<{ requestedAt: string; alreadyRunning: boolean }> {
+  return request<{ requestedAt: string; alreadyRunning: boolean }>(`/api/v1/items/${encodeURIComponent(id)}/ai-review`, { method: "POST" });
 }

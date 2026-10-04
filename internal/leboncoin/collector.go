@@ -93,6 +93,13 @@ type listingData struct {
 	PriceCents *int64        `json:"price_cents"`
 	Price      []json.Number `json:"price"`
 	Images     adImages      `json:"images"`
+	// Fields below are only used for AI review listing details.
+	// Raw so that an unexpected shape never breaks price parsing; see listingDetails.
+	Attributes           []json.RawMessage `json:"attributes"`
+	Location             json.RawMessage   `json:"location"`
+	Owner                json.RawMessage   `json:"owner"`
+	FirstPublicationDate string            `json:"first_publication_date"`
+	CategoryName         string            `json:"category_name"`
 }
 
 type adImages struct {
@@ -224,6 +231,7 @@ func (c *Collector) collect(ctx context.Context, item model.Listing, client *htt
 		result.Result = "success"
 		result.AmountCents = amount
 		result.Message = ""
+		result.Listing = listingDetails(ad, &amount)
 		log.Printf("LeBoncoin price parsed listing=%s amount_cents=%d", item.ListingID, amount)
 		return result
 	}
@@ -231,9 +239,11 @@ func (c *Collector) collect(ctx context.Context, item model.Listing, client *htt
 		result.Result = "success"
 		result.AmountCents = 0
 		result.Message = ""
+		result.Listing = listingDetails(ad, &result.AmountCents)
 		log.Printf("LeBoncoin donation parsed listing=%s amount_cents=0", item.ListingID)
 		return result
 	}
+	result.Listing = listingDetails(ad, nil)
 	log.Printf("LeBoncoin price not found listing=%s price_cents_present=%t price_values=%d", item.ListingID, ad.PriceCents != nil, len(ad.Price))
 	return result
 }

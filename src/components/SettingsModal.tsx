@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { FeatureFlags, InlineLoading, InlineNotification, Modal, TextArea } from "@carbon/react";
+import { FeatureFlags, InlineLoading, InlineNotification, Modal, TextArea, TextInput } from "@carbon/react";
 import { ApiError } from "../api/client";
-import { getLeboncoinSession, saveLeboncoinSession, type LeboncoinSessionSettings } from "../api/settings";
+import {
+  getClaudeToken,
+  getLeboncoinSession,
+  saveSettings,
+  type ClaudeTokenSettings,
+  type LeboncoinSessionSettings,
+} from "../api/settings";
+
+const claudeErrorCodes = ["INVALID_CLAUDE_TOKEN", "CLAUDE_TOKEN_REJECTED", "CLAUDE_UNREACHABLE"];
 
 interface Props {
   open: boolean;
@@ -52,22 +60,30 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
   const [invalidMessage, setInvalidMessage] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
+  const [claudeToken, setClaudeToken] = useState<ClaudeTokenSettings | null>(null);
+  const [claudeValue, setClaudeValue] = useState("");
+  const [claudeInvalidMessage, setClaudeInvalidMessage] = useState("");
   const savingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     let active = true;
-    getLeboncoinSession()
-      .then((loaded) => {
+    Promise.all([getLeboncoinSession(), getClaudeToken()])
+      .then(([loaded, loadedToken]) => {
         if (!active) return;
         setSettings(loaded);
         setValue(loaded.value ?? "");
+        setClaudeToken(loadedToken);
+        setClaudeValue(loadedToken.value ?? "");
       })
       .catch((error) => { if (active) setLoadError(errorMessage(error)); });
     return () => {
       active = false;
       setSettings(null);
       setValue("");
+      setClaudeToken(null);
+      setClaudeValue("");
+      setClaudeInvalidMessage("");
       setLoadError(null);
       setInvalidMessage("");
       setSaveError(null);
@@ -81,16 +97,24 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
   }
 
   async function save() {
-    if (!settings || changed || savingRef.current) return;
+    if (!settings || !claudeToken || changed || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setInvalidMessage("");
+    setClaudeInvalidMessage("");
     setSaveError(null);
+    const claudeChanged = claudeValue.trim() !== (claudeToken.value ?? "");
+    // An unchanged session is not resent with a Claude-only change: resaving it resets its warnings (REV-002).
+    const sessionChanged = value !== (settings.value ?? "");
     try {
-      await saveLeboncoinSession(value, settings.revision);
+      await saveSettings({
+        ...(sessionChanged || !claudeChanged ? { leboncoinSession: { value, revision: settings.revision } } : {}),
+        ...(claudeChanged ? { claudeToken: { value: claudeValue } } : {}),
+      });
       onClose();
     } catch (error) {
       if (error instanceof ApiError && error.code === "INVALID_SESSION") setInvalidMessage(error.message);
+      else if (error instanceof ApiError && claudeErrorCodes.includes(error.code)) setClaudeInvalidMessage(error.message);
       else if (error instanceof ApiError && error.code === "SESSION_CHANGED") setChanged(true);
       else setSaveError(errorMessage(error));
     } finally {
@@ -99,7 +123,10 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
     }
   }
 
-  const loading = open && !settings && !loadError;
+  const loaded = Boolean(settings && claudeToken);
+  const loading = open && !loaded && !loadError;
+  const claudeHelper = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). Save an empty field to remove it."
+    + (claudeToken && claudeToken.value === null ? " AI reviews are unavailable until a token is saved." : "");
   const hint = settings ? sessionHint(settings) : null;
 
   return (
@@ -111,7 +138,7 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
         modalHeading="Settings"
         primaryButtonText={saving ? "Saving…" : "Save"}
         secondaryButtonText="Cancel"
-        primaryButtonDisabled={!settings || saving || changed}
+        primaryButtonDisabled={!loaded || saving || changed}
         onRequestSubmit={() => void save()}
         onRequestClose={close}
         launcherButtonRef={launcherButtonRef}
@@ -155,7 +182,7 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
             className="modal-notification"
           />
         )}
-        {saving && <InlineLoading description="Saving the session…" />}
+        {saving && <InlineLoading description="Saving settings…" />}
         {!loadError && (
           <TextArea
             id="leboncoin-session"
@@ -167,10 +194,39 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
               setValue(event.target.value);
               setInvalidMessage("");
             }}
-            disabled={!settings || saving}
+            disabled={!loaded || saving}
             invalid={Boolean(invalidMessage)}
             invalidText={invalidMessage}
           />
+        )}
+        {!loadError && (
+          <div className="settings-claude-token">
+            {claudeToken?.lastRejectedAt && (
+              <InlineNotification
+                kind="warning"
+                subtitle={`Claude rejected this token for an AI review on ${formatDate(claudeToken.lastRejectedAt)}. Replace it with a new token from claude setup-token.`}
+                lowContrast
+                hideCloseButton
+                className="modal-notification"
+              />
+            )}
+            <TextInput
+              id="claude-token"
+              labelText="Claude token"
+              helperText={claudeHelper}
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={claudeValue}
+              onChange={(event) => {
+                setClaudeValue(event.target.value);
+                setClaudeInvalidMessage("");
+              }}
+              disabled={!loaded || saving}
+              invalid={Boolean(claudeInvalidMessage)}
+              invalidText={claudeInvalidMessage}
+            />
+          </div>
         )}
       </Modal>
     </FeatureFlags>

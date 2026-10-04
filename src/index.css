@@ -365,6 +365,10 @@ input {
   margin-block-end: var(--cds-spacing-05);
 }
 
+.settings-claude-token {
+  margin-block-start: var(--cds-spacing-06);
+}
+
 .preview-note {
   margin: var(--cds-spacing-05) 0 0;
   color: var(--cds-text-secondary);
@@ -421,4 +425,39 @@ input {
   .tracked-table-search .tracked-search {
     width: 100%;
   }
+}
+
+.ai-review {
+  margin-block: var(--cds-spacing-07);
+}
+
+.ai-review > .history-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cds-spacing-04);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-review-rating {
+  margin-block: var(--cds-spacing-04);
+}
+
+.ai-review-rating p,
+.ai-review-details p {
+  margin: var(--cds-spacing-02) 0 0;
+}
+
+.ai-review-details dt {
+  margin-block-start: var(--cds-spacing-05);
+  font-weight: 600;
+}
+
+.ai-review-list {
+  padding-inline-start: var(--cds-spacing-06);
+  list-style: disc;
+}
+
+.ai-review-history {
+  margin-block-start: var(--cds-spacing-06);
 }

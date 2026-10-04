@@ -24,3 +24,24 @@ export async function saveLeboncoinSession(value: string, revision: number): Pro
   });
   return response.session;
 }
+
+export interface ClaudeTokenSettings {
+  value: string | null;
+  updatedAt: string | null;
+  lastRejectedAt: string | null;
+}
+
+export async function getClaudeToken(): Promise<ClaudeTokenSettings> {
+  const response = await request<{ claudeToken: ClaudeTokenSettings }>("/api/v1/settings/claude-token");
+  return response.claudeToken;
+}
+
+export function saveSettings(input: {
+  leboncoinSession?: { value: string; revision: number };
+  claudeToken?: { value: string };
+}): Promise<{ session: LeboncoinSessionSettings; claudeToken: ClaudeTokenSettings }> {
+  return request<{ session: LeboncoinSessionSettings; claudeToken: ClaudeTokenSettings }>("/api/v1/settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}

@@ -47,4 +47,34 @@ export interface TrackedItem {
   } | null;
   nextCheckAt: string | null;
   addedAt: string;
+  aiReview?: AiReviewState | null;
+}
+
+export interface AiReviewContent {
+  price: { rating: "good_deal" | "fair" | "overpriced"; explanation: string };
+  condition: { rating: "excellent" | "good" | "fair" | "poor" | null; explanation: string };
+  recommendation: { rating: "buy" | "negotiate" | "avoid"; explanation: string };
+  fairPrice: { minCents: number; maxCents: number; suggestedOfferCents: number };
+  risks: string[];
+  missingInformation: string[];
+  sellerQuestions: string[];
+  descriptionVsPhotos: { matches: boolean | null; explanation: string; mismatches: string[] };
+}
+
+export interface AiReview {
+  id: number;
+  status: "pending" | "succeeded" | "failed";
+  priceCents: number | null;
+  createdAt: string;
+  completedAt: string | null;
+  review: AiReviewContent | null;
+  errorMessage: string | null;
+}
+
+export interface AiReviewState {
+  tokenConfigured: boolean;
+  running: boolean;
+  lastAttempt: AiReview | null;
+  latest: AiReview | null;
+  history: AiReview[];
 }

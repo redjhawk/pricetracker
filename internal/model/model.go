@@ -68,6 +68,88 @@ type CollectionResult struct {
 	SecondHandAmountCents    int64
 	SecondHandCondition      string
 	SecondHandConditionLabel string
+	Listing                  *ListingDetails // LeBoncoin only; kept in memory for AI reviews, never persisted
+}
+
+// ListingDetails is the full LeBoncoin listing content sent to an AI review.
+type ListingDetails struct {
+	Title       string
+	Description string
+	PriceCents  *int64 // nil if not detected; 0 for free/donation listings
+	ImageURLs   []string
+	Attributes  []ListingAttribute
+	Category    string
+	City        string
+	Zipcode     string
+	Department  string
+	Region      string
+	PublishedAt string
+	SellerType  string // "private", "pro" or ""
+}
+
+type ListingAttribute struct {
+	Label string
+	Value string
+}
+
+// AIReviewContent is a validated Claude review; amounts are euro cents.
+type AIReviewContent struct {
+	Price               AIRating            `json:"price"`
+	Condition           AIConditionRating   `json:"condition"`
+	Recommendation      AIRating            `json:"recommendation"`
+	FairPrice           AIFairPrice         `json:"fairPrice"`
+	Risks               []string            `json:"risks"`
+	MissingInformation  []string            `json:"missingInformation"`
+	SellerQuestions     []string            `json:"sellerQuestions"`
+	DescriptionVsPhotos AIDescriptionPhotos `json:"descriptionVsPhotos"`
+}
+
+type AIRating struct {
+	Rating      string `json:"rating"`
+	Explanation string `json:"explanation"`
+}
+
+type AIConditionRating struct {
+	Rating      *string `json:"rating"` // nil when the condition cannot be assessed
+	Explanation string  `json:"explanation"`
+}
+
+type AIFairPrice struct {
+	MinCents            int64 `json:"minCents"`
+	MaxCents            int64 `json:"maxCents"`
+	SuggestedOfferCents int64 `json:"suggestedOfferCents"`
+}
+
+// AIReview is one stored review attempt.
+type AIReview struct {
+	ID           int64            `json:"id"`
+	Status       string           `json:"status"` // pending, succeeded or failed
+	PriceCents   *int64           `json:"priceCents"`
+	CreatedAt    time.Time        `json:"createdAt"`
+	CompletedAt  *time.Time       `json:"completedAt"`
+	Review       *AIReviewContent `json:"review"`
+	ErrorMessage *string          `json:"errorMessage"`
+}
+
+// AIReviewState is the aiReview field of a LeBoncoin item details response.
+type AIReviewState struct {
+	TokenConfigured bool       `json:"tokenConfigured"`
+	Running         bool       `json:"running"`
+	LastAttempt     *AIReview  `json:"lastAttempt"`
+	Latest          *AIReview  `json:"latest"`
+	History         []AIReview `json:"history"`
+}
+
+// ItemDetails is the item details response; AIReview is null for Amazon items.
+type ItemDetails struct {
+	Item
+	AIReview *AIReviewState `json:"aiReview"`
+}
+
+type AIDescriptionPhotos struct {
+	Matches     *bool    `json:"matches"`
+	Explanation string   `json:"explanation"`
+	Mismatches  []string `json:"mismatches"`
 }
 
 // LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
@@ -85,4 +167,12 @@ type LeboncoinSession struct {
 type LeboncoinSessionAttempt struct {
 	Outcome     string    `json:"outcome"` // accepted, rejected or failed
 	AttemptedAt time.Time `json:"attemptedAt"`
+}
+
+// ClaudeToken is the saved Claude subscription token as returned by the settings API.
+type ClaudeToken struct {
+	Value          *string    `json:"value"`
+	UpdatedAt      *time.Time `json:"updatedAt"`
+	LastRejectedAt *time.Time `json:"lastRejectedAt"`
+	Revision       int64      `json:"-"` // used by AI reviews to ignore outcomes for a replaced token
 }
