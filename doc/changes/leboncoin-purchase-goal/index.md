@@ -17,7 +17,8 @@ User request (GitHub issue #10, translated from Spanish):
 2. Technical specification — ready: `purchase_goal` column (`TEXT NOT NULL DEFAULT ''`) via the existing `ensureItemColumn` migration; optional `purchaseGoal` on add; goal read at review time and added to the Claude prompt as a delimited, JSON-encoded block; Carbon `TextArea` in the add modal and a new `PurchaseGoal` component on LeBoncoin details pages. No refactoring (decode-helper extraction declined as unnecessary).
 3. API contract — defined in `API_SPECIFICATION.md` "LeBoncoin purchase goal (2026-10-04)": additive `purchaseGoal` item field, optional `purchaseGoal` on `POST /api/v1/items`, new `PUT /api/v1/items/{id}/purchase-goal` returning `{ purchaseGoal, changed, reviewStarted }`. Rationale: a dedicated sub-resource matches the existing `/refresh` and `/ai-review` routing, keeps the change small, and lets the server start the review on change (D-4). A rerun flag ensures the newest goal is reviewed when a review is already running. Add/update bodies are capped at 1 MiB as a transport safeguard, not a goal length limit (D-6). Existing contracts unchanged.
 4. Development — done: see [implementation.md](implementation.md). `go vet`, `go test`, `npm run build` pass; Playwright 47/48 with one intermittent unrelated failure.
-5–8. Not started.
+5–6, 8. See [review.md](review.md), [decisions.md](decisions.md), [commit-step.md](commit-step.md).
+7. QA — blocked: see [qa.md](qa.md). The dev server started, but `node`, `npx`, and `curl` were denied by the permission system, so no cases were executed.
 
 ## User decisions
 
