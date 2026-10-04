@@ -56,6 +56,13 @@ export default function AdminPage() {
     void refresh();
   }, [refresh]);
 
+  // Focus the invalid field once it is rendered with its error and enabled again.
+  useEffect(() => {
+    if (submitting) return;
+    if (usernameError) usernameRef.current?.focus();
+    else if (passwordError) passwordRef.current?.focus();
+  }, [submitting, usernameError, passwordError]);
+
   function closeAdd() {
     if (submitting) return;
     setAddOpen(false);
@@ -84,10 +91,8 @@ export default function AdminPage() {
       const code = error instanceof ApiError ? error.code : "";
       if (code === "INVALID_USERNAME" || code === "USERNAME_TAKEN") {
         setUsernameError(errorMessage(error));
-        usernameRef.current?.focus();
       } else if (code === "PASSWORD_TOO_SHORT" || code === "PASSWORD_TOO_LONG") {
         setPasswordError(errorMessage(error));
-        passwordRef.current?.focus();
       } else {
         setAddError(errorMessage(error));
       }
