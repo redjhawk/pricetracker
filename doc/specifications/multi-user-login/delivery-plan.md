@@ -20,7 +20,7 @@ Phase 1 changes some decisions of the functional specification; where they diffe
 Steps, in order:
 
 1. Device script (D-22): creates the `admin` account with a generated password, and resets the password of `admin` or any user to a new generated one, printed on the device. A reset ends that account's open sessions (D-14).
-2. Login and session: FR-AUTH-001, FR-AUTH-002, FR-AUTH-003, FR-AUTH-004 (30 days), FR-AUTH-005 (5 failures, 1 minute).
+2. Login and session: FR-AUTH-000 (no login while no regular user exists, D-25), FR-AUTH-001, FR-AUTH-002, FR-AUTH-003, FR-AUTH-004 (30 days), FR-AUTH-005 (5 failures, 1 minute).
 3. Administrator page: the administrator's only screen; user list with username and last login (FR-ADMIN-002, D-24); add user with username (D-17) and password typed by the administrator, at least 12 characters (D-20, D-10).
 4. Item ownership: each item belongs to the user who added it; users see and manage only their own items; the same URL for two users gives two independent items (FR-SHARE-001 without the sharing option, FR-SHARE-005, D-19).
 5. Per-user settings: Claude token and LeBoncoin session per user, used for that user's items (FR-SETTINGS-001, D-23).

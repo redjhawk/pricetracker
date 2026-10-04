@@ -2,7 +2,7 @@
 
 Status: ready
 Owner: functional specification agent
-User decision/reference: user request in conversation (2026-10-04). Answers recorded as D-1–D-18.
+User decision/reference: user request in conversation (2026-10-04). Answers recorded as D-1–D-18 and D-25.
 
 ## Request
 
@@ -33,7 +33,8 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 
 | ID | Trigger / precondition | Required behavior | Observable acceptance criteria |
 | --- | --- | --- | --- |
-| FR-AUTH-001 | Anyone opens the application without being logged in. | Only a login screen is shown, asking for username and password. No item, setting, or user data is accessible without login, through the interface or the API. | Given no login, when opening any page or calling any data API, then the login screen is shown or access is refused. |
+| FR-AUTH-000 | No regular user has been created yet (only the administrator, or nobody, exists). | The application keeps working as it does today: no login is asked, and all items and settings are usable by anyone who opens it (D-25). The administrator can still log in, through a login entry, to create users. FR-AUTH-001 to FR-AUTH-005 apply only once the first regular user exists. | Given no regular user, when opening the app, then the items page is shown without login, as today. Given the first regular user is created, when opening the app without a session, then the login screen is shown. |
+| FR-AUTH-001 | At least one regular user exists and anyone opens the application without being logged in. | Only a login screen is shown, asking for username and password. No item, setting, or user data is accessible without login, through the interface or the API. | Given no login, when opening any page or calling any data API, then the login screen is shown or access is refused. |
 | FR-AUTH-002 | A person submits the login form. | Correct credentials log the person in. Wrong username or password show one generic error, without revealing which was wrong. | Given a wrong password, when submitting, then "Incorrect username or password" is shown and the person stays logged out. |
 | FR-AUTH-003 | A logged-in person chooses Log out. | The session ends and the login screen is shown. | After logout, reloading the page shows the login screen. |
 | FR-AUTH-004 | A session stays unused or reaches its maximum duration. | A session lasts 30 days unless the person logs out; then the person must log in again (D-8). | Given a login 31 days ago, when opening the app, then the login screen is shown. |
@@ -96,6 +97,7 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 - D-16: the administrator can rename users; items and password are kept.
 - D-17: usernames are case-insensitive, 3–32 characters of letters, digits, `.`, `-`, `_`.
 - D-18: others' shared items appear in a separate "Shared by others" section.
+- D-25: while no regular user exists, the application works as today, without login (user comment on PR #13, 2026-10-04).
 
 ## Delivery plan
 

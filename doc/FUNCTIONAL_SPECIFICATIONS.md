@@ -19,7 +19,7 @@ Related documents: [API contract](../API_SPECIFICATION.md) · [Use case index](u
 - Allow the operator to inspect the complete price history for a tracked item and delete an item.
 - Keep collection attempts running when a price is stale or a check fails.
 
-V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
+V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. Optional local users and login are specified in [multiple local users and login](specifications/multi-user-login/functional.md); while no regular user is created, the application keeps working as described here. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
 
 Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope.
 
