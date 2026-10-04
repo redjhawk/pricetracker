@@ -53,6 +53,8 @@ type Service struct {
 	stopWorkers   context.CancelFunc
 	workers       sync.WaitGroup
 	refreshSlots  chan struct{}
+	loginFailures map[string]loginFailures // by lowercased username
+	now           func() time.Time         // replaced by tests
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
@@ -63,7 +65,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 			"amazon": amazon.NewCollector(cfg.UserAgent),
 		},
 		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
-		refreshSlots: make(chan struct{}, 2),
+		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: time.Now,
 	}
 }
 
