@@ -103,6 +103,45 @@ func TestCreateUserInheritsOpenModeItemsOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestSettingsMigrateAndBelongToEachOwner(t *testing.T) {
+	dir := t.TempDir()
+	legacy, err := sql.Open("sqlite", filepath.Join(dir, "pricefollower.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.Exec(`CREATE TABLE claude_token (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT, revision INTEGER NOT NULL DEFAULT 0, updated_at TEXT, last_rejected_at TEXT);
+INSERT INTO claude_token (id, value, revision) VALUES (1, 'sk-open', 3);`); err != nil {
+		t.Fatal(err)
+	}
+	legacy.Close()
+	database := openTestStore(t, dir)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 4, 9, 0, 0, 0, time.UTC)
+	if token, err := database.ClaudeToken(ctx, 0); err != nil || token.Value == nil || *token.Value != "sk-open" || token.Revision != 3 {
+		t.Fatalf("migrated token %+v %v", token, err)
+	}
+	if _, err := database.SaveLeboncoinSession(ctx, 0, stringPointer("open-session"), 0, now); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := database.CreateUser(ctx, "alice", "hash", now)
+	second, _ := database.CreateUser(ctx, "bob", "hash", now)
+	if token, _ := database.ClaudeToken(ctx, first.ID); token.Value == nil || *token.Value != "sk-open" || token.OwnerID != first.ID {
+		t.Fatalf("first user token %+v", token)
+	}
+	if session, _ := database.LeboncoinSession(ctx, first.ID); session.Value == nil || *session.Value != "open-session" {
+		t.Fatalf("first user session %+v", session)
+	}
+	if token, _ := database.ClaudeToken(ctx, second.ID); token.Value != nil || token.Revision != 0 {
+		t.Fatalf("second user token %+v", token)
+	}
+	if _, _, err := database.SaveSettings(ctx, second.ID, nil, &TokenChange{Value: stringPointer("sk-bob")}, now); err != nil {
+		t.Fatal(err)
+	}
+	if token, _ := database.ClaudeToken(ctx, first.ID); *token.Value != "sk-open" {
+		t.Fatalf("second user's save changed the first user's token: %+v", token)
+	}
+}
+
 func TestSessionsExpireAndAdminResetEndsThem(t *testing.T) {
 	database := openTestStore(t, t.TempDir())
 	ctx := context.Background()

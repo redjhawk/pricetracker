@@ -178,4 +178,5 @@ type ClaudeToken struct {
 	UpdatedAt      *time.Time `json:"updatedAt"`
 	LastRejectedAt *time.Time `json:"lastRejectedAt"`
 	Revision       int64      `json:"-"` // used by AI reviews to ignore outcomes for a replaced token
+	OwnerID        int64      `json:"-"` // the user whose token this is; 0 in open mode
 }

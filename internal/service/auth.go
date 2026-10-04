@@ -62,6 +62,28 @@ func pbkdf2Key(ctx context.Context, password string, salt []byte, iterations, le
 	return pbkdf2.Key(sha256.New, password, salt, iterations, length)
 }
 
+// Principal is the logged-in user of a request; without one, requests use the open-mode owner 0.
+type Principal struct {
+	UserID int64
+	Role   string
+}
+
+type principalKey struct{}
+
+// WithPrincipal returns a context carrying the request's logged-in user.
+func WithPrincipal(ctx context.Context, principal Principal) context.Context {
+	return context.WithValue(ctx, principalKey{}, principal)
+}
+
+// ownerFrom returns the request's owner id: the logged-in user, or 0 in open mode.
+func ownerFrom(ctx context.Context) int64 {
+	principal, ok := ctx.Value(principalKey{}).(Principal)
+	if !ok || principal.Role != "user" {
+		return 0
+	}
+	return principal.UserID
+}
+
 // HashPassword returns a salted PBKDF2-SHA256 hash in the stored text format.
 func HashPassword(ctx context.Context, password string) (string, error) {
 	salt := make([]byte, 16)
