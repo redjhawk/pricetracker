@@ -10,7 +10,7 @@ User decision/reference: user request in conversation (2026-10-04). Answers reco
 
 ## Purpose and scope
 
-Replace today's open single-operator access with local accounts. Each user owns the items they add, decides whether each item is shared, and can choose to also see items shared by others. A single global administrator manages accounts only.
+Add optional local accounts to today's open single-operator access. While no regular user exists, the application keeps working as it does today, without login (open mode, FR-MODE-001). Each user owns the items they add, decides whether each item is shared, and can choose to also see items shared by others. A single global administrator manages accounts only.
 
 Actors:
 
@@ -29,11 +29,18 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 
 ## Requirements
 
+### Open and protected modes
+
+| ID | Trigger / precondition | Required behavior | Observable acceptance criteria |
+| --- | --- | --- | --- |
+| FR-MODE-001 | No regular user exists, for example in a simple or internal installation. | Open mode: the application works exactly as it does today. No login is required and all pages and APIs are open. The `admin` account alone does not change this. A "Log in" link in the header lets the administrator log in to create users (D-25). | Given no regular user, with or without `admin`, when opening any page, then it opens without a login screen. |
+| FR-MODE-002 | The administrator creates the first regular user. | Protected mode: from then on, login is required for everyone (FR-AUTH-001). Items and settings used in open mode go to that first user (FR-SHARE-006, D-26). | Given the first user was just created, when anyone opens the application without login, then the login screen is shown. |
+
 ### Login and session
 
 | ID | Trigger / precondition | Required behavior | Observable acceptance criteria |
 | --- | --- | --- | --- |
-| FR-AUTH-001 | Anyone opens the application without being logged in. | Only a login screen is shown, asking for username and password. No item, setting, or user data is accessible without login, through the interface or the API. | Given no login, when opening any page or calling any data API, then the login screen is shown or access is refused. |
+| FR-AUTH-001 | In protected mode (FR-MODE-002), anyone opens the application without being logged in. | Only a login screen is shown, asking for username and password. No item, setting, or user data is accessible without login, through the interface or the API. | Given no login, when opening any page or calling any data API, then the login screen is shown or access is refused. |
 | FR-AUTH-002 | A person submits the login form. | Correct credentials log the person in. Wrong username or password show one generic error, without revealing which was wrong. | Given a wrong password, when submitting, then "Incorrect username or password" is shown and the person stays logged out. |
 | FR-AUTH-003 | A logged-in person chooses Log out. | The session ends and the login screen is shown. | After logout, reloading the page shows the login screen. |
 | FR-AUTH-004 | A session stays unused or reaches its maximum duration. | A session lasts 30 days unless the person logs out; then the person must log in again (D-8). | Given a login 31 days ago, when opening the app, then the login screen is shown. |
@@ -96,6 +103,7 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 - D-16: the administrator can rename users; items and password are kept.
 - D-17: usernames are case-insensitive, 3–32 characters of letters, digits, `.`, `-`, `_`.
 - D-18: others' shared items appear in a separate "Shared by others" section.
+- Open mode (user request, 2026-10-04): without regular users, the application works as today without login; the first regular user starts protected mode. Recorded as D-25 and D-26 in the delivery plan.
 
 ## Delivery plan
 
