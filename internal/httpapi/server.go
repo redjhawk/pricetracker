@@ -41,6 +41,14 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		s.handleLeboncoinSession(w, r)
 		return
 	}
+	if path == "/api/v1/settings/claude-token" {
+		s.handleClaudeToken(w, r)
+		return
+	}
+	if path == "/api/v1/settings" {
+		s.handleSettings(w, r)
+		return
+	}
 	if path == "/api/v1/items" && r.Method == http.MethodGet {
 		items, err := s.service.List(r.Context())
 		if err != nil {
