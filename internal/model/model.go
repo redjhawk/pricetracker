@@ -86,3 +86,11 @@ type LeboncoinSessionAttempt struct {
 	Outcome     string    `json:"outcome"` // accepted, rejected or failed
 	AttemptedAt time.Time `json:"attemptedAt"`
 }
+
+// ClaudeToken is the saved Claude subscription token as returned by the settings API.
+type ClaudeToken struct {
+	Value          *string    `json:"value"`
+	UpdatedAt      *time.Time `json:"updatedAt"`
+	LastRejectedAt *time.Time `json:"lastRejectedAt"`
+	Revision       int64      `json:"-"` // used by AI reviews to ignore outcomes for a replaced token
+}

@@ -110,6 +110,14 @@ CREATE TABLE IF NOT EXISTS leboncoin_session (
   last_attempt_outcome TEXT CHECK (last_attempt_outcome IS NULL OR last_attempt_outcome IN ('accepted', 'rejected', 'failed'))
 );
 INSERT OR IGNORE INTO leboncoin_session (id, revision) VALUES (1, 0);
+CREATE TABLE IF NOT EXISTS claude_token (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 1024),
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  updated_at TEXT,
+  last_rejected_at TEXT
+);
+INSERT OR IGNORE INTO claude_token (id, revision) VALUES (1, 0);
 `)
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
@@ -794,6 +802,18 @@ func (s *Store) SaveLeboncoinSession(ctx context.Context, value *string, expecte
 		return model.LeboncoinSession{}, err
 	}
 	defer tx.Rollback()
+	session, err := saveLeboncoinSessionTx(ctx, tx, value, expectedRevision, now)
+	if err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	return session, nil
+}
+
+// saveLeboncoinSessionTx applies the SaveLeboncoinSession rules inside tx.
+func saveLeboncoinSessionTx(ctx context.Context, tx *sql.Tx, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
 	row, err := readLeboncoinSession(ctx, tx)
 	if err != nil {
 		return model.LeboncoinSession{}, err
@@ -811,9 +831,6 @@ WHERE id = 1 AND revision = ?`, value, now.UTC().Format(timestampLayout), expect
 	}
 	row, err = readLeboncoinSession(ctx, tx)
 	if err != nil {
-		return model.LeboncoinSession{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return model.LeboncoinSession{}, err
 	}
 	return row.model(now), nil
