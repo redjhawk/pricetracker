@@ -56,6 +56,10 @@ Accepted intermediate state (REV-003 decision): after part 5 and before part 6, 
 
 ## Checks run
 
+Per part boundary after the reorder (each checked out on the branch with `git reset --hard <hash>`, since detached checkout and worktrees were blocked): `064d106`, `be988dd`, `109fa63`, `efceed5`, `e4bccef`: `go vet ./...` clean and `go test ./...` all 5 test packages `ok`. `9f693ca` and `4959a6a`: same, plus `npm run build` success. At the tip, `npx playwright test`: 48 passed.
+
+Before the reorder:
+
 - After every commit: `go build ./... && go vet ./... && go test ./...`: all packages `ok`; `gofmt -l .`: no files.
 - Frontend commit: `npm run build` (`tsc -b && vite build`): success. No lint script exists in `package.json`.
 - `npx playwright test` (all 6 suites, mocked API): 48 passed.
