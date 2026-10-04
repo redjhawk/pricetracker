@@ -204,3 +204,59 @@ func TestRequestAIReviewErrorsAndUnretrievedListing(t *testing.T) {
 		t.Fatalf("unexpected state %+v", state)
 	}
 }
+
+// REV-001: the review is shown as running no later than the collection result.
+func TestReviewRunningWhenCollectionIsRecorded(t *testing.T) {
+	service, database, reviewer, price := newReviewService(t, true)
+	reviewer.release = make(chan struct{})
+	defer close(reviewer.release)
+	insertListing(t, database, "lbc", "leboncoin", "https://www.leboncoin.fr/ad/test/123")
+	service.Collect(context.Background(), "lbc") // first price of a pre-existing item: no review
+	*price = 900
+	stop := make(chan struct{})
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				done <- false
+				return
+			default:
+			}
+			// Read the stored result first, then the running flag.
+			item, err := database.Get(context.Background(), "lbc")
+			if err == nil && item.LatestPrice != nil && item.LatestPrice.AmountCents == 900 && !service.reviewRunning("lbc") {
+				done <- true
+				return
+			}
+		}
+	}()
+	service.Collect(context.Background(), "lbc")
+	close(stop)
+	if <-done {
+		t.Fatal("price change recorded before the review was running")
+	}
+	if !service.reviewRunning("lbc") {
+		t.Fatal("review not running after the price change")
+	}
+}
+
+// REV-003: startReview reports each outcome distinctly.
+func TestStartReviewOutcomes(t *testing.T) {
+	without, database, _, _ := newReviewService(t, false)
+	insertListing(t, database, "lbc", "leboncoin", "https://www.leboncoin.fr/ad/test/123")
+	if outcome, err := without.startReview("lbc", nil, true); err != nil || outcome != reviewNoToken {
+		t.Fatalf("no token: %v %v", outcome, err)
+	}
+	service, database, reviewer, _ := newReviewService(t, true)
+	insertListing(t, database, "lbc", "leboncoin", "https://www.leboncoin.fr/ad/test/123")
+	reviewer.release = make(chan struct{})
+	if outcome, err := service.startReview("lbc", nil, true); err != nil || outcome != reviewStarted {
+		t.Fatalf("start: %v %v", outcome, err)
+	}
+	if outcome, err := service.startReview("lbc", nil, true); err != nil || outcome != reviewAlreadyRunning {
+		t.Fatalf("already running: %v %v", outcome, err)
+	}
+	close(reviewer.release)
+	waitReviews(t, service, "lbc", false)
+}
