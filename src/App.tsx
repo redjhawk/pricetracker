@@ -10,7 +10,15 @@ import {
 } from "@carbon/react";
 import { Add, ChartLine } from "@carbon/icons-react";
 import type { TrackedItem } from "./types";
-import { addItem as apiAddItem, deleteItem as apiDeleteItem, getItem, listItems, refreshAllItems, refreshItem } from "./api/items";
+import {
+  addItem as apiAddItem,
+  deleteItem as apiDeleteItem,
+  getItem,
+  listItems,
+  refreshAllItems,
+  refreshItem,
+  requestAiReview,
+} from "./api/items";
 import AddItemModal from "./components/AddItemModal";
 import AppMenu from "./components/AppMenu";
 import DeleteModal from "./components/DeleteModal";
@@ -40,6 +48,8 @@ export default function App() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailRefreshing, setDetailRefreshing] = useState(false);
   const [detailRefreshError, setDetailRefreshError] = useState<string | null>(null);
+  const [aiReviewRequesting, setAiReviewRequesting] = useState(false);
+  const [aiReviewError, setAiReviewError] = useState<string | null>(null);
   const [refreshingItemIds, setRefreshingItemIds] = useState<ReadonlySet<string>>(new Set());
   const [itemRefreshError, setItemRefreshError] = useState<string | null>(null);
   const [pathname, setPathname] = useState(window.location.pathname);
@@ -85,6 +95,8 @@ export default function App() {
   }, [items, refreshItems, refreshing]);
 
   useEffect(() => {
+    setAiReviewRequesting(false);
+    setAiReviewError(null);
     if (!itemId) {
       setDetailItem(null);
       setDetailError(null);
@@ -105,7 +117,8 @@ export default function App() {
   }, [itemId]);
 
   useEffect(() => {
-    if (!itemId || (detailItem?.status !== "pending" && !detailRefreshing)) return;
+    const aiReviewRunning = Boolean(detailItem?.aiReview?.running);
+    if (!itemId || (detailItem?.status !== "pending" && !detailRefreshing && !aiReviewRunning)) return;
     let active = true;
     const poll = window.setInterval(() => {
       getItem(itemId)
@@ -119,7 +132,7 @@ export default function App() {
         });
     }, 3_000);
     return () => { active = false; window.clearInterval(poll); };
-  }, [itemId, detailItem?.status, detailRefreshing]);
+  }, [itemId, detailItem?.status, detailItem?.aiReview?.running, detailRefreshing]);
 
   function navigate(path: string) {
     window.history.pushState(null, "", path);
@@ -164,6 +177,20 @@ export default function App() {
     } catch (error) {
       setDetailRefreshing(false);
       setDetailRefreshError(errorMessage(error));
+    }
+  }
+
+  async function handleAiReviewRefresh(id: string) {
+    if (aiReviewRequesting) return;
+    setAiReviewRequesting(true);
+    setAiReviewError(null);
+    try {
+      await requestAiReview(id);
+      setDetailItem(await getItem(id));
+    } catch (error) {
+      setAiReviewError(errorMessage(error));
+    } finally {
+      setAiReviewRequesting(false);
     }
   }
 
@@ -221,6 +248,9 @@ export default function App() {
                 onRefresh={() => void handleRefreshItem(detailItem.id)}
                 refreshing={detailRefreshing}
                 refreshError={detailRefreshError}
+                onAiReviewRefresh={() => void handleAiReviewRefresh(detailItem.id)}
+                aiReviewRequesting={aiReviewRequesting}
+                aiReviewError={aiReviewError}
               />
             ) : null
           ) : (
