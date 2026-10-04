@@ -45,8 +45,9 @@ type Service struct {
 	collectors    map[string]collector
 	leboncoin     leboncoinCollector
 	claude        claudeClient
-	mu           sync.Mutex
+	mu            sync.Mutex
 	inFlight      map[string]time.Time
+	reviewing     map[string]bool // items with a running AI review
 	workerContext context.Context
 	stopWorkers   context.CancelFunc
 	workers       sync.WaitGroup
@@ -60,7 +61,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 		collectors: map[string]collector{
 			"amazon": amazon.NewCollector(cfg.UserAgent),
 		},
-		inFlight: make(map[string]time.Time), workerContext: workerContext, stopWorkers: stopWorkers,
+		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2),
 	}
 }
@@ -151,7 +152,7 @@ func (s *Service) Add(ctx context.Context, rawURL string) (model.Item, error) {
 		return model.Item{}, err
 	}
 	s.workers.Add(1)
-	go func() { defer s.workers.Done(); s.Collect(s.workerContext, id) }()
+	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
 	return s.withPending(item, time.Now().UTC()), nil
 }
 
@@ -211,13 +212,19 @@ func (s *Service) runQueuedCollection(id string) {
 	select {
 	case s.refreshSlots <- struct{}{}:
 		defer func() { <-s.refreshSlots }()
-		s.collectReserved(s.workerContext, id)
+		s.collectReserved(s.workerContext, id, false)
 	case <-s.workerContext.Done():
 		s.releaseCollection(id)
 	}
 }
 
 func (s *Service) Collect(ctx context.Context, id string) {
+	s.collect(ctx, id, false)
+}
+
+// collect runs one collection unless one is in flight; newItem marks the first
+// collection of a newly added item, which triggers an AI review.
+func (s *Service) collect(ctx context.Context, id string, newItem bool) {
 	started := time.Now().UTC()
 	s.mu.Lock()
 	if _, exists := s.inFlight[id]; exists {
@@ -226,10 +233,10 @@ func (s *Service) Collect(ctx context.Context, id string) {
 	}
 	s.inFlight[id] = started
 	s.mu.Unlock()
-	s.collectReserved(ctx, id)
+	s.collectReserved(ctx, id, newItem)
 }
 
-func (s *Service) collectReserved(ctx context.Context, id string) {
+func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) {
 	defer func() { s.mu.Lock(); delete(s.inFlight, id); s.mu.Unlock() }()
 	item, err := s.store.Listing(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -258,10 +265,39 @@ func (s *Service) collectReserved(ctx context.Context, id string) {
 		log.Printf("confirm listing %s after collection: %v", id, err)
 		return
 	}
+	var previousPrice *int64
+	if item.Platform == "leboncoin" {
+		if previousPrice, err = s.store.LatestPriceCents(ctx, id); err != nil {
+			log.Printf("load previous price for item %s: %v", id, err)
+			return
+		}
+	}
+	// Reserve the review before recording, so a client never sees the new
+	// collection result without the review already shown as running.
+	priceChanged := result.Result == "success" && previousPrice != nil && *previousPrice != result.AmountCents
+	var token model.ClaudeToken
+	reserved := false
+	if item.Platform == "leboncoin" && (newItem || priceChanged) {
+		var outcome reviewOutcome
+		token, outcome, err = s.reserveReview(id)
+		if err != nil {
+			log.Printf("reserve AI review for item %s: %v", id, err)
+		}
+		reserved = outcome == reviewStarted
+	}
 	timestamp := time.Now().UTC()
 	err = s.store.RecordCollection(ctx, id, result, timestamp)
 	if err != nil {
 		log.Printf("save collection result for item %s: %v", id, err)
+		if reserved {
+			s.releaseReview(id)
+		}
+		return
+	}
+	if reserved {
+		if err := s.launchReview(id, token, result.Listing, false); err != nil {
+			log.Printf("start AI review for item %s: %v", id, err)
+		}
 	}
 }
 
