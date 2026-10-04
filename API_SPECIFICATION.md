@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined).
 
 ## Conventions
 
@@ -9,7 +9,7 @@
 - Timestamps are ISO 8601 UTC strings.
 - Prices are integer euro cents in the API (`amountCents`); `currency` is always `EUR` in v1.
 - Supported v1 platforms are European Amazon marketplaces (`amazon.de`, `amazon.fr`, `amazon.es`, `amazon.it`, `amazon.nl`, `amazon.be`) and French LeBoncoin (`leboncoin.fr`). Amazon marketplaces whose normal listing prices are not in euros are excluded from v1.
-- There is one shared item collection. No authentication is required.
+- Without regular users (open mode) there is one item collection and no authentication is required. Once a regular user exists (protected mode), a session is required and items and settings are scoped to the logged-in user; see "Users and login".
 - Item list order is most recently added first. The v1 collection is small (about 100 items), so list pagination is not required.
 
 ## Item response
@@ -487,3 +487,60 @@ Request: `{ "purchaseGoal": "Install a light Linux distro" }` (`""` clears the g
 ### Effect on AI reviews
 
 Every review (automatic, manual, or goal change) reads the item's goal when the review runs. A non-empty goal is sent to Claude as the buyer's purchase goal, delimited as untrusted data; an empty goal leaves the request unchanged. The review structure is unchanged.
+
+## Users and login (phase 1, 2026-10-04)
+
+Agent-defined from [the technical specification](doc/specifications/multi-user-login/technical.md). Existing request and response shapes are unchanged.
+
+### Modes, session and access
+
+- Mode is `open` while no regular user exists, `protected` from the first created user onwards.
+- Session: HttpOnly cookie `pricefollower_session` (`SameSite=Lax`, `Path=/`), set by login, valid 30 days from login, not extended, ended by logout.
+- `/api/v1/auth/*` is always reachable.
+- A logged-in `admin` may call only `/api/v1/auth/*` and `/api/v1/admin/*`; any other endpoint returns `403 FORBIDDEN`, in both modes.
+- `/api/v1/admin/*` returns `401 AUTH_REQUIRED` without an admin session and `403 FORBIDDEN` for a regular user.
+- Protected mode: every other endpoint returns `401 AUTH_REQUIRED` without a valid session. A regular user sees and changes only their own items, price history, purchase goals, AI reviews and settings (Claude token, LeBoncoin session). An item owned by someone else returns `404 ITEM_NOT_FOUND`, like an unknown id. `ITEM_ALREADY_TRACKED` applies only to the same user's items; two users may track the same URL independently.
+- Open mode without a session: all existing endpoints behave as before, on the open-mode items and settings. When the first regular user is created, these become theirs.
+
+| Status | Code | When | Message |
+| --- | --- | --- | --- |
+| 401 | `AUTH_REQUIRED` | Session missing, expired or ended where one is required | "Log in to continue." |
+| 401 | `INVALID_CREDENTIALS` | Wrong username or password | "Incorrect username or password." |
+| 403 | `FORBIDDEN` | Role not allowed for the endpoint | "You do not have access to this page." |
+| 429 | `LOGIN_LOCKED` | 5 consecutive failed logins for the username (case-insensitive); refused for 1 minute without checking the password | "Too many failed attempts. Wait one minute and try again." |
+
+### Get the session state
+
+`GET /api/v1/auth/session` → `200 { "mode": "protected", "user": { "username": "alice", "role": "user" } }`. `mode` is `open` or `protected`; `user` is `null` without a valid session; `role` is `admin` or `user`.
+
+### Log in
+
+`POST /api/v1/auth/login` with `{ "username": "alice", "password": "..." }`; username matched case-insensitively.
+
+- `200 { "user": { "username": "alice", "role": "user" } }`, sets the cookie and records the last login time.
+- `400 INVALID_JSON`, `401 INVALID_CREDENTIALS`, `429 LOGIN_LOCKED`.
+
+### Log out
+
+`POST /api/v1/auth/logout` → `204`; deletes the current session if any and clears the cookie.
+
+### List users (administrator)
+
+`GET /api/v1/admin/users` → `200 { "users": [ { "username": "alice", "lastLoginAt": "2026-10-04T10:00:00Z" } ] }`. Regular users only, ordered by username; `lastLoginAt` is `null` before the first login.
+
+### Add a user (administrator)
+
+`POST /api/v1/admin/users` with `{ "username": "alice", "password": "at-least-12-chars" }`.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 201 | — | `{ "user": { "username": "alice", "lastLoginAt": null } }`. The first user switches to protected mode and receives open-mode items and settings atomically. |
+| 400 | `INVALID_JSON` | Invalid body or fields not strings |
+| 400 | `INVALID_USERNAME` | Not 3–32 letters, digits, `.`, `-`, `_` |
+| 400 | `PASSWORD_TOO_SHORT` | Fewer than 12 characters |
+| 400 | `PASSWORD_TOO_LONG` | More than 256 characters |
+| 409 | `USERNAME_TAKEN` | Same username ignoring case, including `admin` |
+
+### Administrator account
+
+`admin` is created, or its password reset, only on the device with `pricefollower admin-password`. No endpoint changes passwords in phase 1.
