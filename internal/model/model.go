@@ -92,6 +92,40 @@ type ListingAttribute struct {
 	Value string
 }
 
+// AIReviewContent is a validated Claude review; amounts are euro cents.
+type AIReviewContent struct {
+	Price               AIRating            `json:"price"`
+	Condition           AIConditionRating   `json:"condition"`
+	Recommendation      AIRating            `json:"recommendation"`
+	FairPrice           AIFairPrice         `json:"fairPrice"`
+	Risks               []string            `json:"risks"`
+	MissingInformation  []string            `json:"missingInformation"`
+	SellerQuestions     []string            `json:"sellerQuestions"`
+	DescriptionVsPhotos AIDescriptionPhotos `json:"descriptionVsPhotos"`
+}
+
+type AIRating struct {
+	Rating      string `json:"rating"`
+	Explanation string `json:"explanation"`
+}
+
+type AIConditionRating struct {
+	Rating      *string `json:"rating"` // nil when the condition cannot be assessed
+	Explanation string  `json:"explanation"`
+}
+
+type AIFairPrice struct {
+	MinCents            int64 `json:"minCents"`
+	MaxCents            int64 `json:"maxCents"`
+	SuggestedOfferCents int64 `json:"suggestedOfferCents"`
+}
+
+type AIDescriptionPhotos struct {
+	Matches     *bool    `json:"matches"`
+	Explanation string   `json:"explanation"`
+	Mismatches  []string `json:"mismatches"`
+}
+
 // LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
 type LeboncoinSession struct {
 	Value       *string                  `json:"value"`
