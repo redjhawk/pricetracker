@@ -18,7 +18,7 @@ The coordinator records the paths of all artifacts in the feature's index, `doc/
 
 Assign stable requirement IDs such as `FR-ITEM-DETAILS-001`, technical IDs such as `TS-ITEM-DETAILS-001`, review IDs such as `REV-001`, and QA case IDs such as `QA-001`. Link technical design, implementation, review findings, and QA results to their source requirements. Preserve IDs when documents change.
 
-Artifact states are `draft`, `needs-clarification`, `ready`, and `superseded`. A ready artifact has no unresolved question that affects its handoff. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `qa`, `commit`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
+Artifact states are `draft`, `needs-clarification`, `ready`, and `superseded`. A ready artifact has no unresolved question that affects its handoff. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `commit`, `pull-request`, `qa`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
 
 ## 1. Expert functional specification agent
 
@@ -78,7 +78,7 @@ Handoff: the review report and decision record agree, with no unexplained findin
 
 ## 7. Expert QA tester
 
-Execute interface tests against the running application after review corrections. Cover acceptance criteria and relevant corner cases, including invalid input, empty results, missing items, loading/failure/retry behavior, repeated actions, keyboard navigation, and narrow screens when applicable. Include exploratory randomized action sequences; record the seed or complete ordered actions so failures can be reproduced. Use isolated test data for destructive actions where possible.
+Execute interface tests against the running application after review corrections. QA runs after stage 8 has pushed and opened the pull requests; push accepted QA fixes to the same PR branches. Cover acceptance criteria and relevant corner cases, including invalid input, empty results, missing items, loading/failure/retry behavior, repeated actions, keyboard navigation, and narrow screens when applicable. Include exploratory randomized action sequences; record the seed or complete ordered actions so failures can be reproduced. Use isolated test data for destructive actions where possible.
 
 Keep a Markdown QA case catalog and execution report. For each case record its ID, requirement IDs, corner-case category, the actual application URL tested, environment, required data/setup, exact actions and input, expected and actual behavior, result, execution date, and supporting evidence. For external listing inputs, record the actual URL used and its purpose. Never invent URLs or report an unexecuted case as passed. Distinguish an application route from an external listing input. Record untested cases and concrete blockers explicitly. Avoid credentials and private data in evidence.
 
@@ -86,16 +86,24 @@ Investigate failures through the reviewer and decision agent; apply accepted fix
 
 Handoff: executed QA results, reproducible exploratory sequences, actual URL/corner-case catalog, and unresolved limitations.
 
-## 8. Coordinator commits
+## 8. Coordinator commits and pull requests
 
-After all preceding stages pass for the exact final diff, create focused commits containing the requested change and its workflow evidence. Confirm specification consistency, recorded contract decisions, justified outcomes for every review finding, absence of critical blockers, and passed required QA before committing. Any new implementation changes return to the applicable review, decision and QA stages.
+After review and review decisions pass for the exact diff, create focused commits containing the requested change and its workflow evidence. Confirm specification consistency, recorded contract decisions, justified outcomes for every review finding, and absence of critical blockers before committing. Any new implementation changes return to the applicable review and decision stages, and to QA if it already ran.
 
-Inspect the working tree and stage explicit paths or hunks; do not include unrelated user changes. Review the staged diff and run `git diff --cached --check`. Use a descriptive commit message explaining the concrete change. Do not amend existing commits. Do not push unless the user explicitly requests it.
+Inspect the working tree and stage explicit paths or hunks; do not include unrelated user changes. Review the staged diff and run `git diff --cached --check`. Use a descriptive commit message explaining the concrete change. Do not amend existing commits.
 
-Record staged scope, verification commands and results, intended commit messages, and outcomes in `doc/changes/<change>/commit-step.md`, using [the commit template](templates/commit.md), and link it from the change index. Record the preparation and passed gates before committing. Refer to the resulting commit through its message and `git log` evidence; do not insert a commit's own hash into a file included in that commit. If committing fails, record the error and leave this stage blocked. The user may explicitly waive committing; record that request rather than claim a commit succeeded.
+Pull requests ([requirements](../specifications/workflow-pull-requests/functional.md)): in autonomous development, push the work branch and open pull requests to `master` once review decisions pass; do not wait for QA. Open them ready for review, not as drafts, with descriptions written by the agent (purpose, requirement IDs, scope, verification, limitations, and for stacked PRs their position in the stack and base). QA then runs; push its accepted fixes to the same branches.
 
-Handoff: successful focused commits, recorded scope and verification evidence, or an explicit user no-commit override.
+- Size: changed lines are added plus deleted lines (`git diff --numstat`), including specifications and documentation, excluding generated files such as `package-lock.json`. Target 450 changed lines per PR with a ±50 margin when splitting; 500 is the only enforced limit. Split any larger change. Smaller PRs are acceptable when the change, or a separate-kind PR (refactoring, dependencies, formatting, unrelated docs), is smaller; never combine unrelated work to reach the target.
+- Stacking: split PRs are stacked; the first targets `master`, PR 2 targets PR 1's branch, and so on.
+- Separate PRs: refactoring is always its own PR, placed before the feature when better done first, or after it when found during or after development. Dependency updates and formatting each get their own PR. Feature documentation goes with the feature; unrelated documentation gets its own PR.
+
+If the run's tooling cannot create the required branches or PRs (for example, a CI workflow that permits only `git push origin HEAD` and opens a single PR itself), push what is permitted, record the planned split in `commit-step.md` (PR order, branch and base, changed-line counts, descriptions), and report it as a limitation. Never claim a PR was created unless the tooling confirms it.
+
+Record staged scope, verification commands and results, commit messages, pull requests, and outcomes in `doc/changes/<change>/commit-step.md`, using [the commit template](templates/commit.md), and link it from the change index. Record the preparation and passed gates before committing. Refer to the resulting commit through its message and `git log` evidence; do not insert a commit's own hash into a file included in that commit. If committing or pushing fails, record the error and leave this stage blocked. The user may explicitly waive committing; record that request rather than claim a commit succeeded.
+
+Handoff: successful focused commits, pushed ready pull requests or a recorded planned split with its tooling limitation, recorded scope and verification evidence, or an explicit user no-commit override.
 
 ## Completion
 
-Mark the feature complete only when specifications and the contract are consistent with the final implementation, all review findings have justified recorded outcomes, no critical blocker remains, required QA passes, and stage 8 commits succeed (unless the user explicitly requests no commit). Record deferred noncritical work and its rationale. Summarize delivered behavior, verification evidence, commit outcome, and material remaining limitations for the user.
+Mark the feature complete only when specifications and the contract are consistent with the final implementation, all review findings have justified recorded outcomes, no critical blocker remains, required QA passes, stage 8 commits succeed (unless the user explicitly requests no commit), and pull requests exist or their planned split is recorded as a tooling limitation. Record deferred noncritical work and its rationale. Summarize delivered behavior, verification evidence, commit and pull request outcome, and material remaining limitations for the user.
