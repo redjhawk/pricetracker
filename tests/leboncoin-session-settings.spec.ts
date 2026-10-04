@@ -21,6 +21,8 @@ type Session = typeof noSession;
 type PutReply = { status: number; json: unknown } | "echo";
 
 const settingsPath = "/api/v1/settings/leboncoin-session";
+const claudeTokenPath = "/api/v1/settings/claude-token";
+const noClaudeToken = { value: null, updatedAt: null, lastRejectedAt: null };
 const unexpectedRequests = new WeakMap<BrowserContext, string[]>();
 
 test.afterEach(async ({ context }) => {
@@ -72,8 +74,13 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
       await route.fulfill(state.getError
         ? { status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } }
         : { json: { session: state.session } });
-    } else if (method === "PUT" && path === settingsPath) {
-      const body = request.postDataJSON() as { value: string; revision: number };
+    } else if (method === "GET" && path === claudeTokenPath) {
+      await state.getGate;
+      await route.fulfill(state.getError
+        ? { status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } }
+        : { json: { claudeToken: noClaudeToken } });
+    } else if (method === "PUT" && path === "/api/v1/settings") {
+      const body = (request.postDataJSON() as { leboncoinSession: { value: string; revision: number } }).leboncoinSession;
       state.puts.push(body);
       await state.putGate;
       const reply = state.putReplies.shift() ?? "echo";
@@ -82,7 +89,7 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
         state.session = value
           ? { ...noSession, value, revision: state.session.revision + 1, updatedAt: timestamp, status: "active" }
           : { ...noSession, revision: state.session.revision + 1, updatedAt: timestamp };
-        await route.fulfill({ json: { session: state.session } });
+        await route.fulfill({ json: { session: state.session, claudeToken: noClaudeToken } });
       } else {
         await route.fulfill(reply);
       }
@@ -160,7 +167,7 @@ test("header menu: visible on every page, one Settings entry, keyboard and dismi
   await expect(page).toHaveURL(`/items/${item.id}`);
 });
 
-test("settings modal: loading, full value, help text, one field", async ({ page, context }) => {
+test("settings modal: loading, full value, help text, session and Claude token fields", async ({ page, context }) => {
   const api = await mockApi(context);
   let release!: () => void;
   api.getGate = new Promise<void>((resolve) => { release = resolve; });
@@ -173,7 +180,7 @@ test("settings modal: loading, full value, help text, one field", async ({ page,
   release();
   await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
   await expect(sessionField(page)).toBeEnabled();
-  await expect(dialog.getByRole("textbox")).toHaveCount(1);
+  await expect(dialog.getByRole("textbox")).toHaveCount(2);
   await expect(dialog).toContainText("datadome=");
   await expect(dialog).toContainText(/empty field to remove the session/);
   await expect(saveButton(page)).toBeEnabled();

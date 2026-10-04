@@ -365,6 +365,10 @@ input {
   margin-block-end: var(--cds-spacing-05);
 }
 
+.settings-claude-token {
+  margin-block-start: var(--cds-spacing-06);
+}
+
 .preview-note {
   margin: var(--cds-spacing-05) 0 0;
   color: var(--cds-text-secondary);
