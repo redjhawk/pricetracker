@@ -5,7 +5,8 @@ name: ci-deploy
 
 on:
   push:
-    branches: [main]
+    # pricetracker's default branch is master; main is kept in case it is renamed
+    branches: [master, main]
   workflow_dispatch:
 # No pull_request trigger: the repo is public and must never run fork code on barcelona.
 

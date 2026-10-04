@@ -1,7 +1,7 @@
 # Copy to pricetracker/.github/workflows/ai-dev.yml
 # AI developer: an issue labelled "ai-dev" (or an "@claude" comment) makes Claude implement it on a
 # branch, following AGENTS.md and the project skills/roles. You review and merge the PR; merging to
-# main triggers ci-deploy. Runs on the dev runner on barcelona (no deploy key there).
+# master (the default branch) triggers ci-deploy. Runs on the dev runner on barcelona (no deploy key there).
 name: ai-dev
 
 on:
@@ -53,6 +53,16 @@ jobs:
           echo "::add-mask::$CLAUDE_CODE_OAUTH_TOKEN"
           echo "CLAUDE_TOKEN=$CLAUDE_CODE_OAUTH_TOKEN" >> "$GITHUB_ENV"
 
+      # gh is baked into the dev image; install it for this job if the runner image predates that
+      - name: Ensure GitHub CLI
+        run: |
+          if command -v gh >/dev/null; then gh --version | head -1; exit 0; fi
+          version=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r .tag_name | sed 's/^v//')
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${version}/gh_${version}_linux_amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${version}_linux_amd64/bin" >> "$GITHUB_PATH"
+          echo "::warning::gh was missing from the runner image; rebuild runner-dev (scripts/build-and-import.sh runner-dev)"
+
       - uses: anthropics/claude-code-action@v1
         id: claude
         env:
@@ -61,6 +71,9 @@ jobs:
         with:
           # Subscription token from `claude setup-token`: runs use Claude Pro/Max, not the API
           claude_code_oauth_token: ${{ env.CLAUDE_TOKEN }}
+          # Environment for Claude's own Bash commands (gh reads GH_TOKEN; job token has pull-requests: write)
+          settings: |
+            {"env": {"GH_TOKEN": "${{ github.token }}"}}
           label_trigger: ai-dev
           trigger_phrase: "@claude"
           branch_prefix: ai-dev/
