@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"pricefollower.local/config"
+	"pricefollower.local/internal/model"
 	"pricefollower.local/internal/service"
 	"pricefollower.local/web"
 )
@@ -128,6 +129,16 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]any{"requestedAt": requestedAt, "itemsQueued": 1})
 		return
 	}
+	const aiReviewSuffix = "/ai-review"
+	if strings.HasPrefix(path, itemPrefix) && strings.HasSuffix(path, aiReviewSuffix) {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, itemPrefix), aiReviewSuffix)
+		if id == "" || strings.Contains(id, "/") {
+			writeError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", "API route was not found.")
+			return
+		}
+		s.handleAIReviewRequest(w, r, id)
+		return
+	}
 	if strings.HasPrefix(path, itemPrefix) {
 		id := strings.TrimPrefix(path, itemPrefix)
 		if id == "" || strings.Contains(id, "/") {
@@ -145,7 +156,12 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 				serverError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, item)
+			review, err := s.service.AIReview(r.Context(), item)
+			if err != nil {
+				serverError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, model.ItemDetails{Item: item, AIReview: review})
 		case http.MethodDelete:
 			deleted, err := s.service.Remove(r.Context(), id)
 			if err != nil {
