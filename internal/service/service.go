@@ -96,7 +96,7 @@ func (s *Service) NextCheckAt(after time.Time) time.Time {
 }
 
 func (s *Service) List(ctx context.Context) ([]model.Item, error) {
-	items, err := s.store.List(ctx)
+	items, err := s.store.List(ctx, ownerFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,19 @@ func (s *Service) List(ctx context.Context) ([]model.Item, error) {
 	return items, nil
 }
 
+// ownedListing loads an item of the request's owner; another owner's item is sql.ErrNoRows, like an unknown one.
+func (s *Service) ownedListing(ctx context.Context, id string) (model.Listing, error) {
+	listing, err := s.store.Listing(ctx, id)
+	if err == nil && listing.OwnerID != ownerFrom(ctx) {
+		return model.Listing{}, sql.ErrNoRows
+	}
+	return listing, err
+}
+
 func (s *Service) Get(ctx context.Context, id string) (model.Item, error) {
+	if _, err := s.ownedListing(ctx, id); err != nil {
+		return model.Item{}, err
+	}
 	item, err := s.store.GetWithHistory(ctx, id)
 	if err != nil {
 		return item, err
@@ -133,7 +145,8 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	default:
 		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported Amazon euro marketplaces and LeBoncoin listings."}
 	}
-	exists, err := s.store.IsCanonicalTracked(ctx, canonical)
+	itemListing.OwnerID = ownerFrom(ctx)
+	exists, err := s.store.IsCanonicalTracked(ctx, itemListing.OwnerID, canonical)
 	if err != nil {
 		return model.Item{}, err
 	}
@@ -161,11 +174,11 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 }
 
 func (s *Service) Remove(ctx context.Context, id string) (bool, error) {
-	return s.store.Delete(ctx, id)
+	return s.store.Delete(ctx, ownerFrom(ctx), id)
 }
 
 func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
-	ids, err := s.store.IDs(ctx)
+	ids, err := s.store.IDs(ctx, ownerFrom(ctx))
 	if err != nil {
 		return time.Time{}, 0, err
 	}
@@ -191,7 +204,7 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 }
 
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
-	if _, err := s.store.Listing(ctx, id); err != nil {
+	if _, err := s.ownedListing(ctx, id); err != nil {
 		return time.Time{}, err
 	}
 	requestedAt := time.Now().UTC()

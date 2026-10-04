@@ -10,7 +10,7 @@ import (
 // SetPurchaseGoal replaces a LeBoncoin item's purchase goal. A changed goal
 // requests a new AI review; if one is running, another runs after it.
 func (s *Service) SetPurchaseGoal(ctx context.Context, id, goal string) (string, bool, bool, error) {
-	listing, err := s.store.Listing(ctx, id)
+	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
 		return "", false, false, err
 	}
