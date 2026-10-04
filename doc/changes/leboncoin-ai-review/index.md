@@ -51,6 +51,8 @@ Additive; existing contracts unchanged.
 
 If PR 1 exceeds 500 lines, split the two subjects' specifications into separate docs PRs.
 
+Actual commits, planned split and the branch-creation tooling limitation: [commit-step.md](commit-step.md).
+
 ## User decisions
 
 - D-1 Token kind: Claude Pro/Max subscription token from `claude setup-token` (Q-CLT-1).
