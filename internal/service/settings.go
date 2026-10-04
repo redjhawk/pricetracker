@@ -15,6 +15,7 @@ import (
 // claudeClient lets tests replace the Claude API client.
 type claudeClient interface {
 	Verify(ctx context.Context, token string) error
+	Review(ctx context.Context, token string, input claude.ReviewInput) (model.AIReviewContent, error)
 }
 
 // SettingsInput holds the Settings entries to save; a nil part is left unchanged.
