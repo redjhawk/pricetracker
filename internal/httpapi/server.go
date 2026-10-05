@@ -35,8 +35,8 @@ func New(cfg config.Config, items *service.Service) *Server {
 
 func (s *Server) Handler() http.Handler { return s.handler }
 
-func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
+// handleData routes the item and settings endpoints after handleAPI's access checks.
+func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if path == "/api/v1/settings/leboncoin-session" {
 		s.handleLeboncoinSession(w, r)
