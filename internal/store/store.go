@@ -47,6 +47,10 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.createUserSchema(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := s.createAIReviewSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -60,21 +64,26 @@ func Open(cfg config.Config) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func (s *Store) createSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS items (
+// itemsColumns is the current items table definition. Owner 0 is the open-mode owner (no user);
+// two owners may track the same canonical URL.
+const itemsColumns = `
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'amazon',
   listing_id TEXT NOT NULL DEFAULT '',
   marketplace TEXT NOT NULL,
-  canonical_url TEXT NOT NULL UNIQUE,
+  canonical_url TEXT NOT NULL,
   url TEXT NOT NULL,
   title TEXT,
   thumbnail_url TEXT,
   next_check_at TEXT,
-  added_at TEXT NOT NULL
-);
+  added_at TEXT NOT NULL,
+  purchase_goal TEXT NOT NULL DEFAULT '',
+  owner_id INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (owner_id, canonical_url)`
+
+func (s *Store) createSchema(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS items ("+itemsColumns+");"+`
 CREATE TABLE IF NOT EXISTS price_observations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -142,33 +151,80 @@ INSERT OR IGNORE INTO claude_token (id, revision) VALUES (1, 0);
 	if _, err := s.db.ExecContext(ctx, "UPDATE items SET listing_id = asin WHERE listing_id = '' AND platform = 'amazon'"); err != nil {
 		return fmt.Errorf("migrate item listing identifiers: %w", err)
 	}
-	return nil
+	return s.migrateItemsOwner(ctx)
 }
 
-func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
-	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(items)")
+// hasColumn reports whether table has the named column.
+func (s *Store) hasColumn(ctx context.Context, table, name string) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {
-		return fmt.Errorf("inspect items schema: %w", err)
+		return false, fmt.Errorf("inspect %s schema: %w", table, err)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var cid, notNull, primaryKey int
 		var columnName, columnType string
 		var defaultValue sql.NullString
 		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			rows.Close()
-			return fmt.Errorf("read items schema: %w", err)
+			return false, fmt.Errorf("read %s schema: %w", table, err)
 		}
 		if columnName == name {
-			rows.Close()
-			return nil
+			return true, nil
 		}
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("read items schema: %w", err)
+	return false, rows.Err()
+}
+
+// migrateItemsOwner rebuilds a pre-login items table once: it adds owner_id (0 for existing
+// items) and replaces UNIQUE(canonical_url) with UNIQUE(owner_id, canonical_url).
+func (s *Store) migrateItemsOwner(ctx context.Context) error {
+	exists, err := s.hasColumn(ctx, "items", "owner_id")
+	if err != nil || exists {
+		return err
 	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close items schema: %w", err)
+	const copied = "id, asin, platform, listing_id, marketplace, canonical_url, url, title, thumbnail_url, next_check_at, added_at, purchase_goal"
+	return s.rebuildTable(ctx, "items", []string{
+		"CREATE TABLE items_new (" + itemsColumns + ")",
+		"INSERT INTO items_new (" + copied + ", owner_id) SELECT " + copied + ", 0 FROM items",
+		"DROP TABLE items",
+		"ALTER TABLE items_new RENAME TO items",
+		"CREATE INDEX IF NOT EXISTS items_next_check ON items(next_check_at)",
+	})
+}
+
+// rebuildTable runs table-rebuild statements in one transaction with foreign keys off,
+// then checks that every reference is still valid.
+func (s *Store) rebuildTable(ctx context.Context, table string, statements []string) error {
+	// The pragma has no effect inside a transaction; the single connection keeps it for the rebuild.
+	if _, err := s.db.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); err != nil {
+		return err
+	}
+	defer s.db.ExecContext(ctx, "PRAGMA foreign_keys=ON")
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate %s table: %w", table, err)
+		}
+	}
+	var violation string
+	err = tx.QueryRowContext(ctx, "PRAGMA foreign_key_check").Scan(&violation)
+	if err == nil {
+		return fmt.Errorf("migrate %s table: invalid reference in %s", table, violation)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("migrate %s table: %w", table, err)
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
+	exists, err := s.hasColumn(ctx, "items", name)
+	if err != nil || exists {
+		return err
 	}
 	if _, err := s.db.ExecContext(ctx, "ALTER TABLE items ADD COLUMN "+name+" "+declaration); err != nil {
 		return fmt.Errorf("add items.%s column: %w", name, err)
@@ -588,9 +644,9 @@ func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bo
 }
 
 func (s *Store) Insert(ctx context.Context, item model.Listing, canonicalURL string, nextCheck time.Time) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at, purchase_goal)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
-		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout), item.PurchaseGoal)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at, purchase_goal, owner_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
+		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout), item.PurchaseGoal, item.OwnerID)
 	return err
 }
 
@@ -650,8 +706,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID)
 	return item, err
 }
 
