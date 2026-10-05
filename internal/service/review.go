@@ -16,7 +16,7 @@ const listingNotRetrievedMessage = "The listing could not be retrieved from LeBo
 // RequestAIReview starts a manual review of the current LeBoncoin listing.
 // It reports alreadyRunning instead of starting a second review for the item.
 func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bool, error) {
-	listing, err := s.store.Listing(ctx, id)
+	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
 		return time.Time{}, false, err
 	}

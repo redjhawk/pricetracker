@@ -52,7 +52,7 @@ func TestAIReviewsHistoryRestartAndCascade(t *testing.T) {
 	if err != nil || latest.ID != pending || latest.Status != "failed" || *latest.ErrorMessage != InterruptedReviewMessage || latest.CompletedAt == nil {
 		t.Fatalf("pending review not failed at startup: %+v %v", latest, err)
 	}
-	if _, err := reopened.Delete(ctx, "a"); err != nil {
+	if _, err := reopened.Delete(ctx, 0, "a"); err != nil {
 		t.Fatal(err)
 	}
 	var count int

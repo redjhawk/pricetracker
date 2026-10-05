@@ -448,8 +448,8 @@ SELECT id, 8995, 'EUR', 'good', 'Buone condizioni', ? FROM items WHERE id = 'sam
 	return tx.Commit()
 }
 
-func (s *Store) List(ctx context.Context) ([]model.Item, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items ORDER BY added_at DESC, id DESC")
+func (s *Store) List(ctx context.Context, ownerID int64) ([]model.Item, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -673,9 +673,9 @@ func statusFor(price *model.Observation, attempt *model.Attempt, staleAfter time
 	return "active"
 }
 
-func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bool, error) {
+func (s *Store) IsCanonicalTracked(ctx context.Context, ownerID int64, canonicalURL string) (bool, error) {
 	var exists int
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE canonical_url = ?", canonicalURL).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE owner_id = ? AND canonical_url = ?", ownerID, canonicalURL).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -709,8 +709,8 @@ func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time)
 	return tx.Commit()
 }
 
-func (s *Store) IDs(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items ORDER BY added_at DESC, id DESC")
+func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -813,8 +813,8 @@ func (s *Store) RecordFailure(ctx context.Context, id, result, message string, t
 	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
-func (s *Store) Delete(ctx context.Context, id string) (bool, error) {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ?", id)
+func (s *Store) Delete(ctx context.Context, ownerID int64, id string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ? AND owner_id = ?", id, ownerID)
 	if err != nil {
 		return false, err
 	}

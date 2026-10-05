@@ -35,7 +35,7 @@ INSERT INTO price_observations (item_id, amount_cents, observed_at) VALUES ('kep
 		t.Fatalf("price history lost: %+v %v", item, err)
 	}
 	// Deleting still cascades to child tables after the rebuild.
-	if _, err := database.Delete(ctx, "kept"); err != nil {
+	if _, err := database.Delete(ctx, 0, "kept"); err != nil {
 		t.Fatal(err)
 	}
 	var children int
