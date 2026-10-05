@@ -8,12 +8,15 @@ export type ItemStatus =
 export interface PriceObservation {
   amount: number;
   currency: "EUR";
-  timestamp: string;
+  /** Null only for an undated LeBoncoin old price. */
+  timestamp: string | null;
+  oldPrice: boolean;
 }
 
 export type SecondHandOfferStatus = "pending" | "available" | "not_found" | "check_error";
 
-export interface SecondHandOfferDetection extends PriceObservation {
+export interface SecondHandOfferDetection extends Omit<PriceObservation, "timestamp" | "oldPrice"> {
+  timestamp: string;
   condition: "like_new" | "very_good" | "good" | "acceptable" | "unknown";
   conditionLabel: string;
 }
