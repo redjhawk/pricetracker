@@ -266,7 +266,7 @@ func TestExpiredSessionMakesNoRequest(t *testing.T) {
 	insertListing(t, database, "lbc", "leboncoin", "https://www.leboncoin.fr/ad/test/123")
 	saved := saveSession(t, service, "synthetic-expiring")
 	past := time.Now().Add(-time.Minute)
-	if _, err := database.FinishLeboncoinSessionAttempt(context.Background(), saved.Revision, store.LeboncoinSessionOutcome{Attempt: "accepted", Renewed: true, Value: "synthetic-expiring", ExpiresAt: &past}, time.Now()); err != nil {
+	if _, err := database.FinishLeboncoinSessionAttempt(context.Background(), 0, saved.Revision, store.LeboncoinSessionOutcome{Attempt: "accepted", Renewed: true, Value: "synthetic-expiring", ExpiresAt: &past}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	service.leboncoin = fakeLeboncoin(func(context.Context, model.Listing, *leboncoin.Session) (model.CollectionResult, leboncoin.SessionOutcome) {

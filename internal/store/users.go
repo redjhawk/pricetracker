@@ -72,7 +72,8 @@ func (s *Store) CreateAdminOrResetPassword(ctx context.Context, passwordHash str
 	return updated == 0, tx.Commit()
 }
 
-// CreateUser adds a regular user. The first regular user receives the open-mode (owner 0) data.
+// CreateUser adds a regular user. The first regular user receives the open-mode (owner 0)
+// items, LeBoncoin session and Claude token.
 func (s *Store) CreateUser(ctx context.Context, username, passwordHash string, now time.Time) (User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,8 +97,17 @@ func (s *Store) CreateUser(ctx context.Context, username, passwordHash string, n
 		return User{}, err
 	}
 	if others == 0 {
-		if _, err := tx.ExecContext(ctx, "UPDATE items SET owner_id = ? WHERE owner_id = 0", id); err != nil {
-			return User{}, err
+		for _, statement := range []string{
+			"UPDATE items SET owner_id = ? WHERE owner_id = 0",
+			// Any settings row of the new user is replaced by the inherited one.
+			"DELETE FROM leboncoin_session WHERE owner_id = ?",
+			"UPDATE leboncoin_session SET owner_id = ? WHERE owner_id = 0",
+			"DELETE FROM claude_token WHERE owner_id = ?",
+			"UPDATE claude_token SET owner_id = ? WHERE owner_id = 0",
+		} {
+			if _, err := tx.ExecContext(ctx, statement, id); err != nil {
+				return User{}, err
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
