@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-The service tracks the price of an item listed on a European Amazon marketplace or LeBoncoin France. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface.
+The service tracks the price of an item listed on a European Amazon marketplace or LeBoncoin France. The operator adds an item by providing its listing URL. The server checks its price twice per day, stores observations, and serves the information to a web interface. LeBoncoin items additionally receive an AI (Claude) review, guided by an optional purchase goal, and the operator manages the LeBoncoin session and Claude token from a Settings modal.
 
-This document defines the first version (v1). Other marketplaces and possible enhancements are listed under [Next steps](#12-next-steps). Remaining decisions are listed under [Open decisions](#13-open-decisions).
+This document defines the first version (v1) and summarizes the features added since; each added feature is specified in detail in its own subject file (see [Subject specifications](#15-subject-specifications)), which prevails for details. Other marketplaces and possible enhancements are listed under [Next steps](#12-next-steps). Remaining decisions are listed under [Open decisions](#13-open-decisions).
 
 Related documents: [API contract](../API_SPECIFICATION.md) · [Use case index](use-cases/README.md).
 
@@ -18,10 +18,13 @@ Related documents: [API contract](../API_SPECIFICATION.md) · [Use case index](u
 - Allow the operator to manually refresh an individual item from its details page.
 - Allow the operator to inspect the complete price history for a tracked item and delete an item.
 - Keep collection attempts running when a price is stale or a check fails.
+- Show tracked items in separate Amazon and LeBoncoin tabs.
+- Let the operator save a LeBoncoin session and a Claude token from a Settings modal opened from the header menu.
+- Produce, store, and show AI reviews of LeBoncoin items, taking an optional per-item purchase goal into account.
 
 V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
 
-Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope.
+Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope. Multiple users with login are specified for a later delivery ([multi-user login](specifications/multi-user-login/functional.md)) but not implemented.
 
 ## 3. Core concepts
 
@@ -30,6 +33,14 @@ Prices are the item price only, in euros. Shipping, taxes, and other charges are
 **Price observation:** A successful detection containing the item price in euros and the detection timestamp. Collection failures are recorded separately and do not overwrite the last successful price.
 
 **Latest price:** The value and timestamp from the latest successful observation. It may be stale if later checks have failed or been delayed.
+
+**LeBoncoin session:** The value of LeBoncoin's `datadome` cookie, obtained by the operator on a desktop browser and saved in Settings. LeBoncoin collection attempts send it when saved.
+
+**Claude token:** A Claude Pro/Max subscription token produced by `claude setup-token`, saved in Settings and used for AI reviews.
+
+**AI review:** A structured English assessment of a LeBoncoin item produced by Claude from the listing information, price history, and purchase goal.
+
+**Purchase goal:** Optional free text stating what the operator intends a LeBoncoin item for.
 
 **Price period:** A run of consecutive successful observations with the same price. The main list shows each recent period once, using the timestamp of that price's latest successful observation. A new amount starts a new period, including when the amount returns to an earlier value after changing.
 
@@ -61,18 +72,18 @@ The API shape, Go HTTP implementation, database access library, scheduling imple
 
 ### 5.2 Review tracked items
 
-The main page shows all tracked items. Each row/card includes:
+The main page shows tracked items in two tabs, **Amazon** and **LeBoncoin** (Amazon selected initially). Each tab lists only that platform's items; the chosen tab is kept while the application runs, including after opening item details and returning. Each row includes:
 
-- Item title, or a fallback label if unavailable.
+- Item title, or a fallback label if unavailable, with the marketplace and listing ID shown below it (no separate Marketplace column).
 - Source platform and listing link.
 - Thumbnail when available.
 - One compact Prices column containing up to three recent consecutive price periods, newest first. The latest price appears once as the first period; each amount is paired with the time of its latest successful observation. Repeated checks at the same price update that period's time; a changed price starts a new period.
 - An explicit unavailable or awaiting-first-price state when no successful price is available.
 - Collection/listing status, such as active, stale, retrieval issue, or unavailable.
-- Latest second-hand offer sold by Amazon for Amazon items, including price and condition; third-party offers are ignored. This field is not applicable to LeBoncoin items.
+- Latest second-hand offer sold by Amazon for Amazon items, including price and condition; third-party offers are ignored. This column appears only in the Amazon tab.
 - Actions to open item details, delete an item, or refresh all tracked items.
 
-The page should have clear empty, loading, and error states. A stale price does not stop scheduled checks or retries. The stale threshold is an open decision.
+The page distinguishes no tracked items, no items for the selected platform, and no search matches, and has clear loading and error states. The tracked-item count and the refresh action cover all platforms, and the refresh's all-items scope is made clear. A stale price does not stop scheduled checks or retries. The stale threshold is an open decision.
 
 ### 5.3 View item details
 
@@ -80,7 +91,24 @@ The detail view shows item metadata, platform, listing URL, latest known price a
 
 ### 5.4 Delete an item
 
-The operator can delete an item from tracking. Deletion removes the item and its associated price observations from the server database. No history of deleted items is retained. V1 does not require pause or archive actions.
+The operator can delete an item from tracking. Deletion removes the item, its associated price observations, and its AI reviews from the server database. No history of deleted items is retained. V1 does not require pause or archive actions.
+
+### 5.5 Manage settings
+
+A profile-style icon at the right end of the header, on every page, opens a menu with one entry, **Settings**. Settings opens a modal that loads the current settings from the server and contains two entries:
+
+- **LeBonCoin session:** shows the saved session in clear text. The operator can paste a raw `datadome` value or a cookie string from which the value is extracted; unusable input is rejected with a message. Saving an empty entry removes the session. A warning shows when the latest attempt with the saved session was rejected or failed, or when LeBoncoin expired or revoked it. If the stored session changed after the modal loaded, saving is refused and the operator is asked to reload.
+- **Claude token:** shows the saved token in clear text. A changed non-empty token is verified with Claude before it is stored; a refused or unverifiable token saves nothing. Saving an empty entry removes the token. A warning shows when the latest AI review failed because Claude rejected the token.
+
+One Save applies both entries; an error in either saves neither. Settings persist in the database across restarts and apply without restart. The session and token never appear outside the modal. Details: [settings](specifications/leboncoin-session-settings/functional.md), [Claude token](specifications/claude-token-settings/functional.md), [header menu](specifications/app-header-menu/functional.md).
+
+To obtain a session, the operator runs a desktop helper script with a LeBoncoin listing URL, completes any LeBoncoin verification personally in a dedicated visible browser, and copies the printed `datadome=<value>` line into Settings ([session capture](specifications/leboncoin-session-capture/functional.md)). No session file is used ([removal record](deprecated/leboncoin-session-file.md)).
+
+### 5.6 Review a LeBoncoin item with AI
+
+When a Claude token is saved, an AI review of a LeBoncoin item is requested automatically and asynchronously when the item is added, when a check records a price different from the previous one, and when its purchase goal changes. The LeBoncoin item details page shows an **AI review** section with the latest review, its date/time and reviewed price, a **Refresh AI review** button, and the previous reviews, newest first. A review contains a price rating (Good deal / Fair / Overpriced) and a condition rating (Excellent / Good / Fair / Poor) with explanations, an overall recommendation (Buy / Negotiate / Avoid) with explanation, an estimated fair price range and suggested offer, scam/risk signs, missing accessories or information and questions for the seller, and whether the description matches the photos. Without a token, no review is attempted, the refresh button is disabled, and the section asks the operator to configure one in Settings; saving a token later does not review existing items automatically. Failures are shown with their date/time while the latest successful review stays visible. Items added before this feature are not reviewed automatically. Details: [LeBoncoin AI review](specifications/leboncoin-ai-review/functional.md).
+
+The add-item form offers an optional **Purchase goal** field, saved for LeBoncoin items only. The LeBoncoin details page shows the goal in an editable field with a save action. A non-empty goal is sent with every review request; an empty goal means no goal. Details: [purchase goal](specifications/leboncoin-purchase-goal/functional.md).
 
 ## 6. Price collection behavior
 
@@ -97,6 +125,7 @@ The operator can delete an item from tracking. Deletion removes the item and its
 - Continue scheduled retries when an item is stale or previous collection attempts failed.
 - A manual refresh from an item's details page queues an immediate check for that item only. An in-progress check is not duplicated.
 - Collection requests should present as access from a Google Chrome browser, as specified by the product owner. A challenge or other non-success response is a retrieval error, not a free price or proof that the listing is unavailable.
+- When a LeBoncoin session is saved, LeBoncoin collection attempts send only that `datadome` cookie, and only to LeBoncoin's own hosts; without one, collection is sessionless. A session renewed by LeBoncoin on a verified response replaces the saved value; an expired or revoked session is no longer sent. The outcome of the latest session-assisted attempt is recorded for the Settings warning ([session collection](specifications/leboncoin-session-collection/functional.md)).
 - Store every successful price check, including unchanged prices, and retain every observation while the item remains tracked.
 - The server should expose when the next check is expected if useful to the interface.
 
@@ -104,19 +133,23 @@ The operator can delete an item from tracking. Deletion removes the item and its
 
 ### Tracked items page
 
-The primary page contains the add-item action, a search field, and the tracked-items list. Search filters locally by title, listing ID, ASIN, platform, or marketplace. Each row presents the latest price and recent price periods together in the Prices column. No sign-in is required.
+The primary page contains the add-item action, a search field, and Amazon and LeBoncoin tabs with the tracked-items tables. Search filters the selected tab locally by title, listing ID, ASIN, platform, or marketplace, and the query is kept across tab switches. Each row presents the latest price and recent price periods together in the Prices column. No sign-in is required.
 
 ### Item details page
 
-Shows item metadata, recent price detections, collection status, source listing, refresh action, and deletion action.
+Shows item metadata, recent price detections, collection status, source listing, refresh action, and deletion action. LeBoncoin items also show the purchase goal and the AI review section.
+
+### Header menu and Settings modal
+
+A profile-style icon in the header of every page opens a menu whose only entry, **Settings**, opens the Settings modal (LeBoncoin session and Claude token).
 
 ### Add-item flow
 
-A URL input with validation feedback, submission progress, and a clear success or error result. Its specific layout is not prescribed.
+A URL input and an optional multi-line Purchase goal field, with validation feedback, submission progress, and a clear success or error result. Its specific layout is not prescribed.
 
 ### Server-backed data
 
-The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete/refresh actions. No user identity or ownership model is required in v1.
+The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete/refresh actions. No user identity or ownership model is required in v1. The LeBoncoin session and Claude token are stored server-side.
 
 ## 8. Functional requirements
 
@@ -142,6 +175,15 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-18 | The operator can request an immediate check of one item from its details page; the API accepts asynchronously and the interface shows progress. | Must |
 | FR-19 | An explicitly donated/free LeBoncoin listing with no numeric price is recorded as zero euros and displayed as “Gratuit”; missing prices are not assumed to be free. | Must |
 | FR-20 | The item details view shows every successful item-price observation for the full tracking period; Amazon details also show every successful Amazon-sold second-hand offer observation. | Must |
+| FR-21 | The tracked-items list is split into Amazon and LeBoncoin tabs; search applies to the selected tab; the count and refresh cover all items ([FR-PLATFORM-TABS-*](specifications/platform-tabs/functional.md)). | Must |
+| FR-22 | The Item column shows the marketplace and listing ID below the title; there is no separate Marketplace column ([FR-TI-IDENTITY-*](specifications/tracked-items-identity/functional.md)). | Must |
+| FR-23 | A header icon menu on every page opens the Settings modal ([FR-APP-MENU-*](specifications/app-header-menu/functional.md)). | Must |
+| FR-24 | The operator can view, set, replace, and clear the LeBoncoin session in Settings; it is stored in the database ([FR-LBC-SET-*](specifications/leboncoin-session-settings/functional.md)). | Must |
+| FR-25 | LeBoncoin collection uses, renews, and stops using the saved session as specified, and records session-assisted outcomes ([FR-LBC-COL-*](specifications/leboncoin-session-collection/functional.md)). | Must |
+| FR-26 | A desktop helper captures a verified LeBoncoin session and prints it for pasting into Settings ([FR-LBC-CAP-*](specifications/leboncoin-session-capture/functional.md)); no session file is used ([FR-LBC-RM-*](specifications/leboncoin-session-file-removal/functional.md)). | Must |
+| FR-27 | The operator can save, verify, replace, and remove a Claude token in Settings ([FR-CLT-SET-*](specifications/claude-token-settings/functional.md)). | Must |
+| FR-28 | LeBoncoin items receive AI reviews on add, price change, goal change, and manual refresh, shown with history on the details page ([FR-LBC-AIR-*](specifications/leboncoin-ai-review/functional.md)). | Must |
+| FR-29 | The operator can set an optional purchase goal for a LeBoncoin item when adding it and on its details page; it is sent with every review request ([FR-PURCHASE-GOAL-*](specifications/leboncoin-purchase-goal/functional.md)). | Must |
 
 ## 9. Important states and edge cases
 
@@ -160,11 +202,15 @@ The server is the source of truth for tracked items and price observations. The 
 - A LeBoncoin listing has no numeric price but explicitly indicates a donation/free item.
 - A LeBoncoin listing has no price and no explicit donation/free text; report price not found, not zero.
 
+- No Claude token is saved, or Claude rejects the token or its usage limit is reached during a review.
+- The saved LeBoncoin session is rejected, expired, revoked, or changed by renewal while the Settings modal is open.
+
 The interface should preserve and clearly label the latest successful observation when later checks fail.
 
 ## 10. Non-goals for v1
 
-- User accounts or login.
+- User accounts or login (specified for a later delivery, not implemented).
+- AI reviews of Amazon items.
 - Marketplaces other than European Amazon and LeBoncoin France (Temu, Vinted, and Wallapop remain future work).
 - Price trends, percentage changes, or charts.
 - Notifications or target-price alerts.
@@ -218,3 +264,26 @@ Each platform will need its own supported-region rules, collection behavior, and
 - The separate front end uses React 19 and IBM Carbon Design System.
 - A developer can start one development mode, open the frontend directly at the tracked-items or item-details page, and see sample data returned by the backend.
 - Development seed data is repeatable and cannot overwrite the non-development database.
+- The list shows Amazon and LeBoncoin tabs, with the marketplace and listing ID under each title.
+- The operator can open Settings from the header menu, save, replace, and clear the LeBoncoin session and the Claude token, and see warnings when they were rejected.
+- A LeBoncoin item with a saved token receives an AI review automatically, can be re-reviewed manually, and shows its review history; the purchase goal is used in reviews.
+
+## 15. Subject specifications
+
+Detailed, current requirements for features added after the initial v1 text. Where a subject file is more detailed, it applies.
+
+| Subject | Functional specification | Status |
+|---|---|---|
+| Item refresh | [item-refresh](specifications/item-refresh/functional.md) | implemented |
+| Platform tabs | [platform-tabs](specifications/platform-tabs/functional.md) | implemented |
+| Tracked item identity | [tracked-items-identity](specifications/tracked-items-identity/functional.md) | implemented |
+| Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented |
+| LeBoncoin session settings | [leboncoin-session-settings](specifications/leboncoin-session-settings/functional.md) | implemented |
+| LeBoncoin session collection | [leboncoin-session-collection](specifications/leboncoin-session-collection/functional.md) | implemented |
+| LeBoncoin session capture | [leboncoin-session-capture](specifications/leboncoin-session-capture/functional.md) | implemented |
+| Session file removal | [leboncoin-session-file-removal](specifications/leboncoin-session-file-removal/functional.md) | implemented |
+| Claude token settings | [claude-token-settings](specifications/claude-token-settings/functional.md) | implemented |
+| LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
+| LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
+| Remote ARMv6 deployment | [armv6-remote-deployment](specifications/armv6-remote-deployment/functional.md) | implemented (operations) |
+| Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | specified, not implemented |
