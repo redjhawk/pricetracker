@@ -93,7 +93,11 @@ func reviewPrompt(input ReviewInput) string {
 	}
 	history := make([]pricePoint, 0, len(input.PriceHistory))
 	for _, observation := range input.PriceHistory {
-		history = append(history, pricePoint{Date: observation.Timestamp.UTC().Format("2006-01-02"), Price: euros(&observation.AmountCents)})
+		date := "old price"
+		if observation.Timestamp != nil {
+			date = observation.Timestamp.UTC().Format("2006-01-02")
+		}
+		history = append(history, pricePoint{Date: date, Price: euros(&observation.AmountCents)})
 	}
 	attributes := make([]map[string]string, 0, len(listing.Attributes))
 	for _, attribute := range listing.Attributes {

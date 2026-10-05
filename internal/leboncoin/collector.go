@@ -86,13 +86,14 @@ type pageData struct {
 }
 
 type listingData struct {
-	ListingID  int64         `json:"list_id"`
-	Status     string        `json:"status"`
-	Subject    string        `json:"subject"`
-	Body       string        `json:"body"`
-	PriceCents *int64        `json:"price_cents"`
-	Price      []json.Number `json:"price"`
-	Images     adImages      `json:"images"`
+	ListingID  int64           `json:"list_id"`
+	Status     string          `json:"status"`
+	Subject    string          `json:"subject"`
+	Body       string          `json:"body"`
+	PriceCents *int64          `json:"price_cents"`
+	Price      []json.Number   `json:"price"`
+	OldPrice   json.RawMessage `json:"old_price"` // shape unverified; see oldPriceCents
+	Images     adImages        `json:"images"`
 	// Fields below are only used for AI review listing details.
 	// Raw so that an unexpected shape never breaks price parsing; see listingDetails.
 	Attributes           []json.RawMessage `json:"attributes"`
@@ -232,6 +233,7 @@ func (c *Collector) collect(ctx context.Context, item model.Listing, client *htt
 		result.AmountCents = amount
 		result.Message = ""
 		result.Listing = listingDetails(ad, &amount)
+		setOldPrice(&result, ad)
 		log.Printf("LeBoncoin price parsed listing=%s amount_cents=%d", item.ListingID, amount)
 		return result
 	}
@@ -240,6 +242,7 @@ func (c *Collector) collect(ctx context.Context, item model.Listing, client *htt
 		result.AmountCents = 0
 		result.Message = ""
 		result.Listing = listingDetails(ad, &result.AmountCents)
+		setOldPrice(&result, ad)
 		log.Printf("LeBoncoin donation parsed listing=%s amount_cents=0", item.ListingID)
 		return result
 	}
@@ -256,6 +259,26 @@ func listedPriceCents(ad listingData) (int64, bool) {
 		return 0, false
 	}
 	return parsePrice(ad.Price[0].String())
+}
+
+// setOldPrice records the listing's old price, if any. No date field is known
+// for it, so OldPriceAt stays nil.
+func setOldPrice(result *model.CollectionResult, ad listingData) {
+	if amount, ok := oldPriceCents(ad.OldPrice); ok {
+		result.OldPriceCents = &amount
+	}
+}
+
+// oldPriceCents accepts a euro number or a one-element array of euro numbers.
+func oldPriceCents(raw json.RawMessage) (int64, bool) {
+	var numbers []float64
+	var number *float64
+	if err := json.Unmarshal(raw, &number); err == nil && number != nil {
+		numbers = []float64{*number}
+	} else if err := json.Unmarshal(raw, &numbers); err != nil || len(numbers) != 1 {
+		return 0, false
+	}
+	return parsePrice(strconv.FormatFloat(numbers[0], 'f', -1, 64))
 }
 
 func firstImage(images adImages) string {

@@ -148,7 +148,7 @@ func (s *Store) PriceHistory(ctx context.Context, itemID string, limit int) ([]m
 		if err := rows.Scan(&observation.AmountCents, &observation.Currency, &timestamp); err != nil {
 			return nil, err
 		}
-		observation.Timestamp = parseTimestamp(timestamp)
+		observation.Timestamp = observationTimestamp(timestamp)
 		history = append(history, observation)
 	}
 	return history, rows.Err()

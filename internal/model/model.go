@@ -3,9 +3,10 @@ package model
 import "time"
 
 type Observation struct {
-	AmountCents int64     `json:"amountCents"`
-	Currency    string    `json:"currency"`
-	Timestamp   time.Time `json:"timestamp"`
+	AmountCents int64      `json:"amountCents"`
+	Currency    string     `json:"currency"`
+	Timestamp   *time.Time `json:"timestamp"` // nil only for an undated old price
+	OldPrice    bool       `json:"oldPrice"`
 }
 
 type Attempt struct {
@@ -72,6 +73,8 @@ type CollectionResult struct {
 	SecondHandCondition      string
 	SecondHandConditionLabel string
 	Listing                  *ListingDetails // LeBoncoin only; kept in memory for AI reviews, never persisted
+	OldPriceCents            *int64          // LeBoncoin old price; recorded only for a new item
+	OldPriceAt               *time.Time      // date of the old price; nil when the listing gives none
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.

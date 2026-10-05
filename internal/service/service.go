@@ -303,6 +303,12 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 		reserved = outcome == reviewStarted
 	}
 	timestamp := time.Now().UTC()
+	if !newItem || result.Result != "success" {
+		result.OldPriceCents, result.OldPriceAt = nil, nil
+	}
+	if result.OldPriceAt != nil && !result.OldPriceAt.Before(timestamp) {
+		result.OldPriceAt = nil // keep the collected price as the latest
+	}
 	err = s.store.RecordCollection(ctx, id, result, timestamp)
 	if err != nil {
 		log.Printf("save collection result for item %s: %v", id, err)
