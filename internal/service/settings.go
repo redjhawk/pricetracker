@@ -32,7 +32,7 @@ type SessionInput struct {
 
 // ClaudeToken returns the saved Claude token settings.
 func (s *Service) ClaudeToken(ctx context.Context) (model.ClaudeToken, error) {
-	return s.store.ClaudeToken(ctx)
+	return s.store.ClaudeToken(ctx, ownerFrom(ctx))
 }
 
 // SaveSettings validates both entries, verifies a new Claude token, then saves
@@ -63,7 +63,7 @@ func (s *Service) SaveSettings(ctx context.Context, input SettingsInput) (model.
 		tokenChange = &store.TokenChange{}
 		if token != "" {
 			tokenChange.Value = &token
-			stored, err := s.store.ClaudeToken(ctx)
+			stored, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
 			if err != nil {
 				return model.LeboncoinSession{}, model.ClaudeToken{}, err
 			}
@@ -74,7 +74,7 @@ func (s *Service) SaveSettings(ctx context.Context, input SettingsInput) (model.
 			}
 		}
 	}
-	session, token, err := s.store.SaveSettings(ctx, sessionChange, tokenChange, time.Now().UTC())
+	session, token, err := s.store.SaveSettings(ctx, ownerFrom(ctx), sessionChange, tokenChange, time.Now().UTC())
 	if errors.Is(err, store.ErrSessionChanged) {
 		return model.LeboncoinSession{}, model.ClaudeToken{}, &Error{Status: 409, Code: "SESSION_CHANGED", Message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving."}
 	}

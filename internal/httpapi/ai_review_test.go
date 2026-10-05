@@ -55,7 +55,7 @@ func TestRequestAIReviewStatuses(t *testing.T) {
 	// Every outgoing request (LeBoncoin fetch, Claude) fails, so the review fails quickly.
 	withClaudeStatus(t, 500)
 	token := "sk-ant-oat01-synthetic"
-	if _, _, err := database.SaveSettings(context.Background(), nil, &store.TokenChange{Value: &token}, time.Now()); err != nil {
+	if _, _, err := database.SaveSettings(context.Background(), 0, nil, &store.TokenChange{Value: &token}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	accepted := callPath(server, http.MethodPost, "/api/v1/items/lbc/ai-review", "")
