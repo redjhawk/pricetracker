@@ -60,6 +60,7 @@ async function mockApi(context: BrowserContext, initialItems: FixtureItem[] = [a
       await route.continue();
       return;
     }
+    if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
     const method = request.method();
     const path = url.pathname + url.search;
     state.requests.push({ method, path, body: request.postData() });
