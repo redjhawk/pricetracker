@@ -32,6 +32,8 @@ var (
 	aodOfferPattern     = regexp.MustCompile(`(?is)<div\b[^>]*\bid=["']aod-offer["'][^>]*>`)
 	htmlTokenPattern    = regexp.MustCompile(`(?is)<!--.*?-->|<![^>]*>|</?[a-z][^>]*>|[^<]+`)
 	tagNamePattern      = regexp.MustCompile(`(?is)^</?([a-z][\w:-]*)`)
+	instalmentText      = regexp.MustCompile(`(?i)^\s*(€)?\s*x\s*\d+\s*(mois|monat|monate|mes|meses|mesi|maand|maanden|months?)`)
+	instalmentContainer = regexp.MustCompile(`(?i)installment|inemi`)
 )
 
 type URLResult struct {
@@ -644,12 +646,16 @@ func productPrice(page string) (int64, bool) {
 			class := strings.ToLower(page[start+match[2] : start+match[3]])
 			prefixStart := max(start, start+match[0]-2_000)
 			prefix := page[prefixStart : start+match[0]]
-			wrappers := priceWrapperPattern.FindAllStringSubmatch(prefix, -1)
+			wrappers := priceWrapperPattern.FindAllStringSubmatchIndex(prefix, -1)
 			if len(wrappers) == 0 {
 				continue
 			}
-			wrapper := strings.ToLower(wrappers[len(wrappers)-1][1])
+			lastWrapper := wrappers[len(wrappers)-1]
+			wrapper := strings.ToLower(prefix[lastWrapper[2]:lastWrapper[3]])
 			if strings.Contains(class, "a-text-price") || regexp.MustCompile(`a-text-price|price-per-unit|unit-price|installment|saving|coupon|listprice`).MatchString(wrapper) {
+				continue
+			}
+			if isInstalmentPrice(page, prefixStart+lastWrapper[0], prefix) {
 				continue
 			}
 			amount, ok := parseEuroPrice(page[start+match[4] : start+match[5]])
@@ -670,6 +676,78 @@ func productPrice(page string) (int64, bool) {
 		return candidates[i].priority < candidates[j].priority
 	})
 	return candidates[0].amount, true
+}
+
+// isInstalmentPrice reports whether the a-price element starting at wrapperStart
+// is a monthly-payment amount: followed by text such as "x4 mois", or enclosed
+// in an instalment container opened within the prefix window.
+func isInstalmentPrice(page string, wrapperStart int, prefix string) bool {
+	end := elementEnd(page, wrapperStart)
+	text := textContent(page[end:min(len(page), end+2_000)])
+	if instalmentText.MatchString(text[:min(len(text), 300)]) {
+		return true
+	}
+	for _, tag := range openTags(prefix) {
+		if instalmentContainer.MatchString(attribute(tag, "id")) || instalmentContainer.MatchString(attribute(tag, "class")) {
+			return true
+		}
+	}
+	return false
+}
+
+// elementEnd returns the index just after the closing tag of the element opened at start.
+func elementEnd(page string, start int) int {
+	depth := 0
+	tagName := ""
+	position := start
+	for _, token := range htmlTokenPattern.FindAllString(page[start:min(len(page), start+20_000)], -1) {
+		position += len(token)
+		matches := tagNamePattern.FindStringSubmatch(token)
+		if len(matches) < 2 {
+			continue
+		}
+		name := strings.ToLower(matches[1])
+		if tagName == "" {
+			tagName = name
+		}
+		if name != tagName {
+			continue
+		}
+		if strings.HasPrefix(token, "</") {
+			depth--
+			if depth == 0 {
+				return position
+			}
+		} else {
+			depth++
+		}
+	}
+	return position
+}
+
+// openTags returns the opening tags still unclosed at the end of fragment.
+func openTags(fragment string) []string {
+	var stack []string
+	for _, token := range htmlTokenPattern.FindAllString(fragment, -1) {
+		matches := tagNamePattern.FindStringSubmatch(token)
+		if len(matches) < 2 {
+			continue
+		}
+		name := strings.ToLower(matches[1])
+		if strings.HasPrefix(token, "</") {
+			for index := len(stack) - 1; index >= 0; index-- {
+				if strings.ToLower(tagNamePattern.FindStringSubmatch(stack[index])[1]) == name {
+					stack = stack[:index]
+					break
+				}
+			}
+			continue
+		}
+		if !strings.HasSuffix(strings.TrimSpace(token), "/>") && !isVoidElement(name) {
+			stack = append(stack, token)
+		}
+	}
+	return stack
 }
 
 func parseEuroPrice(value string) (int64, bool) {
