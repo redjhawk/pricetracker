@@ -139,6 +139,7 @@ Not yet implemented (later phases): item sharing and the "Shared by others" list
 - A manual refresh from an item's details page queues an immediate check for that item only. An in-progress check is not duplicated.
 - Collection requests should present as access from a Google Chrome browser, as specified by the product owner. A challenge or other non-success response is a retrieval error, not a free price or proof that the listing is unavailable.
 - When a LeBoncoin session is saved, LeBoncoin collection attempts send only that `datadome` cookie, and only to LeBoncoin's own hosts; without one, collection is sessionless. A session renewed by LeBoncoin on a verified response replaces the saved value; an expired or revoked session is no longer sent. The outcome of the latest session-assisted attempt is recorded for the Settings warning ([session collection](specifications/leboncoin-session-collection/functional.md)).
+- When a LeBoncoin item is added and its immediate collection finds an old price on the listing, that old price is recorded once as a historical price observation, with its date when the listing provides one, otherwise shown as “Old price”. Later collections never read it ([old price](specifications/leboncoin-old-price/functional.md)).
 - Store every successful price check, including unchanged prices, and retain every observation while the item remains tracked.
 - The server should expose when the next check is expected if useful to the interface.
 
@@ -206,6 +207,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-28 | LeBoncoin items receive AI reviews on add, price change, goal change, and manual refresh, shown with history on the details page ([FR-LBC-AIR-*](specifications/leboncoin-ai-review/functional.md)). | Must |
 | FR-29 | The operator can set an optional purchase goal for a LeBoncoin item when adding it and on its details page; it is sent with every review request ([FR-PURCHASE-GOAL-*](specifications/leboncoin-purchase-goal/functional.md)). | Must |
 | FR-30 | Local users and login, phase 1: admin device command, open and protected modes, login/logout with lockout and 30-day sessions, administrator user list and user creation, per-user items and settings, inheritance by the first user ([FR-MODE-*, FR-AUTH-*, FR-ADMIN-*, FR-SHARE-001/005/006, FR-SETTINGS-001](specifications/multi-user-login/delivery-plan.md)). | Must |
+| FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
 
@@ -223,6 +225,7 @@ The server is the source of truth for tracked items and price observations. The 
 - LeBoncoin blocks a request with a JavaScript challenge or returns a non-success response; record a retrieval error and continue retries.
 - A LeBoncoin listing has no numeric price but explicitly indicates a donation/free item.
 - A LeBoncoin listing has no price and no explicit donation/free text; report price not found, not zero.
+- A new LeBoncoin listing shows an old price with or without a date, or its first collection fails so no old price is recorded.
 
 - No Claude token is saved, or Claude rejects the token or its usage limit is reached during a review.
 - The saved LeBoncoin session is rejected, expired, revoked, or changed by renewal while the Settings modal is open.
@@ -309,3 +312,4 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
 | Remote ARMv6 deployment | [armv6-remote-deployment](specifications/armv6-remote-deployment/functional.md) | implemented (operations) |
 | Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned |
+| LeBoncoin old price | [leboncoin-old-price](specifications/leboncoin-old-price/functional.md) | implemented |

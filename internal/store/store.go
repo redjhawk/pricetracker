@@ -142,7 +142,8 @@ CREATE TABLE IF NOT EXISTS price_observations (
   item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   amount_cents INTEGER NOT NULL CHECK(amount_cents >= 0),
   currency TEXT NOT NULL DEFAULT 'EUR' CHECK(currency = 'EUR'),
-  observed_at TEXT NOT NULL
+  observed_at TEXT NOT NULL,
+  is_old_price INTEGER NOT NULL DEFAULT 0 CHECK(is_old_price IN (0, 1))
 );
 CREATE INDEX IF NOT EXISTS price_observations_item_time ON price_observations(item_id, observed_at DESC);
 CREATE TABLE IF NOT EXISTS collection_attempts (
@@ -175,12 +176,13 @@ CREATE TABLE IF NOT EXISTS claude_token (`+claudeTokenColumns+`);
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
 	}
-	for _, column := range []struct{ name, declaration string }{
-		{"platform", "TEXT NOT NULL DEFAULT 'amazon'"},
-		{"listing_id", "TEXT NOT NULL DEFAULT ''"},
-		{"purchase_goal", "TEXT NOT NULL DEFAULT ''"},
+	for _, column := range []struct{ table, name, declaration string }{
+		{"items", "platform", "TEXT NOT NULL DEFAULT 'amazon'"},
+		{"items", "listing_id", "TEXT NOT NULL DEFAULT ''"},
+		{"items", "purchase_goal", "TEXT NOT NULL DEFAULT ''"},
+		{"price_observations", "is_old_price", "INTEGER NOT NULL DEFAULT 0 CHECK(is_old_price IN (0, 1))"},
 	} {
-		if err := s.ensureItemColumn(ctx, column.name, column.declaration); err != nil {
+		if err := s.ensureColumn(ctx, column.table, column.name, column.declaration); err != nil {
 			return err
 		}
 	}
@@ -260,13 +262,13 @@ func (s *Store) rebuildTable(ctx context.Context, table string, statements []str
 	return tx.Commit()
 }
 
-func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
-	exists, err := s.hasColumn(ctx, "items", name)
+func (s *Store) ensureColumn(ctx context.Context, table, name, declaration string) error {
+	exists, err := s.hasColumn(ctx, table, name)
 	if err != nil || exists {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, "ALTER TABLE items ADD COLUMN "+name+" "+declaration); err != nil {
-		return fmt.Errorf("add items.%s column: %w", name, err)
+	if _, err := s.db.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN "+name+" "+declaration); err != nil {
+		return fmt.Errorf("add %s.%s column: %w", table, name, err)
 	}
 	return nil
 }
@@ -510,21 +512,21 @@ func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.
 	item.LastThreeDetections = make([]model.Observation, 0, 3)
 	prices, err := s.db.QueryContext(ctx, `
 WITH ordered_observations AS (
-  SELECT id, amount_cents, currency, observed_at,
+  SELECT id, amount_cents, currency, observed_at, is_old_price,
          LAG(amount_cents) OVER (ORDER BY observed_at, id) AS previous_amount
   FROM price_observations
   WHERE item_id = ?
 ), price_periods AS (
-  SELECT id, amount_cents, currency, observed_at,
+  SELECT id, amount_cents, currency, observed_at, is_old_price,
          SUM(CASE WHEN previous_amount IS NULL OR amount_cents != previous_amount THEN 1 ELSE 0 END)
            OVER (ORDER BY observed_at, id) AS period_id
   FROM ordered_observations
 ), latest_in_period AS (
-  SELECT id, amount_cents, currency, observed_at,
+  SELECT id, amount_cents, currency, observed_at, is_old_price,
          ROW_NUMBER() OVER (PARTITION BY period_id ORDER BY observed_at DESC, id DESC) AS period_position
   FROM price_periods
 )
-SELECT amount_cents, currency, observed_at
+SELECT amount_cents, currency, observed_at, is_old_price
 FROM latest_in_period
 WHERE period_position = 1
 ORDER BY observed_at DESC, id DESC
@@ -535,11 +537,11 @@ LIMIT 3`, id)
 	for prices.Next() {
 		var observation model.Observation
 		var timestamp string
-		if err := prices.Scan(&observation.AmountCents, &observation.Currency, &timestamp); err != nil {
+		if err := prices.Scan(&observation.AmountCents, &observation.Currency, &timestamp, &observation.OldPrice); err != nil {
 			prices.Close()
 			return item, err
 		}
-		observation.Timestamp = parseTimestamp(timestamp)
+		observation.Timestamp = observationTimestamp(timestamp)
 		item.LastThreeDetections = append(item.LastThreeDetections, observation)
 	}
 	if err := prices.Err(); err != nil {
@@ -555,7 +557,7 @@ LIMIT 3`, id)
 	}
 	if includeHistory {
 		item.PriceHistory = make([]model.Observation, 0)
-		historyRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, observed_at FROM price_observations
+		historyRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, observed_at, is_old_price FROM price_observations
 WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 		if err != nil {
 			return item, err
@@ -563,11 +565,11 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 		for historyRows.Next() {
 			var observation model.Observation
 			var timestamp string
-			if err := historyRows.Scan(&observation.AmountCents, &observation.Currency, &timestamp); err != nil {
+			if err := historyRows.Scan(&observation.AmountCents, &observation.Currency, &timestamp, &observation.OldPrice); err != nil {
 				historyRows.Close()
 				return item, err
 			}
-			observation.Timestamp = parseTimestamp(timestamp)
+			observation.Timestamp = observationTimestamp(timestamp)
 			item.PriceHistory = append(item.PriceHistory, observation)
 		}
 		if err := historyRows.Err(); err != nil {
@@ -667,7 +669,7 @@ func statusFor(price *model.Observation, attempt *model.Attempt, staleAfter time
 	if price == nil {
 		return "pending"
 	}
-	if time.Since(price.Timestamp) > staleAfter {
+	if price.Timestamp == nil || time.Since(*price.Timestamp) > staleAfter {
 		return "stale"
 	}
 	return "active"
@@ -775,6 +777,15 @@ func (s *Store) RecordCollection(ctx context.Context, id string, result model.Co
 	if result.Result == "success" {
 		if _, err := tx.ExecContext(ctx, "INSERT INTO price_observations (item_id, amount_cents, currency, observed_at) VALUES (?, ?, 'EUR', ?)", id, result.AmountCents, stamp); err != nil {
 			return err
+		}
+		if result.OldPriceCents != nil {
+			oldStamp := "" // sorts before every timestamp, so an undated old price is the oldest
+			if result.OldPriceAt != nil {
+				oldStamp = result.OldPriceAt.UTC().Format(timestampLayout)
+			}
+			if _, err := tx.ExecContext(ctx, "INSERT INTO price_observations (item_id, amount_cents, currency, observed_at, is_old_price) VALUES (?, ?, 'EUR', ?, 1)", id, *result.OldPriceCents, oldStamp); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE items SET title = COALESCE(?, title), thumbnail_url = COALESCE(?, thumbnail_url) WHERE id = ?", result.Title, result.ThumbnailURL, id); err != nil {
 			return err
@@ -1003,6 +1014,15 @@ updated_at = ?, last_attempt_at = ?, last_attempt_outcome = ? WHERE owner_id = ?
 		return false, err
 	}
 	return true, nil
+}
+
+// observationTimestamp returns nil for an undated old price (”).
+func observationTimestamp(value string) *time.Time {
+	if value == "" {
+		return nil
+	}
+	parsed := parseTimestamp(value)
+	return &parsed
 }
 
 func optionalTimestamp(value sql.NullString) *time.Time {

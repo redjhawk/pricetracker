@@ -23,10 +23,11 @@ func TestReviewRequestContainsListingImagesAndHistory(t *testing.T) {
 		images[index] = fmt.Sprintf("https://img.leboncoin.fr/%d.jpg", index)
 	}
 	price := int64(15000)
+	observedAt := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	input := ReviewInput{
 		URL:          "https://www.leboncoin.fr/ad/velos/123",
 		Listing:      model.ListingDetails{Title: "Vélo", Description: "Bon état", PriceCents: &price, ImageURLs: images},
-		PriceHistory: []model.Observation{{AmountCents: 16000, Timestamp: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}},
+		PriceHistory: []model.Observation{{AmountCents: 16000, Timestamp: &observedAt}},
 	}
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
