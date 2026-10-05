@@ -22,9 +22,9 @@ Related documents: [API contract](../API_SPECIFICATION.md) · [Use case index](u
 - Let the operator save a LeBoncoin session and a Claude token from a Settings modal opened from the header menu.
 - Produce, store, and show AI reviews of LeBoncoin items, taking an optional per-item purchase goal into account.
 
-V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. There is one shared server-side collection of items; no login or per-user accounts are required. The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
+V1 supports euro-priced listings from Amazon Germany, France, Spain, Italy, the Netherlands, and Belgium, plus LeBoncoin France. The expected maximum is approximately 100 tracked items. While no regular user exists (open mode), there is one server-side collection of items and no login is required. Once the administrator creates a regular user (protected mode), login is required and each user has their own items and settings (see [5.7](#57-users-and-login)). The server owns item storage and price collection. The front end displays data supplied by the server and submits add, delete, and refresh actions.
 
-Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications, price trends, and login are out of scope. Multiple users with login are specified for a later delivery ([multi-user login](specifications/multi-user-login/functional.md)) but not implemented.
+Prices are the item price only, in euros. Shipping, taxes, and other charges are excluded. V1 assumes one price per listing; price ranges are not represented. Notifications and price trends are out of scope. Multiple local users with login are implemented as phase 1 of [multi-user login](specifications/multi-user-login/functional.md); item sharing and in-app password changes are later phases.
 
 ## 3. Core concepts
 
@@ -95,7 +95,7 @@ The operator can delete an item from tracking. Deletion removes the item, its as
 
 ### 5.5 Manage settings
 
-A profile-style icon at the right end of the header, on every page, opens a menu with one entry, **Settings**. Settings opens a modal that loads the current settings from the server and contains two entries:
+A profile-style icon at the right end of the header, on every page, opens a menu with **Settings** and, when logged in, **Log out** (the administrator's menu has only **Log out**). Settings opens a modal that loads the current settings from the server and contains two entries:
 
 - **LeBonCoin session:** shows the saved session in clear text. The operator can paste a raw `datadome` value or a cookie string from which the value is extracted; unusable input is rejected with a message. Saving an empty entry removes the session. A warning shows when the latest attempt with the saved session was rejected or failed, or when LeBoncoin expired or revoked it. If the stored session changed after the modal loaded, saving is refused and the operator is asked to reload.
 - **Claude token:** shows the saved token in clear text. A changed non-empty token is verified with Claude before it is stored; a refused or unverifiable token saves nothing. Saving an empty entry removes the token. A warning shows when the latest AI review failed because Claude rejected the token.
@@ -109,6 +109,19 @@ To obtain a session, the operator runs a desktop helper script with a LeBoncoin 
 When a Claude token is saved, an AI review of a LeBoncoin item is requested automatically and asynchronously when the item is added, when a check records a price different from the previous one, and when its purchase goal changes. The LeBoncoin item details page shows an **AI review** section with the latest review, its date/time and reviewed price, a **Refresh AI review** button, and the previous reviews, newest first. A review contains a price rating (Good deal / Fair / Overpriced) and a condition rating (Excellent / Good / Fair / Poor) with explanations, an overall recommendation (Buy / Negotiate / Avoid) with explanation, an estimated fair price range and suggested offer, scam/risk signs, missing accessories or information and questions for the seller, and whether the description matches the photos. Without a token, no review is attempted, the refresh button is disabled, and the section asks the operator to configure one in Settings; saving a token later does not review existing items automatically. Failures are shown with their date/time while the latest successful review stays visible. Items added before this feature are not reviewed automatically. Details: [LeBoncoin AI review](specifications/leboncoin-ai-review/functional.md).
 
 The add-item form offers an optional **Purchase goal** field, saved for LeBoncoin items only. The LeBoncoin details page shows the goal in an editable field with a save action. A non-empty goal is sent with every review request; an empty goal means no goal. Details: [purchase goal](specifications/leboncoin-purchase-goal/functional.md).
+
+### 5.7 Users and login
+
+Phase 1 of [multi-user login](specifications/multi-user-login/functional.md), as defined in its [delivery plan](specifications/multi-user-login/delivery-plan.md), which prevails where it differs from the full specification.
+
+- **Administrator:** exactly one global account, `admin`. A device command (`pricefollower admin-password`, also available through the deployment script) creates it or resets its password, generating and printing a random password; a reset ends the administrator's sessions. It cannot be created from the browser. The administrator's only screen is the user list (username and last login) with an action to add a user by typing a username and password. The administrator does not see or manage items or settings.
+- **Open mode:** while no regular user exists, the application works without login, as before; a **Log in** link in the header lets the administrator log in. The `admin` account alone does not change this.
+- **Protected mode:** starts when the first regular user is created. From then on only a login screen is shown to anyone not logged in; no item, setting, or user data is accessible without login. The first user inherits all existing items, the Claude token, and the LeBoncoin session.
+- **Login:** username and password; wrong credentials give one generic error. After 5 consecutive failures for a username, its attempts are refused for 1 minute. A session lasts 30 days from login, or until **Log out** in the header menu.
+- **Usernames and passwords:** usernames are 3–32 letters, digits, dot, dash, or underscore, unique and case-insensitive. Passwords have at least 12 characters. Nobody changes a password in the application in phase 1.
+- **Ownership:** each item belongs to the user who added it; users see and manage only their own items. Two users adding the same URL get independent items; the same user adding a URL twice is a duplicate as before. Each user has their own Claude token and LeBoncoin session, used for their items' collections and AI reviews.
+
+Not yet implemented (later phases): item sharing and the "Shared by others" list, password changes and forced change at first login, administrator password reset of users, renaming and removing users.
 
 ## 6. Price collection behavior
 
@@ -141,7 +154,15 @@ Shows item metadata, recent price detections, collection status, source listing,
 
 ### Header menu and Settings modal
 
-A profile-style icon in the header of every page opens a menu whose only entry, **Settings**, opens the Settings modal (LeBoncoin session and Claude token).
+A profile-style icon in the header of every page opens a menu whose **Settings** entry opens the Settings modal (LeBoncoin session and Claude token); a logged-in user also gets **Log out**. The administrator's menu has only **Log out**. In open mode a **Log in** link appears in the header.
+
+### Login page
+
+Username and password form, shown to anyone not logged in in protected mode, and at `/login` in open mode.
+
+### Administrator page
+
+The administrator's only screen: the list of users (username, last login) and an action to add a user.
 
 ### Add-item flow
 
@@ -149,7 +170,7 @@ A URL input and an optional multi-line Purchase goal field, with validation feed
 
 ### Server-backed data
 
-The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete/refresh actions. No user identity or ownership model is required in v1. The LeBoncoin session and Claude token are stored server-side.
+The server is the source of truth for tracked items and price observations. The front end retrieves and displays server data and submits add/delete/refresh actions. In protected mode, items, the LeBoncoin session, and the Claude token belong to a user and are only accessible to that user.
 
 ## 8. Functional requirements
 
@@ -184,6 +205,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-27 | The operator can save, verify, replace, and remove a Claude token in Settings ([FR-CLT-SET-*](specifications/claude-token-settings/functional.md)). | Must |
 | FR-28 | LeBoncoin items receive AI reviews on add, price change, goal change, and manual refresh, shown with history on the details page ([FR-LBC-AIR-*](specifications/leboncoin-ai-review/functional.md)). | Must |
 | FR-29 | The operator can set an optional purchase goal for a LeBoncoin item when adding it and on its details page; it is sent with every review request ([FR-PURCHASE-GOAL-*](specifications/leboncoin-purchase-goal/functional.md)). | Must |
+| FR-30 | Local users and login, phase 1: admin device command, open and protected modes, login/logout with lockout and 30-day sessions, administrator user list and user creation, per-user items and settings, inheritance by the first user ([FR-MODE-*, FR-AUTH-*, FR-ADMIN-*, FR-SHARE-001/005/006, FR-SETTINGS-001](specifications/multi-user-login/delivery-plan.md)). | Must |
 
 ## 9. Important states and edge cases
 
@@ -209,7 +231,7 @@ The interface should preserve and clearly label the latest successful observatio
 
 ## 10. Non-goals for v1
 
-- User accounts or login (specified for a later delivery, not implemented).
+- Item sharing between users, self-registration, email, external identity providers, and multi-factor authentication.
 - AI reviews of Amazon items.
 - Marketplaces other than European Amazon and LeBoncoin France (Temu, Vinted, and Wallapop remain future work).
 - Price trends, percentage changes, or charts.
@@ -259,7 +281,7 @@ Each platform will need its own supported-region rules, collection behavior, and
 - The item details view displays all successful item-price detections, and all successful Amazon-sold second-hand detections when applicable.
 - Failed checks do not erase or misrepresent the last successful price.
 - Deleting an item removes its stored price history.
-- No login is required; the server stores data and collects prices, while the front end displays server-provided information.
+- In open mode no login is required; in protected mode only the login screen is reachable until login, and each user sees only their own items and settings. The server stores data and collects prices, while the front end displays server-provided information.
 - The backend runs on Go and persists data in SQLite.
 - The separate front end uses React 19 and IBM Carbon Design System.
 - A developer can start one development mode, open the frontend directly at the tracked-items or item-details page, and see sample data returned by the backend.
@@ -286,4 +308,4 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
 | Remote ARMv6 deployment | [armv6-remote-deployment](specifications/armv6-remote-deployment/functional.md) | implemented (operations) |
-| Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | specified, not implemented |
+| Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned |
