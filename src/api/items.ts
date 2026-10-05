@@ -4,8 +4,15 @@ import type { AiReviewState, ItemStatus, PriceObservation, SecondHandOffer, Seco
 interface ApiPriceObservation {
   amountCents: number;
   currency: "EUR";
-  timestamp: string;
+  timestamp: string | null;
+  oldPrice: boolean;
 }
+
+type ApiSecondHandDetection = Omit<ApiPriceObservation, "timestamp" | "oldPrice"> & {
+  timestamp: string;
+  condition: SecondHandOfferDetection["condition"];
+  conditionLabel: string;
+};
 
 interface ApiTrackedItem {
   id: string;
@@ -22,9 +29,9 @@ interface ApiTrackedItem {
   priceHistory?: ApiPriceObservation[];
   secondHandOffer: {
     status: SecondHandOffer["status"];
-    latestDetection: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null;
-    lastThreeDetections: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
-    priceHistory?: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string })[];
+    latestDetection: ApiSecondHandDetection | null;
+    lastThreeDetections: ApiSecondHandDetection[];
+    priceHistory?: ApiSecondHandDetection[];
     lastCheckedAt: string | null;
   } | null;
   nextCheckAt: string | null;
@@ -39,11 +46,12 @@ function mapObservation(observation: ApiPriceObservation | null): PriceObservati
     amount: observation.amountCents / 100,
     currency: observation.currency,
     timestamp: observation.timestamp,
+    oldPrice: observation.oldPrice,
   };
 }
 
 function mapSecondHandDetection(
-  observation: (ApiPriceObservation & { condition: SecondHandOfferDetection["condition"]; conditionLabel: string }) | null,
+  observation: ApiSecondHandDetection | null,
 ): SecondHandOfferDetection | null {
   if (!observation) return null;
   return {

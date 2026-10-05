@@ -196,10 +196,12 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                                     {(item.lastThreeDetections.length
                                       ? item.lastThreeDetections.slice(0, 3)
                                       : [item.latestPrice!]
-                                    ).map((observation) => (
-                                      <li key={observation.timestamp}>
+                                    ).map((observation, index) => (
+                                      <li key={`${observation.timestamp}-${index}`}>
                                         <span>{priceLabel(observation.amount)}</span>
-                                        <time dateTime={observation.timestamp}>{time.format(new Date(observation.timestamp))}</time>
+                                        {observation.timestamp === null ? <span>Old price</span> : (
+                                          <time dateTime={observation.timestamp}>{time.format(new Date(observation.timestamp))}</time>
+                                        )}
                                       </li>
                                     ))}
                                   </ul>

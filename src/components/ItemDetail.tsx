@@ -144,7 +144,9 @@ export default function ItemDetail({
             <>
               <p className="summary-price">{priceLabel(item.latestPrice.amount)}</p>
               <p className="summary-footnote">
-                Detected <time dateTime={item.latestPrice.timestamp}>{dateTime.format(new Date(item.latestPrice.timestamp))}</time>
+                {item.latestPrice.timestamp === null ? "Old price" : (
+                  <>Detected <time dateTime={item.latestPrice.timestamp}>{dateTime.format(new Date(item.latestPrice.timestamp))}</time></>
+                )}
               </p>
             </>
           ) : <p className="summary-empty">No successful price detection yet.</p>}
@@ -218,7 +220,9 @@ export default function ItemDetail({
                 <StructuredListCell>{index + 1}</StructuredListCell>
                 <StructuredListCell className="detection-price">{priceLabel(observation.amount)}</StructuredListCell>
                 <StructuredListCell>
-                  <time dateTime={observation.timestamp}>{dateTime.format(new Date(observation.timestamp))}</time>
+                  {observation.timestamp === null ? "Old price" : (
+                    <time dateTime={observation.timestamp}>{dateTime.format(new Date(observation.timestamp))}</time>
+                  )}
                 </StructuredListCell>
               </StructuredListRow>
             ))}
