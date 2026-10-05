@@ -6,6 +6,11 @@ func priceSpan(class, value string) string {
 	return `<span class="a-price ` + class + `"><span class="a-offscreen">` + value + `</span><span aria-hidden="true">` + value + `</span></span>`
 }
 
+func priceBlockMessage() string {
+	return `<span id="price-block-message" class="a-size-base price-block-message"><span id="price-block-amount-prefix">Ou </span><span id="price-block-amount">` +
+		priceSpan("a-text-normal", "128,65€") + `</span> x4 (0,0% de frais inclus)</span>`
+}
+
 func TestProductPriceIgnoresInstalments(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -35,6 +40,16 @@ func TestProductPriceIgnoresInstalments(t *testing.T) {
 			name: "german instalment",
 			page: `<div id="corePriceDisplay_desktop_feature_div">` + priceSpan("priceToPay", "514,63 €") +
 				`<div>Oder ` + priceSpan("", "128,65 €") + ` x4 Monate</div></div>`,
+			amount: 51463, found: true,
+		},
+		{
+			name:   "live price block message after price",
+			page:   `<div id="corePriceDisplay_desktop_feature_div">` + priceSpan("priceToPay", "514,63 €") + priceBlockMessage() + `</div>`,
+			amount: 51463, found: true,
+		},
+		{
+			name:   "live price block message before price",
+			page:   `<div id="corePriceDisplay_desktop_feature_div">` + priceBlockMessage() + priceSpan("priceToPay", "514,63 €") + `</div>`,
 			amount: 51463, found: true,
 		},
 		{

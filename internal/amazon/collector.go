@@ -32,8 +32,8 @@ var (
 	aodOfferPattern     = regexp.MustCompile(`(?is)<div\b[^>]*\bid=["']aod-offer["'][^>]*>`)
 	htmlTokenPattern    = regexp.MustCompile(`(?is)<!--.*?-->|<![^>]*>|</?[a-z][^>]*>|[^<]+`)
 	tagNamePattern      = regexp.MustCompile(`(?is)^</?([a-z][\w:-]*)`)
-	instalmentText      = regexp.MustCompile(`(?i)^\s*(€)?\s*x\s*\d+\s*(mois|monat|monate|mes|meses|mesi|maand|maanden|months?)`)
-	instalmentContainer = regexp.MustCompile(`(?i)installment|inemi`)
+	instalmentText      = regexp.MustCompile(`(?i)^\s*(€)?\s*x\s*\d+(\D|$)`)
+	instalmentContainer = regexp.MustCompile(`(?i)installment|inemi|price-block-message|price-block-amount`)
 )
 
 type URLResult struct {
@@ -679,7 +679,7 @@ func productPrice(page string) (int64, bool) {
 }
 
 // isInstalmentPrice reports whether the a-price element starting at wrapperStart
-// is a monthly-payment amount: followed by text such as "x4 mois", or enclosed
+// is a monthly-payment amount: followed by text such as "x4 mois" or "x4 (", or enclosed
 // in an instalment container opened within the prefix window.
 func isInstalmentPrice(page string, wrapperStart int, prefix string) bool {
 	end := elementEnd(page, wrapperStart)

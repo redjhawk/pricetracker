@@ -25,3 +25,20 @@ No findings.
 
 - Spec-limited coverage: wording that does not use the `x<N> <month>` form (e.g. "4 x 128,65 €", "x4 mensualités") and instalment containers opened more than 2,000 characters before the price are not detected. This matches the technical specification, so no action is needed for this change.
 - Pre-existing, not caused by this change: `regexp.MustCompile` calls inside the `productPrice` loop recompile on every candidate.
+
+## QA fix re-review (QA-F-001, TS-AMAZON-PRICE-001)
+
+Scope: uncommitted diff to `internal/amazon/collector.go`, `collector_test.go` and `technical.md`. The implementation matches TS-AMAZON-PRICE-001: the text regex is replaced by `^\s*(€)?\s*x\s*\d+(\D|$)`, the container regex adds `price-block-message|price-block-amount`, both are compiled at package level, and both live-markup orders are tested. `go test ./internal/amazon/` passes.
+
+### REV-QA-001: The bare `x<N>` rule can skip a real price when the next visible text starts with a model or pack name
+
+- Evidence: `isInstalmentPrice` matches against the first 300 characters of the stripped text that follows the `a-price` element, case-insensitively. That text can come from the next sibling or block, not only the instalment suffix. If the text after `.priceToPay` starts with something like "X2 ...", "x3 pack" or "X100V", the rule matches and the real price is skipped. Pack text such as "x2" usually appears in the title, before the price block, so it does not trigger the rule. The real risk is limited to a following element whose text starts with `x<digit>`.
+- Impact: if this happens, the price falls back to another candidate or to `price_not_found`. It is not a silent wrong price unless a later candidate is itself wrong.
+- Criticality (reviewer's view): non-critical, PLAUSIBLE. There is no evidence of real Amazon markup that does this. The adjudicator decided on this pattern in QA-F-001.
+- Suggestion (optional): limit the text rule to the text before the next block-level boundary, or require a month word or "(" / "%" after the number. Otherwise, accept the risk as documented.
+
+### Container rule: no finding
+
+The container rule only checks opening tags that are still unclosed in the 2,000-character prefix. The sibling `price-block-message` widget closes before `.priceToPay` (the "before price" test covers this), so it cannot exclude the main price. The main price would only be excluded if Amazon wrapped `.priceToPay` itself in an element whose id or class contains `price-block-message` or `price-block-amount`. Neither the QA evidence nor known markup shows this. Residual risk: low, and QA's live retest (QA-001) will confirm it.
+
+Result: one non-critical finding (REV-QA-001). No blocking findings.
