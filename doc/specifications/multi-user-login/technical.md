@@ -54,7 +54,7 @@ Existing item, history, review, goal, settings functions gain an `ownerID int64`
 
 ### Service (`internal/service/auth.go`)
 
-- Passwords: stdlib `crypto/pbkdf2` (Go 1.25 in `go.mod`), SHA-256, 600 000 iterations, 16-byte random salt, stored as `pbkdf2-sha256$600000$<salt b64>$<key b64>`; compare with `crypto/subtle`. No new dependency. On ARMv6 a login costs roughly a second, acceptable for rare logins.
+- Passwords: stdlib `crypto/pbkdf2` (Go 1.25 in `go.mod`), SHA-256, 100 000 iterations, 16-byte random salt, stored as `pbkdf2-sha256$100000$<salt b64>$<key b64>`; compare with `crypto/subtle`. No new dependency. Review decision REV-002: 600 000 iterations (the server-hardware recommendation) would cost an estimated 4 to 8 s per login on ARMv6 without hardware SHA-256; 100 000 targets about 1 s there (estimate, not measured on the device). The stored count is read at verification, so it can be raised later without a migration. At most one PBKDF2 computation runs at a time process-wide (size-1 semaphore; waiting honours request cancellation), covering login, the dummy hash, user creation and the admin password command.
 - Username rules (FR-ADMIN-003): `^[A-Za-z0-9._-]{3,32}$`; `admin` collides through NOCASE uniqueness (409). Password: at least 12 characters (Unicode code points), at most 256.
 - Generated admin password: 18 random bytes, base64url (24 characters).
 - Session token: 32 random bytes, base64url in cookie; only the SHA-256 hex is stored. Expiry `now + 30 days`, not extended.
