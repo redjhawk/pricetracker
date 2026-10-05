@@ -1,6 +1,6 @@
 # Multiple local users and login: phase 1
 
-Stage: functional, technical and API specifications complete; implementation next.\
+Stage: implementation complete; independent review next.\
 Change slug: `multi-user-login-phase1`. Started 2026-10-04. GitHub issue #15.
 
 ## Scope
@@ -29,7 +29,8 @@ Phase 1 of [multi-user-login](../../specifications/multi-user-login/functional.m
 1. [Functional handoff](functional-step.md): ready.
 2. [Technical specification](technical-step.md): ready, [technical.md](../../specifications/multi-user-login/technical.md).
 3. [API contract](api-step.md): ready.
-4. Implementation, 5. review, 6. review decisions, 8. commit, 7. QA: pending.
+4. [Implementation](implementation.md): done, stacked commits.
+5. Review, 6. review decisions, 8. commit, 7. QA: pending.
 
 ## API contract changes
 

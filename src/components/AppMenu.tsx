@@ -3,11 +3,12 @@ import { OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { UserAvatar } from "@carbon/icons-react";
 
 interface Props {
-  onOpenSettings: () => void;
-  triggerRef: RefObject<HTMLButtonElement | null>;
+  onOpenSettings?: () => void;
+  onLogout?: () => void;
+  triggerRef?: RefObject<HTMLButtonElement | null>;
 }
 
-export default function AppMenu({ onOpenSettings, triggerRef }: Props) {
+export default function AppMenu({ onOpenSettings, onLogout, triggerRef }: Props) {
   return (
     <OverflowMenu
       innerRef={triggerRef}
@@ -18,7 +19,8 @@ export default function AppMenu({ onOpenSettings, triggerRef }: Props) {
       flipped
       size="lg"
     >
-      <OverflowMenuItem itemText="Settings" onClick={onOpenSettings} />
+      {onOpenSettings && <OverflowMenuItem itemText="Settings" onClick={onOpenSettings} />}
+      {onLogout && <OverflowMenuItem itemText="Log out" onClick={onLogout} />}
     </OverflowMenu>
   );
 }

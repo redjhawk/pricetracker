@@ -79,3 +79,6 @@ fi
 
 echo "PriceFollower is installed and enabled."
 systemctl --no-pager --full status pricefollower || true
+echo
+echo "To create the admin account, or reset its password, run on this device:"
+echo "  sudo -u $APP_USER PRICEFOLLOWER_DATA_DIR=$DATA_DIR $APP_DIR/pricefollower admin-password"

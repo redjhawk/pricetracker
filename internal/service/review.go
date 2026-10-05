@@ -16,7 +16,7 @@ const listingNotRetrievedMessage = "The listing could not be retrieved from LeBo
 // RequestAIReview starts a manual review of the current LeBoncoin listing.
 // It reports alreadyRunning instead of starting a second review for the item.
 func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bool, error) {
-	listing, err := s.store.Listing(ctx, id)
+	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
 		return time.Time{}, false, err
 	}
@@ -43,7 +43,7 @@ func (s *Service) AIReview(ctx context.Context, item model.Item) (*model.AIRevie
 	if item.Platform != "leboncoin" {
 		return nil, nil
 	}
-	token, err := s.store.ClaudeToken(ctx)
+	token, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +86,16 @@ func (s *Service) startReview(id string, details *model.ListingDetails, fetchFre
 	return reviewStarted, nil
 }
 
-// reserveReview marks the item as reviewing (reviewStarted) when a token is
-// saved and no review runs. The token is read before taking s.mu; only the
-// running check-and-set is under the lock. The caller must launch or release
-// a reservation.
+// reserveReview marks the item as reviewing (reviewStarted) when its owner has
+// a token saved and no review runs. The token is read before taking s.mu; only
+// the running check-and-set is under the lock. The caller must launch or
+// release a reservation.
 func (s *Service) reserveReview(id string) (model.ClaudeToken, reviewOutcome, error) {
-	token, err := s.store.ClaudeToken(s.workerContext)
+	listing, err := s.store.Listing(s.workerContext, id)
+	if err != nil {
+		return model.ClaudeToken{}, reviewNoToken, err
+	}
+	token, err := s.store.ClaudeToken(s.workerContext, listing.OwnerID)
 	if err != nil {
 		return model.ClaudeToken{}, reviewNoToken, err
 	}
@@ -148,7 +152,7 @@ func (s *Service) runReview(id string, reviewID int64, token model.ClaudeToken, 
 		if err := s.store.FinishAIReview(finishContext, reviewID, "succeeded", review.priceCents, &review.content, "", now); err != nil {
 			log.Printf("save AI review for item %s: %v", id, err)
 		}
-		if err := s.store.ClearClaudeTokenRejected(finishContext, token.Revision); err != nil {
+		if err := s.store.ClearClaudeTokenRejected(finishContext, token.OwnerID, token.Revision); err != nil {
 			log.Printf("clear Claude token rejection: %v", err)
 		}
 		log.Printf("AI review succeeded item=%s", id)
@@ -156,7 +160,7 @@ func (s *Service) runReview(id string, reviewID int64, token model.ClaudeToken, 
 	}
 	message := reviewFailureMessage(ctx, err)
 	if errors.Is(err, claude.ErrRejected) || errors.Is(err, claude.ErrUsageLimit) {
-		if err := s.store.MarkClaudeTokenRejected(finishContext, token.Revision, now); err != nil {
+		if err := s.store.MarkClaudeTokenRejected(finishContext, token.OwnerID, token.Revision, now); err != nil {
 			log.Printf("mark Claude token rejected: %v", err)
 		}
 	}

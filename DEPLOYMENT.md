@@ -31,6 +31,14 @@ After installing dependencies above, use a configured SSH target:
 
 This rebuilds using `build-release.sh 6`, creates the remote staging directory, transfers the executable and installer using `copy-dist.sh`, then runs the installer with `sudo bash` over an SSH terminal. Success requires `systemctl is-active` to confirm the service is active. Failures stop subsequent stages; no rollback or continuous health monitoring is provided.
 
+To also create the administrator account, or reset its password, after the installation, add `--admin-password` before the target:
+
+```bash
+./scripts/deploy-armv6.sh --admin-password pi@raspberry-pi
+```
+
+The new password is printed in the SSH terminal; see [Administrator account](#administrator-account).
+
 The optional staging directory defaults to `pricefollower` relative to the SSH user's home; the binary is its child `pricefollower/pricefollower`. Absolute and home-relative paths, including `./pricefollower`, are accepted. Paths allow only ASCII letters, digits, underscores, dots, hyphens and slashes; spaces, shell metacharacters, literal `~`, root, dot and `..` segments are rejected. Staging under `/opt/pricefollower` or `/var/lib/pricefollower` is rejected. Choose an ordinary staging directory without symlink aliases into those locations. Installed files and persistent SQLite data retain the existing installer locations; no database is uploaded or deleted by the wrapper.
 
 Targets accept ASCII hostnames or SSH aliases containing letters, digits, dots, underscores and hyphens, starting with a letter or digit, optionally preceded by a username and `@`. Usernames start with a letter, digit or underscore and use the same characters. Use an SSH config alias for IPv6 addresses or custom ports. Local Go, npm, SSH and rsync are required. The ARMv6-compatible remote Linux device needs SSH, rsync, Bash, sudo, systemd and the existing installer prerequisites. Sudo is required even when connecting as root. Interactive sudo authentication uses the SSH terminal; unattended deployment needs preconfigured SSH authentication and sudo privileges. The wrapper stores no credentials.
@@ -69,6 +77,18 @@ sudo /tmp/install-pricefollower.sh /tmp/pricefollower
 ```
 
 The database stays in `/var/lib/pricefollower` across updates.
+
+## Administrator account
+
+Without regular users, PriceFollower works without login (open mode). To add users, create the `admin` account on the Pi:
+
+```bash
+sudo -u pricefollower PRICEFOLLOWER_DATA_DIR=/var/lib/pricefollower /opt/pricefollower/pricefollower admin-password
+```
+
+The command prints `Username: admin` and a new random password; keep it safe. The password stays in the terminal scrollback, so do not run the command (or `deploy-armv6.sh --admin-password`) where the output is logged, such as CI jobs or shared terminals. Run the same command again to reset a forgotten administrator password: the old password stops working and the administrator's open sessions end. It cannot be run from the browser and it does not change other users' passwords. The installer prints this command at the end, and `deploy-armv6.sh --admin-password` runs it after deploying.
+
+Then open the application, choose "Log in", and log in as `admin` to add users. Creating the first user turns on login for everyone and gives that user the existing items and settings.
 
 ## Local development
 

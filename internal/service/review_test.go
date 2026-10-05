@@ -58,7 +58,7 @@ func newReviewService(t *testing.T, withToken bool) (*Service, *store.Store, *fa
 	})
 	if withToken {
 		token := "sk-ant-oat01-synthetic"
-		if _, _, err := database.SaveSettings(context.Background(), nil, &store.TokenChange{Value: &token}, time.Now()); err != nil {
+		if _, _, err := database.SaveSettings(context.Background(), 0, nil, &store.TokenChange{Value: &token}, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -142,13 +142,13 @@ func TestRejectedReviewFailsAndMarksToken(t *testing.T) {
 	if state.LastAttempt == nil || state.LastAttempt.Status != "failed" || *state.LastAttempt.ErrorMessage != "Claude rejected the token. Replace it in Settings." || state.Latest != nil {
 		t.Fatalf("unexpected state %+v", state)
 	}
-	if token, _ := database.ClaudeToken(context.Background()); token.LastRejectedAt == nil {
+	if token, _ := database.ClaudeToken(context.Background(), 0); token.LastRejectedAt == nil {
 		t.Fatal("token rejection not recorded")
 	}
 	reviewer.err = nil
 	service.RequestAIReview(context.Background(), "lbc")
 	waitReviews(t, service, "lbc", false)
-	if token, _ := database.ClaudeToken(context.Background()); token.LastRejectedAt != nil {
+	if token, _ := database.ClaudeToken(context.Background(), 0); token.LastRejectedAt != nil {
 		t.Fatal("successful review did not clear the rejection")
 	}
 }

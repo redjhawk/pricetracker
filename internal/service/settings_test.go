@@ -72,8 +72,8 @@ func TestSaveSettingsVerificationFailureSavesNothing(t *testing.T) {
 			ClaudeToken:      stringPointer("sk-ant-oat01-a"),
 		})
 		assertServiceError(t, err, test.status, test.code)
-		session, _ := database.LeboncoinSession(context.Background())
-		token, _ := database.ClaudeToken(context.Background())
+		session, _ := database.LeboncoinSession(context.Background(), 0)
+		token, _ := database.ClaudeToken(context.Background(), 0)
 		if session.Value != nil || token.Value != nil {
 			t.Fatalf("partial save after %v: %+v %+v", test.verifyErr, session, token)
 		}

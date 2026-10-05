@@ -47,6 +47,10 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.createUserSchema(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := s.createAIReviewSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -60,21 +64,79 @@ func Open(cfg config.Config) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func (s *Store) createSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS items (
+// itemsColumns is the current items table definition. Owner 0 is the open-mode owner (no user);
+// two owners may track the same canonical URL.
+const itemsColumns = `
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'amazon',
   listing_id TEXT NOT NULL DEFAULT '',
   marketplace TEXT NOT NULL,
-  canonical_url TEXT NOT NULL UNIQUE,
+  canonical_url TEXT NOT NULL,
   url TEXT NOT NULL,
   title TEXT,
   thumbnail_url TEXT,
   next_check_at TEXT,
-  added_at TEXT NOT NULL
-);
+  added_at TEXT NOT NULL,
+  purchase_goal TEXT NOT NULL DEFAULT '',
+  owner_id INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (owner_id, canonical_url)`
+
+// Settings tables have one row per owner (0 is the open-mode owner); ensureSettings creates it.
+const leboncoinSessionColumns = `
+  owner_id INTEGER PRIMARY KEY,
+  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 4096),
+  expires_at TEXT,
+  revoked_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  updated_at TEXT,
+  last_attempt_at TEXT,
+  last_attempt_outcome TEXT CHECK (last_attempt_outcome IS NULL OR last_attempt_outcome IN ('accepted', 'rejected', 'failed'))`
+
+const claudeTokenColumns = `
+  owner_id INTEGER PRIMARY KEY,
+  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 1024),
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  updated_at TEXT,
+  last_rejected_at TEXT`
+
+// migrateSettingsOwner rebuilds the pre-login single-row settings tables once,
+// keyed by owner_id; the existing row becomes the open-mode owner's row.
+func (s *Store) migrateSettingsOwner(ctx context.Context) error {
+	for _, table := range []struct{ name, columns, copied string }{
+		{"leboncoin_session", leboncoinSessionColumns, "value, expires_at, revoked_at, revision, updated_at, last_attempt_at, last_attempt_outcome"},
+		{"claude_token", claudeTokenColumns, "value, revision, updated_at, last_rejected_at"},
+	} {
+		exists, err := s.hasColumn(ctx, table.name, "owner_id")
+		if err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		if err := s.rebuildTable(ctx, table.name, []string{
+			"CREATE TABLE " + table.name + "_new (" + table.columns + ")",
+			"INSERT INTO " + table.name + "_new (owner_id, " + table.copied + ") SELECT 0, " + table.copied + " FROM " + table.name + " WHERE id = 1",
+			"DROP TABLE " + table.name,
+			"ALTER TABLE " + table.name + "_new RENAME TO " + table.name,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureSettings creates the owner's empty settings rows if they do not exist yet.
+func (s *Store) ensureSettings(ctx context.Context, ownerID int64) error {
+	if _, err := s.db.ExecContext(ctx, "INSERT OR IGNORE INTO leboncoin_session (owner_id, revision) VALUES (?, 0)", ownerID); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, "INSERT OR IGNORE INTO claude_token (owner_id, revision) VALUES (?, 0)", ownerID)
+	return err
+}
+
+func (s *Store) createSchema(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS items ("+itemsColumns+");"+`
 CREATE TABLE IF NOT EXISTS price_observations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -107,25 +169,8 @@ CREATE TABLE IF NOT EXISTS second_hand_offer_observations (
   observed_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS second_hand_offer_item_time ON second_hand_offer_observations(item_id, observed_at DESC);
-CREATE TABLE IF NOT EXISTS leboncoin_session (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 4096),
-  expires_at TEXT,
-  revoked_at TEXT,
-  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
-  updated_at TEXT,
-  last_attempt_at TEXT,
-  last_attempt_outcome TEXT CHECK (last_attempt_outcome IS NULL OR last_attempt_outcome IN ('accepted', 'rejected', 'failed'))
-);
-INSERT OR IGNORE INTO leboncoin_session (id, revision) VALUES (1, 0);
-CREATE TABLE IF NOT EXISTS claude_token (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 1024),
-  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
-  updated_at TEXT,
-  last_rejected_at TEXT
-);
-INSERT OR IGNORE INTO claude_token (id, revision) VALUES (1, 0);
+CREATE TABLE IF NOT EXISTS leboncoin_session (`+leboncoinSessionColumns+`);
+CREATE TABLE IF NOT EXISTS claude_token (`+claudeTokenColumns+`);
 `)
 	if err != nil {
 		return fmt.Errorf("create SQLite schema: %w", err)
@@ -142,33 +187,83 @@ INSERT OR IGNORE INTO claude_token (id, revision) VALUES (1, 0);
 	if _, err := s.db.ExecContext(ctx, "UPDATE items SET listing_id = asin WHERE listing_id = '' AND platform = 'amazon'"); err != nil {
 		return fmt.Errorf("migrate item listing identifiers: %w", err)
 	}
-	return nil
+	if err := s.migrateSettingsOwner(ctx); err != nil {
+		return err
+	}
+	return s.migrateItemsOwner(ctx)
 }
 
-func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
-	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(items)")
+// hasColumn reports whether table has the named column.
+func (s *Store) hasColumn(ctx context.Context, table, name string) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {
-		return fmt.Errorf("inspect items schema: %w", err)
+		return false, fmt.Errorf("inspect %s schema: %w", table, err)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var cid, notNull, primaryKey int
 		var columnName, columnType string
 		var defaultValue sql.NullString
 		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			rows.Close()
-			return fmt.Errorf("read items schema: %w", err)
+			return false, fmt.Errorf("read %s schema: %w", table, err)
 		}
 		if columnName == name {
-			rows.Close()
-			return nil
+			return true, nil
 		}
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("read items schema: %w", err)
+	return false, rows.Err()
+}
+
+// migrateItemsOwner rebuilds a pre-login items table once: it adds owner_id (0 for existing
+// items) and replaces UNIQUE(canonical_url) with UNIQUE(owner_id, canonical_url).
+func (s *Store) migrateItemsOwner(ctx context.Context) error {
+	exists, err := s.hasColumn(ctx, "items", "owner_id")
+	if err != nil || exists {
+		return err
 	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close items schema: %w", err)
+	const copied = "id, asin, platform, listing_id, marketplace, canonical_url, url, title, thumbnail_url, next_check_at, added_at, purchase_goal"
+	return s.rebuildTable(ctx, "items", []string{
+		"CREATE TABLE items_new (" + itemsColumns + ")",
+		"INSERT INTO items_new (" + copied + ", owner_id) SELECT " + copied + ", 0 FROM items",
+		"DROP TABLE items",
+		"ALTER TABLE items_new RENAME TO items",
+		"CREATE INDEX IF NOT EXISTS items_next_check ON items(next_check_at)",
+	})
+}
+
+// rebuildTable runs table-rebuild statements in one transaction with foreign keys off,
+// then checks that every reference is still valid.
+func (s *Store) rebuildTable(ctx context.Context, table string, statements []string) error {
+	// The pragma has no effect inside a transaction; the single connection keeps it for the rebuild.
+	if _, err := s.db.ExecContext(ctx, "PRAGMA foreign_keys=OFF"); err != nil {
+		return err
+	}
+	defer s.db.ExecContext(ctx, "PRAGMA foreign_keys=ON")
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("migrate %s table: %w", table, err)
+		}
+	}
+	var violation string
+	err = tx.QueryRowContext(ctx, "PRAGMA foreign_key_check").Scan(&violation)
+	if err == nil {
+		return fmt.Errorf("migrate %s table: invalid reference in %s", table, violation)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("migrate %s table: %w", table, err)
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ensureItemColumn(ctx context.Context, name, declaration string) error {
+	exists, err := s.hasColumn(ctx, "items", name)
+	if err != nil || exists {
+		return err
 	}
 	if _, err := s.db.ExecContext(ctx, "ALTER TABLE items ADD COLUMN "+name+" "+declaration); err != nil {
 		return fmt.Errorf("add items.%s column: %w", name, err)
@@ -353,8 +448,8 @@ SELECT id, 8995, 'EUR', 'good', 'Buone condizioni', ? FROM items WHERE id = 'sam
 	return tx.Commit()
 }
 
-func (s *Store) List(ctx context.Context) ([]model.Item, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items ORDER BY added_at DESC, id DESC")
+func (s *Store) List(ctx context.Context, ownerID int64) ([]model.Item, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -578,9 +673,9 @@ func statusFor(price *model.Observation, attempt *model.Attempt, staleAfter time
 	return "active"
 }
 
-func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bool, error) {
+func (s *Store) IsCanonicalTracked(ctx context.Context, ownerID int64, canonicalURL string) (bool, error) {
 	var exists int
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE canonical_url = ?", canonicalURL).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE owner_id = ? AND canonical_url = ?", ownerID, canonicalURL).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -588,9 +683,9 @@ func (s *Store) IsCanonicalTracked(ctx context.Context, canonicalURL string) (bo
 }
 
 func (s *Store) Insert(ctx context.Context, item model.Listing, canonicalURL string, nextCheck time.Time) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at, purchase_goal)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
-		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout), item.PurchaseGoal)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO items (id, asin, platform, listing_id, marketplace, canonical_url, url, next_check_at, added_at, purchase_goal, owner_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ASIN, item.Platform, item.ListingID, item.Marketplace, canonicalURL, item.URL,
+		nextCheck.UTC().Format(timestampLayout), time.Now().UTC().Format(timestampLayout), item.PurchaseGoal, item.OwnerID)
 	return err
 }
 
@@ -614,8 +709,8 @@ func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time)
 	return tx.Commit()
 }
 
-func (s *Store) IDs(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items ORDER BY added_at DESC, id DESC")
+func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -650,8 +745,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID)
 	return item, err
 }
 
@@ -718,8 +813,8 @@ func (s *Store) RecordFailure(ctx context.Context, id, result, message string, t
 	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
-func (s *Store) Delete(ctx context.Context, id string) (bool, error) {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ?", id)
+func (s *Store) Delete(ctx context.Context, ownerID int64, id string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ? AND owner_id = ?", id, ownerID)
 	if err != nil {
 		return false, err
 	}
@@ -768,10 +863,10 @@ type rowQuerier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func readLeboncoinSession(ctx context.Context, q rowQuerier) (leboncoinSessionRow, error) {
+func readLeboncoinSession(ctx context.Context, q rowQuerier, ownerID int64) (leboncoinSessionRow, error) {
 	var row leboncoinSessionRow
 	err := q.QueryRowContext(ctx, `SELECT value, expires_at, revoked_at, revision, updated_at, last_attempt_at, last_attempt_outcome
-FROM leboncoin_session WHERE id = 1`).Scan(&row.value, &row.expiresAt, &row.revokedAt, &row.revision, &row.updatedAt, &row.lastAttemptAt, &row.lastAttemptOutcome)
+FROM leboncoin_session WHERE owner_id = ?`, ownerID).Scan(&row.value, &row.expiresAt, &row.revokedAt, &row.revision, &row.updatedAt, &row.lastAttemptAt, &row.lastAttemptOutcome)
 	return row, err
 }
 
@@ -800,12 +895,15 @@ func (row leboncoinSessionRow) model(now time.Time) model.LeboncoinSession {
 }
 
 // LeboncoinSession returns the saved session with its status derived at the current time.
-func (s *Store) LeboncoinSession(ctx context.Context) (model.LeboncoinSession, error) {
-	return s.leboncoinSessionAt(ctx, time.Now())
+func (s *Store) LeboncoinSession(ctx context.Context, ownerID int64) (model.LeboncoinSession, error) {
+	return s.leboncoinSessionAt(ctx, ownerID, time.Now())
 }
 
-func (s *Store) leboncoinSessionAt(ctx context.Context, now time.Time) (model.LeboncoinSession, error) {
-	row, err := readLeboncoinSession(ctx, s.db)
+func (s *Store) leboncoinSessionAt(ctx context.Context, ownerID int64, now time.Time) (model.LeboncoinSession, error) {
+	if err := s.ensureSettings(ctx, ownerID); err != nil {
+		return model.LeboncoinSession{}, err
+	}
+	row, err := readLeboncoinSession(ctx, s.db, ownerID)
 	if err != nil {
 		return model.LeboncoinSession{}, err
 	}
@@ -815,13 +913,16 @@ func (s *Store) leboncoinSessionAt(ctx context.Context, now time.Time) (model.Le
 // SaveLeboncoinSession replaces (or, with a nil value, clears) the session if
 // the stored revision still equals expectedRevision. Clearing an empty session
 // changes nothing.
-func (s *Store) SaveLeboncoinSession(ctx context.Context, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
+func (s *Store) SaveLeboncoinSession(ctx context.Context, ownerID int64, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
+	if err := s.ensureSettings(ctx, ownerID); err != nil {
+		return model.LeboncoinSession{}, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.LeboncoinSession{}, err
 	}
 	defer tx.Rollback()
-	session, err := saveLeboncoinSessionTx(ctx, tx, value, expectedRevision, now)
+	session, err := saveLeboncoinSessionTx(ctx, tx, ownerID, value, expectedRevision, now)
 	if err != nil {
 		return model.LeboncoinSession{}, err
 	}
@@ -832,8 +933,8 @@ func (s *Store) SaveLeboncoinSession(ctx context.Context, value *string, expecte
 }
 
 // saveLeboncoinSessionTx applies the SaveLeboncoinSession rules inside tx.
-func saveLeboncoinSessionTx(ctx context.Context, tx *sql.Tx, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
-	row, err := readLeboncoinSession(ctx, tx)
+func saveLeboncoinSessionTx(ctx context.Context, tx *sql.Tx, ownerID int64, value *string, expectedRevision int64, now time.Time) (model.LeboncoinSession, error) {
+	row, err := readLeboncoinSession(ctx, tx, ownerID)
 	if err != nil {
 		return model.LeboncoinSession{}, err
 	}
@@ -845,10 +946,10 @@ func saveLeboncoinSessionTx(ctx context.Context, tx *sql.Tx, value *string, expe
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE leboncoin_session SET value = ?, expires_at = NULL, revoked_at = NULL,
 last_attempt_at = NULL, last_attempt_outcome = NULL, revision = revision + 1, updated_at = ?
-WHERE id = 1 AND revision = ?`, value, now.UTC().Format(timestampLayout), expectedRevision); err != nil {
+WHERE owner_id = ? AND revision = ?`, value, now.UTC().Format(timestampLayout), ownerID, expectedRevision); err != nil {
 		return model.LeboncoinSession{}, err
 	}
-	row, err = readLeboncoinSession(ctx, tx)
+	row, err = readLeboncoinSession(ctx, tx, ownerID)
 	if err != nil {
 		return model.LeboncoinSession{}, err
 	}
@@ -858,13 +959,16 @@ WHERE id = 1 AND revision = ?`, value, now.UTC().Format(timestampLayout), expect
 // FinishLeboncoinSessionAttempt records a session-assisted attempt's renewal,
 // revocation and outcome, only if the session revision is still startRevision.
 // It reports whether the update was applied.
-func (s *Store) FinishLeboncoinSessionAttempt(ctx context.Context, startRevision int64, outcome LeboncoinSessionOutcome, now time.Time) (bool, error) {
+func (s *Store) FinishLeboncoinSessionAttempt(ctx context.Context, ownerID, startRevision int64, outcome LeboncoinSessionOutcome, now time.Time) (bool, error) {
+	if err := s.ensureSettings(ctx, ownerID); err != nil {
+		return false, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback()
-	row, err := readLeboncoinSession(ctx, tx)
+	row, err := readLeboncoinSession(ctx, tx, ownerID)
 	if err != nil {
 		return false, err
 	}
@@ -891,8 +995,8 @@ func (s *Store) FinishLeboncoinSessionAttempt(ctx context.Context, startRevision
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE leboncoin_session SET value = ?, expires_at = ?, revoked_at = ?, revision = ?,
-updated_at = ?, last_attempt_at = ?, last_attempt_outcome = ? WHERE id = 1 AND revision = ?`,
-		next.value, next.expiresAt, next.revokedAt, next.revision, next.updatedAt, stamp, outcome.Attempt, startRevision); err != nil {
+updated_at = ?, last_attempt_at = ?, last_attempt_outcome = ? WHERE owner_id = ? AND revision = ?`,
+		next.value, next.expiresAt, next.revokedAt, next.revision, next.updatedAt, stamp, outcome.Attempt, ownerID, startRevision); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(); err != nil {
