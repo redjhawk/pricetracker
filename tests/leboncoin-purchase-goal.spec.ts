@@ -16,6 +16,7 @@ async function mockApi(context: BrowserContext, options: { goal?: string; platfo
     const url = new URL(route.request().url());
     if (url.origin !== "http://127.0.0.1:4173") return route.abort();
     if (!url.pathname.startsWith("/api/")) return route.continue();
+    if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
     const method = route.request().method();
     const item = () => ({ ...baseItem, platform: options.platform ?? "leboncoin", purchaseGoal: state.goal });
     if (method === "GET" && url.pathname === "/api/v1/items") return route.fulfill({ json: { items: [] } });
