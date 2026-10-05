@@ -4,9 +4,16 @@ set -euo pipefail
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
-  echo "Usage: $0 user@host [remote-directory]" >&2
+  echo "Usage: $0 [--admin-password] user@host [remote-directory]" >&2
   echo "The remote staging directory defaults to pricefollower in the SSH user's home." >&2
+  echo "--admin-password creates the admin account, or resets its password, after installing and prints the new password." >&2
 }
+
+ADMIN_PASSWORD=false
+if [[ "${1-}" == "--admin-password" ]]; then
+  ADMIN_PASSWORD=true
+  shift
+fi
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
   usage
@@ -67,4 +74,8 @@ echo "Uploading the release and installer…"
 "$PROJECT_DIR/scripts/copy-dist.sh" "$TARGET:$REMOTE_DIR/"
 echo "Installing and checking the remote service…"
 ssh -t "$TARGET" "cd -- '$REMOTE_DIR' && sudo bash ./install-pricefollower.sh ./pricefollower && systemctl is-active --quiet pricefollower"
+if [[ "$ADMIN_PASSWORD" == true ]]; then
+  echo "Setting the administrator password…"
+  ssh -t "$TARGET" "sudo -u pricefollower PRICEFOLLOWER_DATA_DIR=/var/lib/pricefollower /opt/pricefollower/pricefollower admin-password"
+fi
 echo "Deployment complete: pricefollower is active on $TARGET."
