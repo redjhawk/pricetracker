@@ -544,3 +544,16 @@ Agent-defined from [the technical specification](doc/specifications/multi-user-l
 ### Administrator account
 
 `admin` is created, or its password reset, only on the device with `pricefollower admin-password`. No endpoint changes passwords in phase 1.
+
+## LeBoncoin old price (2026-10-05)
+
+Issue #42; see [technical specification](doc/specifications/leboncoin-old-price/technical.md). Additive change to item-price observation objects (`latestPrice`, `lastThreeDetections[]`, `priceHistory[]`); Amazon second-hand detections are unchanged. No new endpoint, status code, or error.
+
+```json
+{ "amountCents": 32000, "currency": "EUR", "timestamp": null, "oldPrice": true }
+```
+
+- `oldPrice` (boolean, always present): `true` for the listing's old price recorded once when a LeBoncoin item is added and its first collection succeeds; `false` for every collected observation.
+- `timestamp` (string or `null`): `null` only when `oldPrice` is `true` and the listing gave no date; the UI then shows "Old price" in place of the date. A dated old price carries that date.
+- Ordering: undated old prices are older than every other observation; dated ones are ordered by date. Old prices take part in `priceHistory` and in the `lastThreeDetections` periods but never change the latest collection attempt or `status`.
+- Rationale: the user asked for a historical price rather than a new column; a flag on the existing observation keeps one price history and avoids a new item field.
