@@ -46,4 +46,4 @@ None. Direct interpretations of the request: "when the article is added" means o
 - [FUNCTIONAL_SPECIFICATIONS.md](../../FUNCTIONAL_SPECIFICATIONS.md) sections 6, 8 (FR-05, FR-06, FR-09, FR-14, FR-20, FR-31), 9, 15.
 - Use cases: [UC-PC-01](../../use-cases/price-collection/UC-PC-01-collect-and-record-prices.md), [UC-ID-01](../../use-cases/item-details/UC-ID-01-view-item-details.md).
 - Technical specification: [technical.md](technical.md).
-- Change index: [index.md](../../changes/leboncoin-old-price/index.md).
+- Change index: [index.md](../../changes/2026-10-05-2041-issue-42-leboncoin-old-price/index.md).

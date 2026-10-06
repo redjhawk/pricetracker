@@ -35,7 +35,7 @@ No contract change. Preserve the approved [canonical API specification](../../..
 
 ## Scope and refactoring
 
-Application scope: `src/components/TrackedItemsPage.tsx` only. Documentation scope: these subject specifications, per-stage reports under `doc/changes/tracked-items-identity/`, and the relevant main-flow statement in `doc/use-cases/tracked-items/UC-TI-01-review-tracked-items.md`. The developer must update use-case step 3 to state that marketplace precedes listing ID below the title in Item and no standalone Marketplace column remains. Item details is a separate, unaffected subject.
+Application scope: `src/components/TrackedItemsPage.tsx` only. Documentation scope: these subject specifications, per-stage reports under `doc/changes/2026-10-02-2224-tracked-items-identity/`, and the relevant main-flow statement in `doc/use-cases/tracked-items/UC-TI-01-review-tracked-items.md`. The developer must update use-case step 3 to state that marketplace precedes listing ID below the title in Item and no standalone Marketplace column remains. Item details is a separate, unaffected subject.
 
 No refactoring is necessary or proposed. Do not rename existing CSS classes, reorganize components, change types/API clients, modify backend files, add dependencies, or alter unrelated workflows. Preserve existing user changes.
 

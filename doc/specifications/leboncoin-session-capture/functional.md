@@ -3,7 +3,7 @@
 Status: ready (revision 2, 2026-10-03; FR-LBC-CAP-010 to FR-LBC-CAP-018 added; file export and Raspberry Pi transfer superseded)\
 Owner: functional specification agent\
 User decision/reference (revision 1): The user answered “Yes, manual verification is acceptable” to completing the verification in a browser on their computer, securely transferring the verified session to the PriceFollower Raspberry Pi, and repeating this when rejected. This approval covers that workflow; it does not approve an HTTP contract change.\
-User decision/reference (revision 2): user decisions 6 and 7 of 2026-10-03 for change [leboncoin-session-settings](../../changes/leboncoin-session-settings/index.md): keep the desktop helper that opens a browser, but print the captured `datadome=...` string in the terminal for pasting into the Settings modal instead of writing a file; fix the report that the helper “doesn't open a browser” and prints no message.
+User decision/reference (revision 2): user decisions 6 and 7 of 2026-10-03 for change [leboncoin-session-settings](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md): keep the desktop helper that opens a browser, but print the captured `datadome=...` string in the terminal for pasting into the Settings modal instead of writing a file; fix the report that the helper “doesn't open a browser” and prints no message.
 
 ## Revision 2 summary
 
@@ -73,7 +73,7 @@ None for this subject. Revision 1: none. Revision 2: the exact browser startup b
 ## Traceability
 
 - [Existing functional specifications](../../FUNCTIONAL_SPECIFICATIONS.md), sections 4–6 and FR-07/FR-10.
-- [Investigation and demonstrated limitations](../../changes/leboncoin-403-investigation/report.md).
+- [Investigation and demonstrated limitations](../../changes/2026-10-03-0854-leboncoin-403-investigation/report.md).
 - [Session collection subject](../leboncoin-session-collection/functional.md).
 - Technical handoff target: `doc/specifications/leboncoin-session-capture/technical.md`.
-- Revision 2: [LeBoncoin session settings](../leboncoin-session-settings/functional.md) (FR-LBC-SET-005 accepts the printed line), [file-based session removal](../leboncoin-session-file-removal/functional.md), [deprecation record](../../deprecated/leboncoin-session-file.md), change [leboncoin-session-settings](../../changes/leboncoin-session-settings/index.md).
+- Revision 2: [LeBoncoin session settings](../leboncoin-session-settings/functional.md) (FR-LBC-SET-005 accepts the printed line), [file-based session removal](../leboncoin-session-file-removal/functional.md), [deprecation record](../../deprecated/leboncoin-session-file.md), change [leboncoin-session-settings](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md).

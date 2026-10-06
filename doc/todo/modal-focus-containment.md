@@ -23,4 +23,4 @@ Cause: Carbon's default focus wrapping uses sentinel elements and a delayed corr
 
 ## References
 
-- Finding QA-SET-F03 in [QA report](../changes/leboncoin-session-settings/qa.md) and its decision in [decisions](../changes/leboncoin-session-settings/decisions.md).
+- Finding QA-SET-F03 in [QA report](../changes/2026-10-03-1741-leboncoin-session-settings/qa.md) and its decision in [decisions](../changes/2026-10-03-1741-leboncoin-session-settings/decisions.md).

@@ -27,4 +27,4 @@ None.
 
 ## Traceability
 
-Technical specification: [technical.md](technical.md). Change record: [../../changes/amazon-installment-price/index.md](../../changes/amazon-installment-price/index.md).
+Technical specification: [technical.md](technical.md). Change record: [../../changes/2026-10-05-2055-issue-45-amazon-installment-price/index.md](../../changes/2026-10-05-2055-issue-45-amazon-installment-price/index.md).

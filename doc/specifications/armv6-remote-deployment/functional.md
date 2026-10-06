@@ -40,4 +40,4 @@ None affecting the script handoff. A real device address is needed only to execu
 
 - Existing behavior: [deployment instructions](../../../DEPLOYMENT.md), `scripts/build-release.sh`, `scripts/copy-dist.sh`, `scripts/install-pricefollower.sh`.
 - Technical handoff: [technical specification](technical.md).
-- Workflow evidence: [functional stage](../../changes/armv6-remote-deployment/functional-step.md).
+- Workflow evidence: [functional stage](../../changes/2026-10-03-0534-armv6-remote-deployment/functional-step.md).

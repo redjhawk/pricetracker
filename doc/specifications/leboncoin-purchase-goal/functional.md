@@ -2,7 +2,7 @@
 
 Status: ready
 Owner: functional specification agent
-User decision/reference: GitHub issue #10 (2026-10-04) and the user's answers in the issue comment, recorded as D-1–D-7 in the [change index](../../changes/leboncoin-purchase-goal/index.md). Extends [LeBoncoin AI review](../leboncoin-ai-review/functional.md).
+User decision/reference: GitHub issue #10 (2026-10-04) and the user's answers in the issue comment, recorded as D-1–D-7 in the [change index](../../changes/2026-10-04-0946-issue-10-leboncoin-purchase-goal/index.md). Extends [LeBoncoin AI review](../leboncoin-ai-review/functional.md).
 
 ## Request
 
@@ -44,5 +44,5 @@ None. Q-1–Q-8 resolved by D-1–D-7 (Q-6 derived from the issue text: the goal
 ## Traceability
 
 - [LeBoncoin AI review](../leboncoin-ai-review/functional.md) FR-LBC-AIR-001–014.
-- Change index: [leboncoin-purchase-goal](../../changes/leboncoin-purchase-goal/index.md).
+- Change index: [leboncoin-purchase-goal](../../changes/2026-10-04-0946-issue-10-leboncoin-purchase-goal/index.md).
 - Technical specification: to be written in `technical.md` in this folder.

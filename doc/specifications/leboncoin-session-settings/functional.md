@@ -2,7 +2,7 @@
 
 Status: ready (Q-SET-1 resolved by the user on 2026-10-03: “Warn and reload”)\
 Owner: functional specification agent\
-User decision/reference: user request and decisions 1–6 of 2026-10-03, quoted in the [change index](../../changes/leboncoin-session-settings/index.md). Readiness does not imply approval of any API contract.
+User decision/reference: user request and decisions 1–6 of 2026-10-03, quoted in the [change index](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md). Readiness does not imply approval of any API contract.
 
 ## Purpose and scope
 
@@ -56,7 +56,7 @@ None. Q-SET-1 was resolved by the user on 2026-10-03: “Warn and reload” — 
 
 ## Traceability
 
-- User request and decisions 1–6: [change index](../../changes/leboncoin-session-settings/index.md).
+- User request and decisions 1–6: [change index](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md).
 - [Existing functional specifications](../../FUNCTIONAL_SPECIFICATIONS.md), sections 2, 6, 7, 9 and 10; FR-07, FR-10.
 - [Application header menu](../app-header-menu/functional.md).
 - [Session collection](../leboncoin-session-collection/functional.md), FR-LBC-COL-011 to FR-LBC-COL-020.

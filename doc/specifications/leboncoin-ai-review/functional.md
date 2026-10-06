@@ -2,7 +2,7 @@
 
 Status: ready
 Owner: functional specification agent
-User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04) and user decisions D-4–D-12 recorded in the [change index](../../changes/leboncoin-ai-review/index.md).
+User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04) and user decisions D-4–D-12 recorded in the [change index](../../changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md).
 
 ## Purpose and scope
 
@@ -46,7 +46,7 @@ None.
 
 ## Traceability
 
-- Request and decisions: [change index](../../changes/leboncoin-ai-review/index.md) D-4–D-12.
+- Request and decisions: [change index](../../changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md) D-4–D-12.
 - [Functional specifications](../../FUNCTIONAL_SPECIFICATIONS.md) §5.3, §6, §7, FR-01, FR-09, FR-14, FR-18, FR-19.
 - [Item refresh](../item-refresh/functional.md), [platform tabs](../platform-tabs/functional.md), [tracked items identity](../tracked-items-identity/functional.md), [Claude token settings](../claude-token-settings/functional.md).
 - The current collector (`internal/leboncoin/collector.go`) keeps only title, price and first image; FR-LBC-AIR-002 requires collecting description, all photos, attributes, location and other listing fields (technical consequence).
