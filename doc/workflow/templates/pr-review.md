@@ -7,10 +7,10 @@ Reviewed at: <timestamp with timezone>
 |---|---|---|---|---|---|---|---|---|---|
 | #<n> | <sha> | <url> | <event> | 0 | 0 | 0 | 0 | 0 | 0 |
 
-## Blocking bugs reported to the user
+## Possible bugs
 
-<Each [bug] comment with its PR link; where the user was informed (issue comment link, final run report); or "none".>
+<Each [bug] comment with its PR link, or "none". Blocking decisions are made in stage 10 (`pr-triage.md`).>
 
-## Re-reviews after @claude fixes
+## Re-reviews after fixes (stage 10 blocking fixes or `@claude` fixes)
 
 <PR, revision, new review URL, resolved and remaining comments.>
