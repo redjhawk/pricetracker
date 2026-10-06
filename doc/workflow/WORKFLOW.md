@@ -18,17 +18,17 @@ The coordinator records the paths of all artifacts in the feature's index, `doc/
 
 Assign stable requirement IDs such as `FR-ITEM-DETAILS-001`, technical IDs such as `TS-ITEM-DETAILS-001`, review IDs such as `REV-001`, and QA case IDs such as `QA-001`. Link technical design, implementation, review findings, and QA results to their source requirements. Preserve IDs when documents change.
 
-Artifact states are `draft`, `needs-clarification`, `ready`, and `superseded`. A ready artifact has no unresolved question that affects its handoff. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `commit`, `pull-request`, `qa`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
+Artifact states are `draft`, `needs-clarification`, `ready`, and `superseded`. A ready artifact has no unresolved question that affects its handoff. A feature progresses through `functional-specification`, `technical-specification`, `api-contract`, `implementation`, `review`, `review-decisions`, `qa`, `commit`, `pull-request`, and `complete`. Record a blocked stage and its concrete blocker instead of advancing it.
 
 ## 1. Expert functional specification agent
 
-Start with an explicit list of requested functional subjects and behaviors. Read the user request and existing specifications. Write one functional file per subject before technical design begins.
+Start with an explicit list of requested functional subjects and behaviors. Read the user request and existing specifications. Write one functional file per subject before technical design begins, and update `doc/FUNCTIONAL_SPECIFICATIONS.md` in the same stage: summarize the new or changed behavior there and link each subject file from its subject specifications list. The subject file prevails for details. Skip this update only for changes that alter no product behavior (for example workflow or documentation maintenance), and record that reason in the change index.
 
 Each file states purpose, actors, scope and exclusions, prerequisites, user-visible behavior, success and failure flows, input rules, empty/loading/error states where relevant, and objectively checkable acceptance criteria. Give every requirement an ID. Describe what the user observes without deciding implementation details.
 
 Identify contradictions, undefined behavior, and missing product decisions. Ask the user focused questions about any functional ambiguity and stop the workflow until they answer. Do not convert guesses into requirements or expand the feature. An ambiguity affecting acceptance must be resolved by the user or a referenced existing decision before the next stage. Explicit requirements already supplied by the user need no repeated confirmation.
 
-Handoff: subject files and their requirement IDs, acceptance criteria, resolved decisions, and any blocker.
+Handoff: subject files and their requirement IDs, the `FUNCTIONAL_SPECIFICATIONS.md` update, acceptance criteria, resolved decisions, and any blocker.
 
 ## 2. Expert technical specification agent
 
@@ -78,21 +78,21 @@ Handoff: the review report and decision record agree, with no unexplained findin
 
 ## 7. Expert QA tester
 
-Execute interface tests against the running application after review corrections. QA runs after stage 8 has pushed and opened the pull requests; push accepted QA fixes to the same PR branches. Cover acceptance criteria and relevant corner cases, including invalid input, empty results, missing items, loading/failure/retry behavior, repeated actions, keyboard navigation, and narrow screens when applicable. Include exploratory randomized action sequences; record the seed or complete ordered actions so failures can be reproduced. Use isolated test data for destructive actions where possible.
+Execute interface tests against the running application after review corrections and before stage 8: nothing is committed or pushed and no pull request is opened until QA passes. Cover acceptance criteria and relevant corner cases, including invalid input, empty results, missing items, loading/failure/retry behavior, repeated actions, keyboard navigation, and narrow screens when applicable. Include exploratory randomized action sequences; record the seed or complete ordered actions so failures can be reproduced. Use isolated test data for destructive actions where possible.
 
 Keep a Markdown QA case catalog and execution report. For each case record its ID, requirement IDs, corner-case category, the actual application URL tested, environment, required data/setup, exact actions and input, expected and actual behavior, result, execution date, and supporting evidence. For external listing inputs, record the actual URL used and its purpose. Never invent URLs or report an unexecuted case as passed. Distinguish an application route from an external listing input. Record untested cases and concrete blockers explicitly. Avoid credentials and private data in evidence.
 
-Investigate failures through the reviewer and decision agent; apply accepted fixes and retest affected behavior. If browser tooling or a running interface is unavailable, complete other useful verification and report interface QA as blocked, with the exact missing prerequisite. Do not substitute code inspection for executed interface tests.
+Investigate failures through the reviewer and decision agent; apply accepted fixes, have the reviewer and decision agent check them, and retest affected behavior before handing off to stage 8. If browser tooling or a running interface is unavailable, complete other useful verification and report interface QA as blocked, with the exact missing prerequisite. Do not substitute code inspection for executed interface tests.
 
 Handoff: executed QA results, reproducible exploratory sequences, actual URL/corner-case catalog, and unresolved limitations.
 
 ## 8. Coordinator commits and pull requests
 
-After review and review decisions pass for the exact diff, create focused commits containing the requested change and its workflow evidence. Confirm specification consistency, recorded contract decisions, justified outcomes for every review finding, and absence of critical blockers before committing. Any new implementation changes return to the applicable review and decision stages, and to QA if it already ran.
+After review, review decisions, and QA pass for the exact diff, create focused commits containing the requested change and its workflow evidence. Confirm specification consistency, recorded contract decisions, justified outcomes for every review finding, and absence of critical blockers before committing. Any new implementation changes return to the applicable review and decision stages, and to QA.
 
 Inspect the working tree and stage explicit paths or hunks; do not include unrelated user changes. Review the staged diff and run `git diff --cached --check`. Use a descriptive commit message explaining the concrete change. Do not amend existing commits.
 
-Pull requests ([requirements](../specifications/workflow-pull-requests/functional.md)): in autonomous development, push the work branch and open pull requests to `master` once review decisions pass; do not wait for QA. Open them ready for review, not as drafts, with descriptions written by the agent (purpose, requirement IDs, scope, verification, limitations, and for stacked PRs their position in the stack and base). QA then runs; push its accepted fixes to the same branches.
+Pull requests ([requirements](../specifications/workflow-pull-requests/functional.md)): in autonomous development, push the work branch and open pull requests to `master` once review decisions and QA pass. Open them ready for review, not as drafts, with descriptions written by the agent (purpose, requirement IDs, scope, verification, QA results, limitations, and for stacked PRs their position in the stack and base).
 
 - Size: changed lines are added plus deleted lines (`git diff --numstat`), including specifications and documentation, excluding generated files such as `package-lock.json`. Target 450 changed lines per PR with a ±50 margin when splitting; 500 is the only enforced limit. Split any larger change. Smaller PRs are acceptable when the change, or a separate-kind PR (refactoring, dependencies, formatting, unrelated docs), is smaller; never combine unrelated work to reach the target. Measure each PR with `scripts/pr-size.sh <base>` before opening it or pushing more commits to it, and do not open or grow a PR it rejects; the `ai-dev` CI run also fails when an open PR for the issue exceeds 500.
 - Stacking: split PRs are stacked; the first targets `master`, PR 2 targets PR 1's branch, and so on.

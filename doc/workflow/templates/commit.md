@@ -8,6 +8,7 @@ Coordinator:
 - Specification and final diff consistency:
 - API contract changes and recorded rationale, or unchanged contract:
 - Review report and decisions; no unresolved critical findings:
+- QA report and passed results (QA runs before committing and opening PRs):
 
 ## Staged scope and checks
 
@@ -30,6 +31,5 @@ Coordinator:
 - PR order, branch, base (stacked), and kind (feature / refactoring / dependencies / formatting / unrelated docs):
 - Agent-written descriptions:
 - Ready (not draft) PR links, or planned split and the tooling limitation preventing it:
-- QA report and passed results (after PR creation; fixes pushed to the PR branches; required for completion):
 
 Record preparation and passed gates before committing. Report success only after Git confirms it. If the committed preparation record cannot include its own result, report the actual result and Git reference in the coordinator's final handoff. A failed commit blocks completion. Do not amend existing commits. Push and open pull requests per workflow stage 8; never claim a PR exists unless the tooling confirms it.
