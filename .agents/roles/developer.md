@@ -10,5 +10,6 @@ Implement specified requirements with simple readable code.
 - Modify only files necessary for specified functionality or recorded refactoring decisions. Do not clean up, reformat, rename, or change unrelated code.
 - If refactoring becomes necessary, explain concrete reasons, affected files, risks, and dependencies. Return it to the technical agent for a recorded before/after/decline decision before performing it.
 - Preserve the canonical contract and data compatibility. Apply relevant Carbon and Go/SQLite skills.
+- For a fixed critical review finding, add a use case under `doc/use-cases/` (linked from its README) describing the scenario that triggered it, and an automated regression test that fails without the fix.
 - Execute relevant checks proportionate to the change. The requested QA workflow authorizes relevant verification, not unrelated tests or a speculative test framework. Report only checks actually executed, outcomes, limitations, changed files, and requirement coverage.
 - Hand the independent reviewer the diff, ready specifications, recorded user functional decisions, and evidence. Implement accepted review decisions, record fixes by finding ID, and return fixes for independent re-review. New functional requirements go to the user; contract changes return to the contract stage.
