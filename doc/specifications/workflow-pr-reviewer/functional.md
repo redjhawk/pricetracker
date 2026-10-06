@@ -11,8 +11,8 @@ Scope: development workflow, a new agent role, and the ai-dev prompt. Applicatio
 - **FR-WORKFLOW-PRR-003** It comments on everything that could be improved, applying these rules: refactoring goes in a dedicated PR; code is readable, not clever and unreadable; when there is a simpler way, the simplest way is used.
 - **FR-WORKFLOW-PRR-004** It must catch possible bugs.
 - **FR-WORKFLOW-PRR-005** Comments are posted as a GitHub pull request review, inline on the diff.
-- **FR-WORKFLOW-PRR-006** The agent only comments. The user decides which comments are fixed.
-- **FR-WORKFLOW-PRR-007** When a possible bug is found, the review is submitted as "Request changes", and the user is informed on the originating issue or in the chat interface.
+- **FR-WORKFLOW-PRR-006** The agent only comments. (Which comments get fixed is now decided by the triage agent; see [workflow-pr-triage](../workflow-pr-triage/functional.md).)
+- **FR-WORKFLOW-PRR-007** When a possible bug is found, the review is submitted as "Request changes", and the user is informed on the originating issue or in the chat interface. (Superseded by [workflow-pr-triage](../workflow-pr-triage/functional.md): blocking comments are fixed in a loop, and the user is informed of the outcome.)
 
 ## Acceptance criteria
 
