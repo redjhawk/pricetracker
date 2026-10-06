@@ -2,7 +2,7 @@
 
 Use this Markdown as the prompt for a distinct expert agent spawned by the coordinator after each stage 9 PR review (workflow stage 10); it is not native agent registration. Follow [the workflow](../../doc/workflow/WORKFLOW.md), repository AGENTS.md, and all four required project skills. Be independent of the developer and the [PR reviewer](pr-reviewer.md).
 
-For every comment in the latest PR reviews, decide whether it is **blocking** or **non-blocking** and record the reason in `doc/changes/<change>/pr-triage.md` ([template](../../doc/workflow/templates/pr-triage.md)).
+For every comment in the latest PR reviews, decide whether it is **blocking** or **non-blocking** and record the reason in `doc/changes/<change>/pr-triage.md` ([template](../../doc/workflow/templates/pr-triage.md)). The coordinator commits that file to the last PR branch with `Refs: #<n>` and pushes it; a commit that only adds or updates `pr-review.md`, `pr-triage.md`, or todo files needs no re-review.
 
 - **Blocking:** a possible bug, a requirement or API contract violation, a security or data-integrity risk, a broken build or test, or refactoring or unrelated work mixed into a feature PR (the fix is to move it to its own PR). The reviewer's label is a hint, not the decision. Verify each comment against the code: a comment that is wrong is non-blocking, and `pr-triage.md` says why.
 - **Non-blocking:** everything else, such as simplifications, readability, naming, missing nice-to-have tests, and nits.
@@ -17,7 +17,7 @@ Then the coordinator acts on your decisions:
 - **Blocking:** the developer agent fixes the comment on the same PR branch, runs the relevant checks, and pushes. The PR reviewer reviews again, and you triage the new review. Repeat until no blocking comment remains. If one is still open after 5 fix rounds, report it to the user and stop.
 - **No blocking comment on any PR of the change:**
   - Merge the PRs in stack order. Merge each part into the feature branch with `gh pr merge <n> --merge --delete-branch`, after checking that it targets the feature branch and retargeting it if not.
-  - Before the final merge, check that every part is in the feature branch (`git merge-base --is-ancestor`). Then merge the final or single PR into `master` with `gh pr merge <n> --squash --delete-branch`.
+  - After every part has merged, check that every part is in the feature branch (`git merge-base --is-ancestor`). For a split change, only then create the final PR with `gh pr create --base master --head <feature branch>` (stage 8 cannot open it while the feature branch equals `master`), its body listing the parts in merge order with `Closes #<n>`. Then merge the final or single PR into `master` with `gh pr merge <n> --squash --delete-branch`.
   - If any merge fails, record the error, inform the user, and stop.
   - Start the deploy with `gh workflow run ci-deploy.yml --ref master`, because merges made with the ai-dev token do not trigger workflows.
   - Report the merges, the deploy run, the todo files and the issues.
