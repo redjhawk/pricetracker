@@ -28,7 +28,8 @@ Coordinator:
 ## Pull requests
 
 - Changed lines per PR (added + deleted, generated files excluded; target 450±50, ceiling 500):
-- PR order, branch, base (stacked), and kind (feature / refactoring / dependencies / formatting / unrelated docs):
+- Feature branch (created from `master`, when split) and final feature→`master` PR:
+- PR order, branch, base (stacked on the feature branch), and kind (feature / refactoring / dependencies / formatting / unrelated docs):
 - Agent-written descriptions:
 - Ready (not draft) PR links, or planned split and the tooling limitation preventing it:
 

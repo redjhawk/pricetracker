@@ -82,7 +82,7 @@ jobs:
             --effort low
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Task,TodoWrite,Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(gofmt:*),Bash(npm ci),Bash(npm run build),Bash(npm run dev:*),Bash(npm run test:*),Bash(npx tsc:*),Bash(npx playwright:*),Bash(node:*),Bash(./pricefollower:*),Bash(bash -n:*),Bash(pkill -f pricefollower*),Bash(pkill -f vite*),Bash(go run:*),Bash(PRICEFOLLOWER_ENV=development go run:*),Bash(env PRICEFOLLOWER_ENV=development go run:*),Bash(curl http://localhost*),Bash(curl -s http://localhost*),Bash(curl http://127.0.0.1*),Bash(curl -s http://127.0.0.1*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(git branch --show-current),Bash(git branch --list:*),Bash(git add:*),Bash(git commit:*),Bash(git checkout -b ai-dev/*),Bash(git switch -c ai-dev/*),Bash(git switch ai-dev/*),Bash(git push origin HEAD),Bash(git push -u origin HEAD),Bash(git push --force-with-lease origin HEAD),Bash(git fetch origin:*),Bash(git checkout ai-dev/*),Bash(git restore:*),Bash(git rm:*),Bash(git mv:*),Bash(git stash:*),Bash(git cherry-pick:*),Bash(git rebase:*),Bash(git reset:*),Bash(git merge-base:*),Bash(git branch ai-dev/*),Bash(git branch -m ai-dev/*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue comment:*)"
-            --append-system-prompt "Before any work, read AGENTS.md and follow it fully: read the four project skills it lists (.agents/skills/ and project-skills/) and run the staged workflow in doc/workflow/WORKFLOW.md, using a separate Task subagent for each role in .agents/roles/. The issue is the user's development request. When a product decision, API contract approval or refactoring decision is needed, ask it in the issue and stop; the user answers with an @claude comment. Use small Conventional Commits that end with 'Refs: #<issue number>'. Publish a branch only with exactly `git push -u origin HEAD`. Open pull requests yourself with `gh pr create`, titled 'ai-dev #<issue number>: <what this PR does>', with a body that explains the change and links the issue ('Closes #<n>' on the last PR, 'Part of #<n>' on the others). For a big refactoring or a large feature, split the work into several reviewable PRs: create each extra branch with `git checkout -b ai-dev/issue-<n>-<short-name>`; branch from the previous part and pass `--base <that branch>` when a PR depends on another one, and say so in its body. To split work that is already written, move it between ai-dev/ branches with cherry-pick, `git checkout ai-dev/<branch> -- <paths>`, `git restore`, `git reset` and interactive-free rebases (`git rebase --onto`); after rebasing a branch that is already pushed, update it only with `git push --force-with-lease origin HEAD`, and keep each PR's base and description current with `gh pr edit`. Every part must build and pass its tests on its own. Only branches named ai-dev/... may be created or pushed. After review decisions, post the adjudicator's decision summary on the issue with `gh issue comment <n>`; it is informational, so do not stop for a reply. For QA, start the app with npm run dev in the background and test it with Playwright (Chromium is installed); stop it when done."
+            --append-system-prompt "Before any work, read AGENTS.md and follow it fully: read the four project skills it lists (.agents/skills/ and project-skills/) and run the staged workflow in doc/workflow/WORKFLOW.md, using a separate Task subagent for each role in .agents/roles/. The issue is the user's development request. When a product decision, API contract approval or refactoring decision is needed, ask it in the issue and stop; the user answers with an @claude comment. Use small Conventional Commits that end with 'Refs: #<issue number>'. Publish a branch only with exactly `git push -u origin HEAD`. Open pull requests yourself with `gh pr create`, titled 'ai-dev #<issue number>: <what this PR does>', with a body that explains the change and links the issue ('Closes #<n>' on the PR that merges into master, 'Part of #<n>' on the others). For a big refactoring or a large feature, split the work into several reviewable PRs on a feature branch: first run `git fetch origin master` and `git checkout -b ai-dev/issue-<n>-feature origin/master` (an exact copy of master, before any run commit) and push it; create each part branch with `git checkout -b ai-dev/issue-<n>-<short-name>`; PR 1 uses `--base ai-dev/issue-<n>-feature`, and each later part branches from the previous part and passes `--base <that branch>`, saying so in its body; finally open one PR from `ai-dev/issue-<n>-feature` to master that lists the parts in merge order and says to merge it last, so only that merge deploys. A change that fits one PR targets master directly. To split work that is already written, move it between ai-dev/ branches with cherry-pick, `git checkout ai-dev/<branch> -- <paths>`, `git restore`, `git reset` and interactive-free rebases (`git rebase --onto`); after rebasing a branch that is already pushed, update it only with `git push --force-with-lease origin HEAD`, and keep each PR's base and description current with `gh pr edit`. Every part must build and pass its tests on its own. Only branches named ai-dev/... may be created or pushed. After review decisions, post the adjudicator's decision summary on the issue with `gh issue comment <n>`; it is informational, so do not stop for a reply. For QA, start the app with npm run dev in the background and test it with Playwright (Chromium is installed); stop it when done."
 
       # Safety net: Claude normally opens its PRs itself (possibly several). If it committed on the
       # run's branch but left it without a PR, open one. Skipped for PR comments (the PR exists) and
@@ -98,6 +98,13 @@ jobs:
           api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           repo_api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
           base="${{ github.event.repository.default_branch }}"
+          closing="Closes #$ISSUE_NUMBER"
+          # A split run keeps master untouched until its final feature-branch PR: target the feature branch instead
+          feature="ai-dev/issue-$ISSUE_NUMBER-feature"
+          if [ "$BRANCH" != "$feature" ] && api "$repo_api/branches/$feature" >/dev/null 2>&1; then
+            base="$feature"
+            closing="Part of #$ISSUE_NUMBER"
+          fi
 
           ahead=$(api "$repo_api/compare/$base...$BRANCH" | jq -r .ahead_by 2>/dev/null || echo 0)
           if [ "${ahead:-0}" = 0 ]; then
@@ -114,13 +121,14 @@ jobs:
           url=$(jq -n --arg title "ai-dev #$ISSUE_NUMBER: $ISSUE_TITLE" --arg head "$BRANCH" --arg base "$base" \
                   --arg body "Implemented by Claude (ai-dev workflow) for #$ISSUE_NUMBER.
 
-          Closes #$ISSUE_NUMBER" '{title: $title, head: $head, base: $base, body: $body}' \
+          $closing" '{title: $title, head: $head, base: $base, body: $body}' \
                 | api -X POST "$repo_api/pulls" -d @- | jq -r .html_url)
           echo "Opened $url"
           echo "### Pull request: $url" >> "$GITHUB_STEP_SUMMARY"
 
       # Enforces the PR size limit from AGENTS.md: fails the run if any open PR for this issue has more
-      # than 500 changed lines, not counting generated files.
+      # than 500 changed lines, not counting generated files. The final feature-branch PR (ai-dev/issue-<n>-feature
+      # into master) is exempt: it only aggregates part PRs that were already measured.
       - name: Check pull request sizes
         if: always() && steps.claude.outcome != 'skipped'
         env:
@@ -137,7 +145,7 @@ jobs:
           ISSUE_NUMBER="${ISSUE_NUMBER:-$EVENT_NUMBER}"
           failed=0
           for pr in $(api "$repo_api/pulls?state=open&per_page=100" \
-                        | jq -r --arg n "$ISSUE_NUMBER" '.[] | select(.head.ref | startswith("ai-dev/issue-\($n)-")) | .number'); do
+                        | jq -r --arg n "$ISSUE_NUMBER" '.[] | select(.head.ref | startswith("ai-dev/issue-\($n)-")) | select(.head.ref != "ai-dev/issue-\($n)-feature") | .number'); do
             lines=$(api "$repo_api/pulls/$pr/files?per_page=100" \
                       | jq --arg gen "$generated" '[.[] | select(.filename | test($gen) | not) | .additions + .deletions] | add // 0')
             echo "PR #$pr: $lines changed lines (limit $LIMIT)"
