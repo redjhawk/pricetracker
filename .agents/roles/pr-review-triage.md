@@ -16,8 +16,9 @@ Then the coordinator acts on your decisions:
   - If creating the issue fails, record the error in the todo file and in `pr-triage.md`, inform the user (originating issue comment and final run report), and continue.
 - **Blocking:** the developer agent fixes the comment on the same PR branch, runs the relevant checks, and pushes. The PR reviewer reviews again, and you triage the new review. Repeat until no blocking comment remains. If one is still open after 5 fix rounds, report it to the user and stop.
 - **No blocking comment on any PR of the change:**
+  - Before the first merge, fill the `## Merge` section of `pr-triage.md` with "No blocking comments remain: yes, at round k" and the planned merge order (PR, base, method). The coordinator commits it to the last PR branch with `Refs: #<n>` and pushes it (record-only, no re-review), so it reaches `master` with the merge. Nothing is committed after the merges start.
   - Merge the PRs in stack order. Merge each part into the feature branch with `gh pr merge <n> --merge --delete-branch`, after checking that it targets the feature branch and retargeting it if not.
   - After every part has merged, check that every part is in the feature branch (`git merge-base --is-ancestor`). For a split change, only then create the final PR with `gh pr create --base master --head <feature branch>` (stage 8 cannot open it while the feature branch equals `master`), its body listing the parts in merge order with `Closes #<n>`. Then merge the final or single PR into `master` with `gh pr merge <n> --squash --delete-branch`.
   - If any merge fails, record the error, inform the user, and stop.
   - Start the deploy with `gh workflow run ci-deploy.yml --ref master`, because merges made with the ai-dev token do not trigger workflows.
-  - Report the merges, the deploy run, the todo files and the issues.
+  - Report the merge results, any merge failure, the deploy run, and any todo or issue outcome produced after the record commit only on the originating issue (`gh issue comment`) and in the final run report.

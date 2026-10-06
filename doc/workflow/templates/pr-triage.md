@@ -14,6 +14,5 @@ Triage agent: <agent, independent of developer and PR reviewer>
 ## Merge
 
 - No blocking comments remain: <yes, at round k>
-- Merges in order (PR, base, method, result):
-- Deploy: <ci-deploy run link or how it was started>
-- User informed: <issue comment link / final run report>
+- Planned merge order (PR, base, method):
+- Merge results and deploy: reported on <originating issue comment / final run report>, not in this file (it is committed before the first merge)
