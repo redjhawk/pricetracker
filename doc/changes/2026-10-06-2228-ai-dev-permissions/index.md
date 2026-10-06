@@ -1,6 +1,6 @@
 # ai-dev permissions audit
 
-Stage: pr-review.
+Stage: merge.
 User functional source: request of 2026-10-07.
 Scope: `.github/workflows/ai-dev.yml` only (allowlist, prompt, header comment). No refactoring; API unchanged; `FUNCTIONAL_SPECIFICATIONS.md` not updated (no product behavior).
 
