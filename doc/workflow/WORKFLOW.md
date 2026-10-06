@@ -2,6 +2,32 @@
 
 This workflow applies to new functionality and behavior changes. The coordinator maintains the handoffs and uses separate expert agents for functional specification, technical specification, implementation, independent review, independent review decisions, and QA. A reviewer or decision agent must not review or adjudicate its own implementation. The decision agent is distinct from the reviewer. Available concurrency limits do not remove this separation: run the roles sequentially when needed.
 
+## Overview: from issue to production
+
+This summary is informational; the numbered sections below prevail.
+
+**Trigger.** The user opens an issue labelled `ai-dev`, or comments `@claude` on an issue or pull request. The `ai-dev` workflow (`.github/workflows/ai-dev.yml`) starts on the barcelona-dev runner, installs dependencies, and creates an `ai-dev/issue-<n>-...` branch. Claude reads `AGENTS.md`, the four project skills, and this workflow.
+
+| # | Stage | What happens | Output |
+|---|---|---|---|
+| 1 | Functional specifier | Turns the issue into testable requirements, one subject per file, and updates the global summary | `doc/specifications/<subject>/functional.md` (`FR-...`), `doc/FUNCTIONAL_SPECIFICATIONS.md` |
+| gate | Functional gate | Anything missing or ambiguous is asked in the issue and the run stops; the user answers with `@claude ...` and the run resumes | Questions on the issue |
+| 2 | Technical specifier | Frontend, backend, and API design; refactoring decisions | `doc/specifications/<subject>/technical.md` (`TS-...`) |
+| 3 | API contract | Canonical HTTP contract updated before either tier is coded | `API_SPECIFICATION.md` |
+| 4 | Developer | Implements only the specifications; runs builds and tests | Code and check results |
+| 5 | Independent reviewer | Checks the change against the specifications and contract; flags unspecified behavior | `doc/changes/<change>/review.md` (`REV-...`) |
+| 6 | Independent adjudicator | Critical or not; fix, defer, or reject. Fixes return to the developer and are rechecked by the reviewer | `doc/changes/<change>/decisions.md` |
+| 7 | QA tester | Runs the app; Playwright scenarios, corner cases, exploratory sequences. Failures return through 4, 5, and 6, then are retested | `doc/changes/<change>/qa.md` (`QA-...`) |
+| 8 | Coordinator | Focused commits (`Refs: #<n>`), push, and ready PRs: about 450 changed lines, 500 maximum, stacked when split, refactoring and dependency updates separate | `doc/changes/<change>/commit-step.md`, pull requests |
+
+All artifacts are linked from `doc/changes/<change>/index.md`.
+
+**After the run.** The `ai-dev` workflow fails if any PR for the issue exceeds 500 changed lines, and opens a PR if Claude committed without opening one. The user reviews the PRs; an `@claude ...` comment on a PR or a diff line makes Claude push fixes to the same branch. No CI runs on pull requests (the repository is public, so fork code never runs on barcelona).
+
+**After the merge.** A push to `master` triggers `ci-deploy` (`.github/workflows/ci-deploy.yml`): `go vet`, `go test`, and `npm run build`, then deployment to the ARMv6 target device; a failing step stops the deployment. The last PR's description says `Closes #<n>`. GitHub closes the issue automatically only when that PR merges into `master`; a stacked PR merged into another branch does not close it.
+
+**Always.** Only functional questions go to the user; agents decide API, design, refactoring, and review outcomes and record the rationale. A critical unresolved finding blocks completion. No check, URL, or pass is reported unless it was actually executed.
+
 ## Autonomy and the functional gate
 
 Agents develop autonomously. The user does not approve API contracts, technical designs, refactoring, implementation, review decisions, or commits; the agents decide these, record the rationale, and proceed.

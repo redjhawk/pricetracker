@@ -22,3 +22,9 @@ Coordinator: Claude (coordinator session)
 ## Pull requests
 
 - One PR to `master`, documentation only, well under 450 changed lines; no split needed.
+
+## Follow-up commit: overview section
+
+- Gates: review findings REV-003..007 are decided (005 fixed; 003, 006 and 007 rejected with evidence; 004 deferred, noncritical, pre-existing in ai-dev.yml). No critical findings. QA covered documentation consistency only.
+- Staged: doc/workflow/WORKFLOW.md and doc/changes/workflow-stage-order/. `git diff --cached --check` is clean.
+- Pushed to the same branch and PR (#50).
