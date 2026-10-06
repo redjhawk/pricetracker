@@ -6,7 +6,7 @@ Scope: autonomous development workflow (`AGENTS.md`, `doc/workflow/WORKFLOW.md` 
 
 ## Requirements
 
-- **FR-WORKFLOW-PR-001** In autonomous development, the agent creates pull requests from the work branch to `master` at the end of the workflow, once the review stage (review and review decisions) has passed. PR creation does not wait for QA.
+- **FR-WORKFLOW-PR-001** In autonomous development, the agent creates pull requests from the work branch to `master` at the end of the workflow, once the review stage (review and review decisions) and QA have passed (QA ordering superseded by [workflow-stage-order](../workflow-stage-order/functional.md)).
 - **FR-WORKFLOW-PR-002** Pull requests are opened ready for review, not as drafts.
 - **FR-WORKFLOW-PR-003** The agent writes each pull request's description.
 - **FR-WORKFLOW-PR-004** Each pull request targets 450 changed lines with a ±50 margin when splitting; 500 changed lines is the only enforced limit. Smaller PRs are acceptable when the change or a separate-kind PR is smaller; unrelated work is never combined to reach the target.
