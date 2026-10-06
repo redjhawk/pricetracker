@@ -109,3 +109,17 @@ In `doc/workflow/WORKFLOW.md` (stage 10 Merge bullet + Handoff), `.agents/roles/
 ## Todo files and issues created
 
 All 12 non-blocking groups (T-A..T-L) are in `doc/todo/2026-10-06-*.md`, with issues #58-#69. The todo files are in a separate documentation PR (part 3), because adding them to #57 would take it over 500 changed lines. All issue creations succeeded.
+
+## Follow-up: part 4 (PR #71, retarget before merge)
+
+During the merges, GitHub closed #57 when its base branch was deleted at the merge of #55. #57's commits reached the feature branch through #70 (ancestor check passed). PR #71 fixes the procedure.
+
+### Round 1 (PR #71 at 3d9681a, review https://github.com/redjhawk/pricetracker/pull/71#pullrequestreview-5435024588)
+
+| Comment (link) | Label | Decision | Reason | Outcome |
+|---|---|---|---|---|
+| https://github.com/redjhawk/pricetracker/pull/71#discussion_r4200844245 | [readability] | non-blocking | Edge cases are wording only. The existing "if any merge fails, stop" rule covers the failure case. | `doc/todo/2026-10-06-merge-retarget-edge-cases.md` |
+| https://github.com/redjhawk/pricetracker/pull/71#discussion_r4200844251 | [readability] | non-blocking | The base is guaranteed by the explicit retarget before each merge. A stale base never reaches master. | `doc/todo/2026-10-06-merge-base-precheck.md` |
+| https://github.com/redjhawk/pricetracker/pull/71#discussion_r4200844256 | [nit] | non-blocking | It adds no new path to master or a deploy. `gh pr edit:*` is already allowed. | `doc/todo/2026-10-06-strict-gh-api-allowlist.md` |
+
+Merge: no blocking comments remain. Order: #71 into `feature/workflow-pr-review` (`--merge --delete-branch`; last part, no next part); ancestor check; create the final PR into `master`; `--squash --delete-branch`; then the deploy.
