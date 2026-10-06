@@ -2,7 +2,7 @@
 
 Status: ready (revision 2, 2026-10-03; depends on the settings API (API approved by the user 2026-10-03 (proposal revision 1 unchanged; see the change index and api-step.md); implementation authorized) only for the operator workflow — the helper itself calls no API)\
 Functional source: [capture requirements](functional.md) revision 2, FR-LBC-CAP-010–018 (FR-LBC-CAP-002–004 unchanged; 001, 005–009 superseded).\
-Revision 1 status: implemented by change [leboncoin-session](../../changes/leboncoin-session/index.md); its file-export and Raspberry Pi transfer parts are superseded below and kept as history ([deprecation record](../../deprecated/leboncoin-session-file.md)).\
+Revision 1 status: implemented by change [leboncoin-session](../../changes/2026-10-03-1213-leboncoin-session/index.md); its file-export and Raspberry Pi transfer parts are superseded below and kept as history ([deprecation record](../../deprecated/leboncoin-session-file.md)).\
 Companions: [settings](../leboncoin-session-settings/technical.md) (accepts the printed line), [collection rev. 2](../leboncoin-session-collection/technical.md), [file removal](../leboncoin-session-file-removal/technical.md).
 
 ## Revision 2 summary

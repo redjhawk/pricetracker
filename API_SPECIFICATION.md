@@ -254,7 +254,7 @@ Only euro-priced marketplaces are supported in v1: `amazon.de`, `amazon.fr`, `am
 
 ## LeBoncoin session settings (approved 2026-10-03)
 
-**Status: approved by the user on 2026-10-03** (proposal revision 1, unchanged) for change [leboncoin-session-settings](doc/changes/leboncoin-session-settings/index.md); approval evidence in its [API record](doc/changes/leboncoin-session-settings/api-step.md). Technical sources: [settings](doc/specifications/leboncoin-session-settings/technical.md), [collection rev. 2](doc/specifications/leboncoin-session-collection/technical.md).
+**Status: approved by the user on 2026-10-03** (proposal revision 1, unchanged) for change [leboncoin-session-settings](doc/changes/2026-10-03-1741-leboncoin-session-settings/index.md); approval evidence in its [API record](doc/changes/2026-10-03-1741-leboncoin-session-settings/api-step.md). Technical sources: [settings](doc/specifications/leboncoin-session-settings/technical.md), [collection rev. 2](doc/specifications/leboncoin-session-collection/technical.md).
 
 The application stores one global LeBoncoin `datadome` session value in SQLite. These endpoints read and replace it. There is no authentication (as for all endpoints); the full value is returned by design (user decision 2 of 2026-10-03) and appears in no other response. Responses carry the existing `Cache-Control: no-store`.
 
@@ -332,7 +332,7 @@ No item endpoint, field, status or result value changes. For LeBoncoin items che
 
 ## Claude token settings and AI reviews (2026-10-04)
 
-**Status: defined by the technical specification agent on 2026-10-04** for change [leboncoin-ai-review](doc/changes/leboncoin-ai-review/index.md) (no user confirmation required, AGENTS.md). Technical sources: [Claude token settings](doc/specifications/claude-token-settings/technical.md), [LeBoncoin AI review](doc/specifications/leboncoin-ai-review/technical.md). Additive: all earlier contracts above are unchanged. Responses carry the existing `Cache-Control: no-store`.
+**Status: defined by the technical specification agent on 2026-10-04** for change [leboncoin-ai-review](doc/changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md) (no user confirmation required, AGENTS.md). Technical sources: [Claude token settings](doc/specifications/claude-token-settings/technical.md), [LeBoncoin AI review](doc/specifications/leboncoin-ai-review/technical.md). Additive: all earlier contracts above are unchanged. Responses carry the existing `Cache-Control: no-store`.
 
 ### Claude token object
 

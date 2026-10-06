@@ -1,6 +1,6 @@
 # File-based LeBoncoin session (removed)
 
-Removed on 2026-10-03 by change [leboncoin-session-settings](../changes/leboncoin-session-settings/index.md). Replaced by **Settings › LeBonCoin session**.
+Removed on 2026-10-03 by change [leboncoin-session-settings](../changes/2026-10-03-1741-leboncoin-session-settings/index.md). Replaced by **Settings › LeBonCoin session**.
 
 ## What it was
 
@@ -52,7 +52,7 @@ The feature was delivered by these commits (find them with `git log --oneline --
 
 Records and specifications:
 
-- Change records: [leboncoin-session](../changes/leboncoin-session/index.md).
+- Change records: [leboncoin-session](../changes/2026-10-03-1213-leboncoin-session/index.md).
 - Superseded requirements: [collection, revision 1](../specifications/leboncoin-session-collection/functional.md#requirements-revision-1) (FR-LBC-COL-001 to 006, 009, 010) and [capture, revision 1](../specifications/leboncoin-session-capture/functional.md#requirements-revision-1) (FR-LBC-CAP-001, 005 to 009).
 - Revision 1 technical designs: [collection](../specifications/leboncoin-session-collection/technical.md#revision-1-technical-design-history) and [capture](../specifications/leboncoin-session-capture/technical.md#revision-1-technical-design-history).
 

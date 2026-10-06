@@ -1,7 +1,7 @@
 # Technical specification: multiple local users and login (phase 1)
 
 Status: ready
-Functional specification: [functional.md](functional.md) and [delivery-plan.md](delivery-plan.md) (D-19 to D-26 take precedence), phase 1 scope in [functional-step.md](../../changes/multi-user-login-phase1/functional-step.md).
+Functional specification: [functional.md](functional.md) and [delivery-plan.md](delivery-plan.md) (D-19 to D-26 take precedence), phase 1 scope in [functional-step.md](../../changes/2026-10-04-2102-issue-15-multi-user-login-phase1/functional-step.md).
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Users and login".
 
 ## Requirement mapping

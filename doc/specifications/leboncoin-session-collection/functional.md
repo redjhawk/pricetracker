@@ -3,7 +3,7 @@
 Status: ready (revision 2, 2026-10-03; FR-LBC-COL-011 to FR-LBC-COL-020 added; file-based requirements superseded)\
 Owner: functional specification agent\
 User decision/reference (revision 1): The user answered “Yes, manual verification is acceptable” to desktop verification, secure transfer to the Raspberry Pi, and repeating verification when rejected. This subject specifies reuse of that operator-supplied session within the existing collection behavior.\
-User decision/reference (revision 2): user request and decisions 1–6 of 2026-10-03 for change [leboncoin-session-settings](../../changes/leboncoin-session-settings/index.md): store the session in the database, set it from the interface, keep automatic cookie renewal, show the last rejection, clear by saving an empty value, and remove the file-based session (`LEBONCOIN_SESSION_FILE`).
+User decision/reference (revision 2): user request and decisions 1–6 of 2026-10-03 for change [leboncoin-session-settings](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md): store the session in the database, set it from the interface, keep automatic cookie renewal, show the last rejection, clear by saving an empty value, and remove the file-based session (`LEBONCOIN_SESSION_FILE`).
 
 ## Revision 2 summary
 
@@ -77,7 +77,7 @@ None for this subject. Revision 1: none. Revision 2: none; the stale-modal quest
 
 - [Existing functional specifications](../../FUNCTIONAL_SPECIFICATIONS.md), section 6 and FR-04/FR-07/FR-14/FR-18.
 - [Canonical API contract](../../../API_SPECIFICATION.md): preserve existing collection and error semantics.
-- [Investigation](../../changes/leboncoin-403-investigation/report.md): verified local cookie reuse succeeded, remote portability remains unproven.
+- [Investigation](../../changes/2026-10-03-0854-leboncoin-403-investigation/report.md): verified local cookie reuse succeeded, remote portability remains unproven.
 - [Capture subject](../leboncoin-session-capture/functional.md).
 - Technical handoff target: `doc/specifications/leboncoin-session-collection/technical.md`.
-- Revision 2: [LeBoncoin session settings](../leboncoin-session-settings/functional.md), [file-based session removal](../leboncoin-session-file-removal/functional.md), [deprecation record](../../deprecated/leboncoin-session-file.md), change [leboncoin-session-settings](../../changes/leboncoin-session-settings/index.md).
+- Revision 2: [LeBoncoin session settings](../leboncoin-session-settings/functional.md), [file-based session removal](../leboncoin-session-file-removal/functional.md), [deprecation record](../../deprecated/leboncoin-session-file.md), change [leboncoin-session-settings](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md).

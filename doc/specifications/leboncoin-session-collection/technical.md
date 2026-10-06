@@ -2,7 +2,7 @@
 
 Status: ready (revision 2, 2026-10-03; API approved by the user 2026-10-03 (proposal revision 1 unchanged; see the change index and api-step.md); implementation authorized)\
 Functional source: [collection requirements](functional.md) revision 2, FR-LBC-COL-011–020 (FR-LBC-COL-007/008 unchanged; 001–006, 009, 010 superseded).\
-Revision 1 status: approved design implemented by change [leboncoin-session](../../changes/leboncoin-session/index.md); its file/sidecar parts are superseded below and kept as history. See the [deprecation record](../../deprecated/leboncoin-session-file.md).\
+Revision 1 status: approved design implemented by change [leboncoin-session](../../changes/2026-10-03-1213-leboncoin-session/index.md); its file/sidecar parts are superseded below and kept as history. See the [deprecation record](../../deprecated/leboncoin-session-file.md).\
 Companions: [settings](../leboncoin-session-settings/technical.md) (storage table, API), [capture rev. 2](../leboncoin-session-capture/technical.md), [file removal](../leboncoin-session-file-removal/technical.md).
 
 ## Revision 2 summary

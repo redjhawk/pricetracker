@@ -2,7 +2,7 @@
 
 Status: ready\
 Owner: functional specification agent\
-User decision/reference: user request of 2026-10-03 (quoted in the [change index](../../changes/leboncoin-session-settings/index.md)): “on the top right part of the screen, you should show something similar to a profile icon that will open a menu. on this menu, you should show a settings link. when clicking on it, a modal will appear.”
+User decision/reference: user request of 2026-10-03 (quoted in the [change index](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md)): “on the top right part of the screen, you should show something similar to a profile icon that will open a menu. on this menu, you should show a settings link. when clicking on it, a modal will appear.”
 
 ## Purpose and scope
 

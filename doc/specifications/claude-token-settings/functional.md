@@ -2,7 +2,7 @@
 
 Status: ready
 Owner: functional specification agent
-User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04) and user decisions D-1–D-3 recorded in the [change index](../../changes/leboncoin-ai-review/index.md).
+User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10-04) and user decisions D-1–D-3 recorded in the [change index](../../changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md).
 
 ## Purpose and scope
 
@@ -42,7 +42,7 @@ None.
 
 ## Traceability
 
-- Request and decisions: [change index](../../changes/leboncoin-ai-review/index.md) D-1–D-3.
+- Request and decisions: [change index](../../changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md) D-1–D-3.
 - [LeBoncoin session settings](../leboncoin-session-settings/functional.md) FR-LBC-SET-001–019.
 - [LeBoncoin AI review](../leboncoin-ai-review/functional.md).
 - Technical handoff target: `doc/specifications/claude-token-settings/technical.md`.
