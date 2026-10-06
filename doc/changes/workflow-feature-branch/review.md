@@ -27,3 +27,20 @@ FR-WORKFLOW-FB-001..003 are covered consistently in AGENTS.md stage 8, the WORKF
 - Suggested action: add "except the final feature-branch PR" to the Size bullet.
 
 No critical or high findings.
+
+## Overview diagram review (WORKFLOW.md "Split changes (feature branch)")
+
+Checked against WORKFLOW.md stage 8, technical.md TS-WORKFLOW-FB-001..005 and `.github/workflows/ai-dev.yml`. Verified as accurate: single-PR changes target `master`; feature branch pushed first; PR 1 targets the feature branch and PR 2 targets PR 1 (diagram arrows); retargeting after a merge; final PR lists parts in merge order, is merged last, carries `Closes #<n>` and is exempt from the size check (ai-dev jq filter skips the exact `-feature` head); part PRs merge without deploying (`ci-deploy` runs only on `master`/`main` pushes); safety net uses `Part of #<n>` and base `ai-dev/issue-<n>-feature` when that branch exists.
+
+## REV-005 (low) Diagram shows only the ai-dev branch name and origin/master start point
+- Requirement: TS-WORKFLOW-FB-001.
+- Location: WORKFLOW.md overview diagram, `ai-dev/issue-<n>-feature (exact copy of origin/master, pushed first)`.
+- Evidence: stage 8 and TS-WORKFLOW-FB-001 use `feature/<change>` outside ai-dev runs; the `origin/master` start point is stated only for ai-dev (TS-WORKFLOW-FB-005, ai-dev prompt). The overview is informational and refers to stage 8, so it is not contradictory, only narrower.
+- Suggested action: optionally annotate "(`feature/<change>` outside ai-dev)". Accept-as-is is reasonable.
+
+## REV-006 (low) Safety-net bullet slightly overstates "whenever that branch exists"
+- Location: WORKFLOW.md overview, third bullet.
+- Evidence: ai-dev.yml applies the feature base only when `$BRANCH != ai-dev/issue-<n>-feature`. If the run's branch is the feature branch itself, the fallback PR targets `master` with `Closes #<n>`; that is the intended final PR, so `master` is not reached early by a part, but the wording "whenever that branch exists" omits this exception.
+- Suggested action: say "for a part branch, whenever the feature branch exists". Accept-as-is is reasonable.
+
+No critical or high findings for the overview diagram.

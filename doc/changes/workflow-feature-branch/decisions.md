@@ -51,6 +51,28 @@ Adjudicator: independent review adjudicator agent (separate invocation)
 - Resolution: fixed. WORKFLOW.md line 125 now adds "except the final feature-branch→`master` PR, which is exempt"; CI size check (jq filter) already excludes the feature head.
 - Follow-up: none.
 
+### REV-005: Diagram shows only the ai-dev branch name and origin/master start point
+
+- Evidence: WORKFLOW.md overview diagram named only `ai-dev/issue-<n>-feature`, while stage 8 and TS-WORKFLOW-FB-001 use `feature/<change>` outside ai-dev runs.
+- Impact and scenario: a non-ai-dev reader could assume the ai-dev branch name applies to every split change.
+- Criticality: non-critical, because the overview is informational, defers to stage 8, and is narrower rather than contradictory.
+- Disposition: fix.
+- Reason: one-sentence clarification at no cost.
+- Specification decision: not applicable.
+- Resolution: fixed. The "Split changes" intro now states "The feature branch is `ai-dev/issue-<n>-feature` in `ai-dev` runs and `feature/<change>` otherwise"; the diagram keeps the ai-dev example with its `origin/master` start point, consistent with TS-WORKFLOW-FB-005 and the ai-dev prompt.
+- Follow-up: none.
+
+### REV-006: Safety-net bullet slightly overstates "whenever that branch exists"
+
+- Evidence: `.github/workflows/ai-dev.yml` line 104 switches the base to the feature branch only when `$BRANCH != ai-dev/issue-$ISSUE_NUMBER-feature` and the feature branch exists.
+- Impact and scenario: a reader could think the fallback for the feature branch itself also targets the feature branch.
+- Criticality: non-critical, because the wording is informational and the actual behavior is correct.
+- Disposition: fix.
+- Reason: aligns the overview text with the script's exception.
+- Specification decision: not applicable.
+- Resolution: fixed. The third bullet now scopes the rule to "a part branch" and adds "For the feature branch itself, the fallback is the final PR to `master`", matching lines 100–107 of ai-dev.yml.
+- Follow-up: none.
+
 ## Decision summary (published, informational)
 
 | Finding | Criticality | Disposition | What was done |
@@ -59,9 +81,11 @@ Adjudicator: independent review adjudicator agent (separate invocation)
 | REV-002 Safety-net PR step ignores the feature branch | non-critical | fix | Fallback step targets `ai-dev/issue-<n>-feature` with `Part of #<n>` when it exists; bash verified |
 | REV-003 Leftover "pull requests to `master`" wording | non-critical | fix | WORKFLOW.md and AGENTS.md mention both bases; supersession note added to workflow-pull-requests technical spec |
 | REV-004 Size measurement for the final PR is ambiguous | non-critical | fix | Size bullet exempts the final feature-branch→`master` PR |
+| REV-005 Diagram shows only the ai-dev branch name | non-critical | fix | Overview names `ai-dev/issue-<n>-feature` for ai-dev runs and `feature/<change>` otherwise |
+| REV-006 Safety-net bullet overstates "whenever that branch exists" | non-critical | fix | Bullet scoped to part branches; feature branch itself falls back to the final PR to `master`, matching ai-dev.yml |
 
 Published as an issue comment: no originating issue — requested in a local session. Included in the final run report: yes.
 
 ## Release readiness
 
-No critical findings; all four non-critical findings are fixed and verified against the working tree. No open functional questions. Documentation-only change plus CI workflow script; application QA not applicable beyond documentation/role consistency checks.
+No critical findings; all six non-critical findings are fixed and verified against the working tree. No open functional questions. Documentation-only change plus CI workflow script; application QA not applicable beyond documentation/role consistency checks.

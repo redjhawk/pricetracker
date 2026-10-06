@@ -17,3 +17,7 @@ Coordinator: Claude (coordinator session)
 ## Pull requests
 
 - A single PR (3 of 3), stacked on `docs/workflow-adjudication-report` (PR #51). This stack was created before the rule existed, so it does not use a feature branch.
+
+## Follow-up commit: overview diagram
+
+- Gates: REV-005 and REV-006 are non-critical and fixed, verified by the adjudicator. `git diff --check` is clean. Pushed to the same PR (#52).

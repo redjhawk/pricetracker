@@ -22,6 +22,19 @@ This summary is informational; the numbered sections below prevail.
 
 All artifacts are linked from `doc/changes/<change>/index.md`.
 
+**Split changes (feature branch).** A change that fits in one PR targets `master` directly. A larger change is delivered like this (details in stage 8). The feature branch is `ai-dev/issue-<n>-feature` in `ai-dev` runs and `feature/<change>` otherwise:
+
+```
+master ──► ai-dev/issue-<n>-feature   (exact copy of origin/master, pushed first)
+              ▲ PR 1 (part)  ◄── PR 2 (part)  ◄── PR 3 ...   merge into the feature branch: no deploy
+              │
+              └──── final PR: feature → master   merged last, "Closes #<n>": the only deploy
+```
+
+- Part PRs are at most 500 changed lines each. After one merges, the next is retargeted to the feature branch.
+- The final PR lists the parts in merge order. It is exempt from the size check because it only aggregates parts that were already reviewed and measured.
+- If Claude committed on a part branch without opening a PR, the `ai-dev` safety-net step targets the feature branch (with `Part of #<n>`) whenever that branch exists, so `master` is never reached early. For the feature branch itself, the fallback is the final PR to `master`.
+
 **After the run.** The `ai-dev` workflow fails if any PR for the issue exceeds 500 changed lines, and opens a PR if Claude committed without opening one. The user reviews the PRs; an `@claude ...` comment on a PR or a diff line makes Claude push fixes to the same branch. No CI runs on pull requests (the repository is public, so fork code never runs on barcelona).
 
 **After the merge.** A push to `master` triggers `ci-deploy` (`.github/workflows/ci-deploy.yml`): `go vet`, `go test`, and `npm run build`, then deployment to the ARMv6 target device; a failing step stops the deployment. Merges into a feature branch do not deploy. For a split change, only the final feature-branch→`master` merge deploys, once. The PR that merges into `master` (the single PR, or the final feature-branch PR) says `Closes #<n>`, and GitHub closes the issue when it merges. Part PRs say `Part of #<n>`.

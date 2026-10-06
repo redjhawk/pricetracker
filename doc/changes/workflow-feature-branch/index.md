@@ -8,3 +8,7 @@ Scope: workflow documents and ai-dev.yml; no refactoring; API unchanged. `FUNCTI
 
 - [Functional](../../specifications/workflow-feature-branch/functional.md), [technical](../../specifications/workflow-feature-branch/technical.md)
 - [Review](review.md), [decisions](decisions.md), [commit step](commit-step.md)
+
+## Follow-up: overview diagram
+
+At the user's request, the WORKFLOW.md overview gained a "Split changes (feature branch)" diagram and summary. It is informational, and stage 8 still prevails.
