@@ -8,7 +8,7 @@ Audit of the documented commands against the allowlist and job permissions on 20
 | Need (source) | Before | Change |
 |---|---|---|
 | Measure PR size with `scripts/pr-size.sh <base>` (WORKFLOW stage 8) | not allowed | allow `scripts/pr-size.sh:*` and `./scripts/pr-size.sh:*` (the script only runs `git diff` and is read-only) |
-| Read review comments and reviews for triage (stage 10) | not allowed | allow `gh api repos/redjhawk/pricetracker/pulls/*/comments` and `.../reviews` for reads (intended as GET; the glob is not strict, see #74) |
+| Read review comments and reviews for triage (stage 10) | not allowed | allow `gh api --paginate repos/redjhawk/pricetracker/pulls/*/comments` and `gh api --paginate .../reviews` for reads (intended as GET; the glob is not strict, see #74). `--paginate` is required because the API returns 30 items per page by default, so later comments or reviews would be missed; the non-paginated entries are removed |
 | Update a PR's title, description or base (stage 8 and the stack) | `gh pr edit` allowed, but it fails here with a Projects (classic) GraphQL error (verified) | allow `gh api repos/redjhawk/pricetracker/pulls/* --method PATCH --input *`, and say so in the prompt |
 | Read the originating issue and its answers (functional gate, resumed runs) | not allowed | allow `gh issue view:*` (read-only) |
 | Report the deploy run after `gh workflow run` (stage 10) | not allowed | allow `gh run list --workflow ci-deploy.yml:*` (read-only) |
