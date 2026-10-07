@@ -90,51 +90,145 @@ func NewCollector(userAgent string) *Collector {
 }
 
 func (c *Collector) Collect(ctx context.Context, item model.Listing) model.CollectionResult {
-	request, err := c.newRequest(ctx, item, item.URL)
+	result, page := c.productPage(ctx, item)
+	if result.Result == "request_error" {
+		return result
+	}
+	if page != "" {
+		result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = secondHandOfferFromProductPage(page)
+		if result.SecondHandStatus == "available" {
+			return result
+		}
+	}
+	return c.withSecondHand(ctx, item, result)
+}
+
+// CollectProduct reads a product page with a single request, as a person opening the item would:
+// no second-hand offer request is sent, so the second-hand status comes from the product page only.
+// A successful read also returns the product details used by the AI review.
+func (c *Collector) CollectProduct(ctx context.Context, item model.Listing) model.CollectionResult {
+	result, page := c.productPage(ctx, item)
+	result.SecondHandStatus = "check_error"
+	if page == "" {
+		return result
+	}
+	status, amount, condition, label := secondHandOfferFromProductPage(page)
+	if status == "available" {
+		result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = status, amount, condition, label
+	}
+	if result.Result == "success" {
+		result.Product = productDetails(page, result)
+	}
+	return result
+}
+
+// productPage requests and parses the product page. The page is empty unless the product was read
+// (success or price_not_found). A failure keeps the request URL, HTTP status and a response excerpt.
+func (c *Collector) productPage(ctx context.Context, item model.Listing) (model.CollectionResult, string) {
+	result, page := c.fetchPage(ctx, item.Marketplace, item.URL, "product")
+	if result.Result == "request_error" {
+		printRequestError(item, result.Message)
+		result.Message = "Amazon could not be reached for a price check."
+		result.SecondHandStatus = "check_error"
+		return result, ""
+	}
+	if result.Result == "unavailable" {
+		return result, ""
+	}
+	if regexp.MustCompile(`(?i)currently unavailable|temporarily out of stock|no longer available|this item is not available`).MatchString(textContent(page[:min(len(page), 200_000)])) {
+		result.Result, result.Message = "unavailable", "The listing is no longer available."
+		return result, ""
+	}
+	result.Result, result.Message, result.SecondHandStatus = "price_not_found", "Amazon did not show a detectable euro price.", "check_error"
+	if amount, ok := productPrice(page); ok {
+		result.Result, result.Message = "success", ""
+		result.AmountCents = amount
+	}
+	result.Title = productTitle(page)
+	result.ThumbnailURL = productImage(page)
+	return result, page
+}
+
+// fetchPage sends one Amazon page request. It returns a request_error result with the reason in
+// Message, an unavailable result for 404/410, or an empty result with the HTML page.
+func (c *Collector) fetchPage(ctx context.Context, marketplace, target, kind string) (model.CollectionResult, string) {
+	result := model.CollectionResult{RequestURL: target}
+	fail := func(body []byte, err error) (model.CollectionResult, string) {
+		result.Result, result.Message, result.ResponseExcerpt = "request_error", err.Error(), excerpt(body)
+		return result, ""
+	}
+	request, err := c.newRequest(ctx, model.Listing{Marketplace: marketplace}, target)
 	if err != nil {
-		return requestError(item, err)
+		return fail(nil, err)
 	}
 	response, err := c.client.Do(request)
 	if err != nil {
-		return requestError(item, err)
+		return fail(nil, err)
 	}
 	defer response.Body.Close()
+	result.HTTPStatus = response.StatusCode
+	body, err := io.ReadAll(io.LimitReader(response.Body, 5<<20))
+	if err != nil {
+		return fail(body, err)
+	}
 	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
-		return c.withSecondHand(ctx, item, model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."})
+		result.Result, result.Message = "unavailable", "The listing is no longer available."
+		return result, ""
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return requestError(item, fmt.Errorf("Amazon returned HTTP %d", response.StatusCode))
+		return fail(body, fmt.Errorf("Amazon returned HTTP %d", response.StatusCode))
 	}
 	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if mediaType != "text/html" && mediaType != "application/xhtml+xml" {
-		return requestError(item, fmt.Errorf("Amazon returned an unexpected content type"))
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 5<<20))
-	if err != nil {
-		return requestError(item, err)
+		return fail(body, fmt.Errorf("Amazon returned an unexpected content type"))
 	}
 	page := string(body)
 	if regexp.MustCompile(`(?i)captcha|robot check|enter the characters you see below`).MatchString(page[:min(len(page), 200_000)]) {
-		return requestError(item, fmt.Errorf("Amazon blocked the product request"))
+		return fail(body, fmt.Errorf("Amazon blocked the %s request", kind))
 	}
-	if regexp.MustCompile(`(?i)currently unavailable|temporarily out of stock|no longer available|this item is not available`).MatchString(textContent(page[:min(len(page), 200_000)])) {
-		return c.withSecondHand(ctx, item, model.CollectionResult{Result: "unavailable", Message: "The listing is no longer available."})
+	return result, page
+}
+
+// excerpt returns the first 2 KB of a response body with control characters replaced, for logs.
+func excerpt(body []byte) string {
+	text := strings.ToValidUTF8(string(body[:min(len(body), 2048)]), "")
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+}
+
+var listItemPattern = regexp.MustCompile(`(?is)<li\b[^>]*>(.*?)</li>`)
+
+// productDetails extracts what the AI review reads from a product page; each text is bounded to 4 KB.
+func productDetails(page string, result model.CollectionResult) *model.ProductDetails {
+	details := &model.ProductDetails{PriceCents: &result.AmountCents, Features: []string{}}
+	if result.Title != nil {
+		details.Title = *result.Title
 	}
-	result := model.CollectionResult{Result: "price_not_found", Message: "Amazon did not show a detectable euro price.", SecondHandStatus: "check_error"}
-	if amount, ok := productPrice(page); ok {
-		result.Result = "success"
-		result.AmountCents = amount
-		result.Title = productTitle(page)
-		result.ThumbnailURL = productImage(page)
-	} else {
-		result.Title = productTitle(page)
-		result.ThumbnailURL = productImage(page)
+	size := 0
+	for _, match := range listItemPattern.FindAllStringSubmatch(elementByID(page, "feature-bullets"), -1) {
+		feature := textContent(match[1])
+		if feature == "" || size+len(feature) > 4096 {
+			continue
+		}
+		size += len(feature)
+		details.Features = append(details.Features, feature)
 	}
-	result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = secondHandOfferFromProductPage(page)
-	if result.SecondHandStatus == "available" {
-		return result
+	description := textContent(elementByID(page, "productDescription"))
+	details.Description = strings.ToValidUTF8(description[:min(len(description), 4096)], "")
+	return details
+}
+
+// elementByID returns the whole element with the id, nested elements included.
+func elementByID(page, id string) string {
+	open := regexp.MustCompile(`(?is)<[a-z][\w:-]*\b[^>]*\bid=["']` + regexp.QuoteMeta(id) + `["']`).FindStringIndex(page)
+	if open == nil {
+		return ""
 	}
-	return c.withSecondHand(ctx, item, result)
+	return page[open[0]:elementEnd(page, open[0])]
 }
 
 func (c *Collector) withSecondHand(ctx context.Context, item model.Listing, result model.CollectionResult) model.CollectionResult {
@@ -512,9 +606,8 @@ func isAmazonSeller(value string) bool {
 	return known[normalized]
 }
 
-func requestError(item model.Listing, err error) model.CollectionResult {
-	fmt.Printf("Amazon collection failed for %s/%s: %v\n", item.Marketplace, item.ASIN, err)
-	return model.CollectionResult{Result: "request_error", Message: "Amazon could not be reached for a price check.", SecondHandStatus: "check_error"}
+func printRequestError(item model.Listing, reason string) {
+	fmt.Printf("Amazon collection failed for %s/%s: %s\n", item.Marketplace, item.ASIN, reason)
 }
 
 func locale(marketplace string) string {
