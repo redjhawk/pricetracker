@@ -51,7 +51,38 @@ export interface TrackedItem {
   nextCheckAt: string | null;
   addedAt: string;
   purchaseGoal: string;
+  /** False for Amazon items that exist only as search items. */
+  tracked: boolean;
   aiReview?: AiReviewState | null;
+}
+
+export interface AmazonRequests {
+  stopped: boolean;
+  stoppedAt: string | null;
+  consecutiveFailures: number;
+}
+
+export interface AmazonSearch {
+  id: string;
+  url: string;
+  label: string;
+  addedAt: string;
+  capturedAt: string | null;
+  itemCount: number;
+  state: "waiting" | "running" | "done" | "stopped";
+  waitingUntil: string | null;
+  lastError: { at: string; message: string } | null;
+}
+
+export interface AiReviewSummary {
+  status: "none" | "pending" | "available" | "failed" | "no_token";
+  priceRating: "good_deal" | "fair" | "overpriced" | null;
+  priceCents: number | null;
+}
+
+export interface SearchItem extends TrackedItem {
+  position: number;
+  aiReviewSummary: AiReviewSummary;
 }
 
 export interface AiReviewContent {
