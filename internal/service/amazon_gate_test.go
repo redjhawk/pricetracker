@@ -43,7 +43,7 @@ func TestAmazonGateStopsAfterFiveConsecutiveFailures(t *testing.T) {
 	service, _ := newSessionService(t)
 	gate := service.amazonGate
 	for _, result := range []func() model.CollectionResult{failed, failed, failed, failed, succeeded, failed, failed, failed, failed} {
-		if _, err := gate.do(result); err != nil {
+		if _, err := gate.do(context.Background(), result); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -51,7 +51,7 @@ func TestAmazonGateStopsAfterFiveConsecutiveFailures(t *testing.T) {
 		t.Fatalf("blocked too early: %+v", state)
 	}
 	logs := captureLog(t)
-	if _, err := gate.do(failed); err != nil {
+	if _, err := gate.do(context.Background(), failed); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(logs.String(), "url=https://www.amazon.fr/s") || !strings.Contains(logs.String(), "status=503") ||
@@ -59,7 +59,7 @@ func TestAmazonGateStopsAfterFiveConsecutiveFailures(t *testing.T) {
 		t.Fatalf("unexpected logs %q", logs.String())
 	}
 	called := false
-	if _, err := gate.do(func() model.CollectionResult { called = true; return succeeded() }); !errors.Is(err, errAmazonStopped) || called {
+	if _, err := gate.do(context.Background(), func() model.CollectionResult { called = true; return succeeded() }); !errors.Is(err, errAmazonStopped) || called {
 		t.Fatalf("blocked gate ran the request: %v %v", err, called)
 	}
 	// The stop survives a restart of the process.
@@ -71,8 +71,26 @@ func TestAmazonGateStopsAfterFiveConsecutiveFailures(t *testing.T) {
 	if state := reopened.current(); state.Blocked || state.StoppedAt == nil {
 		t.Fatalf("restart must keep stoppedAt until a success: %+v", state)
 	}
-	if _, err := reopened.do(succeeded); err != nil || reopened.current().StoppedAt != nil {
+	if _, err := reopened.do(context.Background(), succeeded); err != nil || reopened.current().StoppedAt != nil {
 		t.Fatalf("success did not clear stoppedAt: %v %+v", err, reopened.current())
+	}
+}
+
+func TestAmazonGateIgnoresCancelledRequests(t *testing.T) {
+	service, _ := newSessionService(t)
+	gate := service.amazonGate
+	for range 4 {
+		gate.do(context.Background(), failed)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, err := gate.do(ctx, func() model.CollectionResult { cancel(); return failed() }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled request error = %v", err)
+	}
+	if state := gate.current(); state.Blocked || state.ConsecutiveFailures != 4 {
+		t.Fatalf("cancelled request changed the state: %+v", state)
+	}
+	if saved := newAmazonGate(service.store, time.Now).current(); saved.ConsecutiveFailures != 4 {
+		t.Fatalf("cancelled request changed the saved state: %+v", saved)
 	}
 }
 
@@ -84,7 +102,7 @@ func TestAmazonGateSerializesConcurrentRequests(t *testing.T) {
 		group.Add(1)
 		go func(index int) {
 			defer group.Done()
-			service.amazonGate.do(func() model.CollectionResult {
+			service.amazonGate.do(context.Background(), func() model.CollectionResult {
 				if current := inFlight.Add(1); current > maximum.Load() {
 					maximum.Store(current)
 				}
