@@ -6,7 +6,7 @@ User decision/reference: GitHub issue #4 "IA review of LeBoncoin items" (2026-10
 
 ## Purpose and scope
 
-Let the operator provide the Claude token used for AI reviews of LeBoncoin items ([LeBoncoin AI review](../leboncoin-ai-review/functional.md)) from the existing **Settings** modal, the "same place where I can set the leboncoin token" (user request). Actor: the operator of the shared, no-login interface.
+Let the operator provide the Claude token used for AI reviews of LeBoncoin items ([LeBoncoin AI review](../leboncoin-ai-review/functional.md)) and Amazon search items ([Amazon AI review](../amazon-ai-review/functional.md), issue #56) from the existing **Settings** modal, the "same place where I can set the leboncoin token" (user request). Actor: the operator of the shared, no-login interface.
 
 Included: a second entry in the existing Settings modal ([LeBoncoin session settings](../leboncoin-session-settings/functional.md)); saving with verification, replacing and removing the token; durable server-side storage; error states.
 
@@ -28,6 +28,7 @@ Term: the **Claude token** is a Claude Pro/Max subscription token produced by th
 | FR-CLT-SET-007 | The application restarts with its existing database. | The token persists in application storage; no file, environment variable or shell access is needed. | After restart the modal shows the same token and reviews keep working. |
 | FR-CLT-SET-008 | Any use of the application. | The token never appears outside the Settings modal: not in URLs, item responses, review texts, error messages, logs or diagnostics, nor in browser storage after the modal closes. | Item responses, review errors and server logs never contain the token. |
 | FR-CLT-SET-009 | The latest AI review attempt failed because Claude rejected the token (invalid, expired, revoked, usage limit). | Show a warning next to the Claude entry with the failure date/time and advice to replace the token. A newly saved token starts without the warning. | Given a rejected token, reopening Settings shows the warning; after saving a new token it is gone. |
+| FR-CLT-SET-012 | Settings are shown (issue #56, D-12). | The Claude token help text states that the token is used for Amazon and LeBoncoin AI reviews. | The help text mentions both Amazon and LeBoncoin reviews. |
 | FR-CLT-SET-010 | Keyboard, assistive technology, ~400 px viewport. | FR-LBC-SET-019 accessibility rules apply to the new entry. | Visible label; errors announced and associated with the entry; usable at ~400 px without horizontal scrolling. |
 
 ## States and corner cases
@@ -45,4 +46,5 @@ None.
 - Request and decisions: [change index](../../changes/2026-10-04-0710-issue-4-leboncoin-ai-review/index.md) D-1–D-3.
 - [LeBoncoin session settings](../leboncoin-session-settings/functional.md) FR-LBC-SET-001–019.
 - [LeBoncoin AI review](../leboncoin-ai-review/functional.md).
+- Issue #56 amendment (FR-CLT-SET-012): [change index](../../changes/2026-10-07-1117-issue-56-amazon-searches/index.md).
 - Technical handoff target: `doc/specifications/claude-token-settings/technical.md`.
