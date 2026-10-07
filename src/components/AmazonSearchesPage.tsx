@@ -56,6 +56,7 @@ export default function AmazonSearchesPage({ onOpenSearch }: { onOpenSearch: (se
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AmazonSearch | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -93,7 +94,8 @@ export default function AmazonSearchesPage({ onOpenSearch }: { onOpenSearch: (se
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
     setActionError(null);
     try {
       await deleteSearch(deleteTarget.id);
@@ -101,6 +103,7 @@ export default function AmazonSearchesPage({ onOpenSearch }: { onOpenSearch: (se
     } catch (deleteError) {
       setActionError(errorMessage(deleteError));
     } finally {
+      setDeleting(false);
       setDeleteTarget(null);
     }
   }
@@ -207,9 +210,12 @@ export default function AmazonSearchesPage({ onOpenSearch }: { onOpenSearch: (se
         open={deleteTarget !== null}
         danger
         modalHeading={`Delete search ${deleteTarget?.label ?? ""}?`}
-        primaryButtonText="Delete"
+        primaryButtonText={deleting ? "Deleting…" : "Delete"}
         secondaryButtonText="Cancel"
-        onRequestClose={() => setDeleteTarget(null)}
+        primaryButtonDisabled={deleting}
+        onRequestClose={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}
         onRequestSubmit={() => void handleDelete()}
       >
         <p>Delete search? Items that are not tracked or in another search are deleted with their price history and reviews.</p>
