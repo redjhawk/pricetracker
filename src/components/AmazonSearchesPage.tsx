@@ -27,6 +27,7 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
 const windowTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
 
 export const formatSearchDate = (value: string) => dateTime.format(new Date(value));
+export const formatWindowTime = (value: string) => windowTime.format(new Date(value));
 
 const stateTags: Record<AmazonSearch["state"], "gray" | "blue" | "green" | "red"> = {
   waiting: "gray",
@@ -37,7 +38,7 @@ const stateTags: Record<AmazonSearch["state"], "gray" | "blue" | "green" | "red"
 
 export function searchStateText(search: AmazonSearch) {
   if (search.state === "waiting") {
-    return search.waitingUntil ? `Waiting for next window (${windowTime.format(new Date(search.waitingUntil))})` : "Waiting";
+    return search.waitingUntil ? `Waiting for next window (${formatWindowTime(search.waitingUntil)})` : "Waiting";
   }
   return { running: "Running", done: "Done", stopped: "Stopped" }[search.state];
 }
