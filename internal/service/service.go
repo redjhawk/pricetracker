@@ -56,6 +56,7 @@ type Service struct {
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
 	amazonGate    *amazonGate              // every Amazon request goes through it
+	runningSearch string                   // id of the Amazon search the worker is processing
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
@@ -148,6 +149,11 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported Amazon euro marketplaces and LeBoncoin listings."}
 	}
 	itemListing.OwnerID = ownerFrom(ctx)
+	if itemListing.Platform == "amazon" {
+		if item, found, err := s.trackSearchOnlyItem(ctx, itemListing.OwnerID, canonical); err != nil || found {
+			return item, err
+		}
+	}
 	exists, err := s.store.IsCanonicalTracked(ctx, itemListing.OwnerID, canonical)
 	if err != nil {
 		return model.Item{}, err
@@ -173,6 +179,25 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
 	return s.withPending(item, time.Now().UTC()), nil
+}
+
+// trackSearchOnlyItem makes the owner's search-only item for the product tracked, keeping its
+// history and reviews, and collects it as a new item.
+func (s *Service) trackSearchOnlyItem(ctx context.Context, ownerID int64, canonical string) (model.Item, bool, error) {
+	id, err := s.store.UntrackedItemID(ctx, ownerID, canonical)
+	if err != nil || id == "" {
+		return model.Item{}, false, err
+	}
+	if _, err := s.store.TrackItem(ctx, ownerID, id, s.NextCheckAt(time.Now())); err != nil {
+		return model.Item{}, false, err
+	}
+	item, err := s.store.Get(ctx, id)
+	if err != nil {
+		return model.Item{}, false, err
+	}
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
+	return s.withPending(item, time.Now().UTC()), true, nil
 }
 
 func (s *Service) Remove(ctx context.Context, id string) (bool, error) {

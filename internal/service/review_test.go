@@ -18,6 +18,10 @@ func (f *fakeClaude) Review(context.Context, string, claude.ReviewInput) (model.
 	return model.AIReviewContent{}, errors.New("not used by settings tests")
 }
 
+func (f *fakeClaude) ReviewAmazon(context.Context, string, claude.AmazonReviewInput) (model.AmazonAIReviewContent, error) {
+	return model.AmazonAIReviewContent{}, errors.New("not used by settings tests")
+}
+
 // fakeReviewer returns err (or a fixed review) and can block until release is closed.
 type fakeReviewer struct {
 	mu      sync.Mutex
@@ -37,6 +41,16 @@ func (f *fakeReviewer) Review(ctx context.Context, _ string, input claude.Review
 	}
 	good := "good"
 	return model.AIReviewContent{Price: model.AIRating{Rating: "fair", Explanation: "ok"}, Condition: model.AIConditionRating{Rating: &good, Explanation: "ok"}}, f.err
+}
+
+func (f *fakeReviewer) ReviewAmazon(_ context.Context, _ string, input claude.AmazonReviewInput) (model.AmazonAIReviewContent, error) {
+	f.mu.Lock()
+	f.inputs = append(f.inputs, claude.ReviewInput{URL: input.URL})
+	f.mu.Unlock()
+	if f.release != nil {
+		<-f.release
+	}
+	return model.AmazonAIReviewContent{Price: model.AIRating{Rating: "good_deal", Explanation: "ok"}}, f.err
 }
 
 func (f *fakeReviewer) calls() int {

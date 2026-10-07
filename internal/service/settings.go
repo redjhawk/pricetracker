@@ -16,6 +16,7 @@ import (
 type claudeClient interface {
 	Verify(ctx context.Context, token string) error
 	Review(ctx context.Context, token string, input claude.ReviewInput) (model.AIReviewContent, error)
+	ReviewAmazon(ctx context.Context, token string, input claude.AmazonReviewInput) (model.AmazonAIReviewContent, error)
 }
 
 // SettingsInput holds the Settings entries to save; a nil part is left unchanged.

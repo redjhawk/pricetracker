@@ -222,6 +222,16 @@ func (s *Store) TrackItem(ctx context.Context, ownerID int64, itemID string, nex
 	return count > 0, err
 }
 
+// UntrackedItemID returns the id of the owner's search-only item for the canonical URL, or "".
+func (s *Store) UntrackedItemID(ctx context.Context, ownerID int64, canonicalURL string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, "SELECT id FROM items WHERE owner_id = ? AND canonical_url = ? AND tracked = 0", ownerID, canonicalURL).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
+}
+
 // SetSearchProgress saves where the current pass resumes and when the next pass is due.
 func (s *Store) SetSearchProgress(ctx context.Context, id string, position int, nextRunAt time.Time) error {
 	_, err := s.db.ExecContext(ctx, "UPDATE amazon_searches SET pass_position = ?, next_run_at = ? WHERE id = ?", position, nextRunAt.UTC().Format(timestampLayout), id)

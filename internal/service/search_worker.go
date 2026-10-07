@@ -92,6 +92,8 @@ func (w *searchWorker) canContinue(ctx context.Context, search store.Search) boo
 
 // runPass runs one pass of a search: results page, every item, then one retry of each failed action.
 func (w *searchWorker) runPass(ctx context.Context, search store.Search) {
+	w.service.setRunningSearch(search.ID)
+	defer w.service.setRunningSearch("")
 	var failed []int // positions put aside; 0 is the results page
 	position := search.PassPosition
 	if position == 0 {
@@ -211,7 +213,3 @@ func (w *searchWorker) openItem(ctx context.Context, id string) bool {
 	log.Printf("close item %s", item.ASIN)
 	return result.Result != "request_error"
 }
-
-// reviewSearchItem is called right after a successful search item read; the Amazon AI review
-// is added in a later delivery part.
-func (s *Service) reviewSearchItem(id string, result model.CollectionResult) {}

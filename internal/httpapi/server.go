@@ -50,6 +50,14 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 		s.handleSettings(w, r)
 		return
 	}
+	if path == "/api/v1/amazon/requests" {
+		s.handleAmazonRequests(w, r)
+		return
+	}
+	if path == searchesPath || strings.HasPrefix(path, searchesPath+"/") {
+		s.handleSearches(w, r)
+		return
+	}
 	if path == "/api/v1/items" && r.Method == http.MethodGet {
 		items, err := s.service.List(r.Context())
 		if err != nil {
