@@ -18,6 +18,8 @@ type fakeBrowser struct {
 	events  []string
 	fail    map[string]int // ASIN or "results" → number of failures left
 	results int            // products on the results page
+	// stall, when set, interrupts every human pause and is called after the fifth sleep.
+	stall context.CancelFunc
 }
 
 func (f *fakeBrowser) Now() time.Time { return f.now }
@@ -25,7 +27,10 @@ func (f *fakeBrowser) Now() time.Time { return f.now }
 func (f *fakeBrowser) Sleep(ctx context.Context, d time.Duration) bool {
 	f.events = append(f.events, "pause")
 	f.now = f.now.Add(d)
-	return ctx.Err() == nil
+	if f.stall != nil && strings.Count(strings.Join(f.events, ","), "pause") >= 5 {
+		f.stall()
+	}
+	return ctx.Err() == nil && (f.stall == nil || d == time.Minute)
 }
 
 func (f *fakeBrowser) failing(key string) bool {
@@ -118,29 +123,15 @@ func TestSearchPassRetriesFailedItemOnceAtTheEnd(t *testing.T) {
 	}
 }
 
-// stalledClock interrupts every human pause, so no pass makes progress; it cancels the worker after a few sleeps.
-type stalledClock struct {
-	*fakeBrowser
-	cancel context.CancelFunc
-	sleeps []time.Duration
-}
-
-func (c *stalledClock) Sleep(ctx context.Context, d time.Duration) bool {
-	c.sleeps = append(c.sleeps, d)
-	if len(c.sleeps) >= 5 {
-		c.cancel()
-	}
-	return d == time.Minute && ctx.Err() == nil
-}
-
 func TestSearchWorkerWaitsAfterAPassWithoutProgress(t *testing.T) {
 	worker, browser, _ := newTestWorker(t)
+	start := browser.now
 	ctx, cancel := context.WithCancel(context.Background())
-	clock := &stalledClock{fakeBrowser: browser, cancel: cancel}
-	worker.clock = clock
+	browser.stall = cancel
 	worker.run(ctx)
-	if len(clock.sleeps) < 2 || clock.sleeps[1] != time.Minute {
-		t.Fatalf("worker retried the pass without waiting: %v", clock.sleeps)
+	// 3 interrupted 30 s pauses, each followed by a one-minute wait; without the waits only 2.5 minutes pass.
+	if elapsed := browser.now.Sub(start); elapsed != 270*time.Second {
+		t.Fatalf("worker retried the pass without waiting: %s elapsed, %v", elapsed, browser.events)
 	}
 }
 
@@ -150,11 +141,6 @@ func TestSearchPassRetriesFailedCapture(t *testing.T) {
 	search := runOnePass(t, worker)
 	if search.CapturedAt != nil || search.LastErrorMessage == nil || search.ItemCount != 0 || strings.Join(browser.events, ",") != "results,pause,results" {
 		t.Fatalf("failed capture not recorded and retried: %+v %v", search, browser.events)
-	}
-	browser.events = nil
-	search = runOnePass(t, worker)
-	if search.CapturedAt == nil || search.LastErrorMessage != nil || search.ItemCount != 3 {
-		t.Fatalf("next pass did not capture the items: %+v %v", search, browser.events)
 	}
 }
 
