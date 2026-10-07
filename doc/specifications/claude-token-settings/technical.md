@@ -18,6 +18,7 @@ Companions: [LeBoncoin AI review technical](../leboncoin-ai-review/technical.md)
 | TS-CLT-SET-005 | CLT-009 | `lastRejectedAt` set by reviews on 401/403/429 conditionally on the token revision; cleared on every save | store, service (review worker, see TS-LBC-AIR-006) | Store test: rejection with stale revision ignored; save clears it |
 | TS-CLT-SET-006 | CLT-001–003, CLT-006, CLT-009–011 | Second Carbon `TextInput` entry in `SettingsModal`; save through `PUT /api/v1/settings` | `src/components/SettingsModal.tsx`, `src/api/settings.ts` | Playwright mocked-API spec `tests/claude-token-settings.spec.ts`; manual keyboard/400 px QA |
 | TS-CLT-SET-007 | CLT-008 | Token only in the settings endpoints and the outgoing `Authorization` header; never logged, never in error messages, items or reviews | `internal/claude`, service, handlers | Go tests grep logs/responses for the token; QA |
+| TS-CLT-SET-008 | CLT-012 (issue #56) | Helper text of the Claude token entry states the token is used for Amazon and LeBoncoin AI reviews; exact text in [Amazon AI review technical](../amazon-ai-review/technical.md). Frontend text only; backend and API not affected | `src/components/SettingsModal.tsx` | Playwright text assertion |
 
 ## Frontend
 
