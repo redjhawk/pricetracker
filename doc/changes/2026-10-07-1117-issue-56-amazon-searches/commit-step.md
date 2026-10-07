@@ -13,10 +13,13 @@ The work-in-progress branch `ai-dev/issue-56-20261007-1650` (about 4,000 changed
 | 7 | `ai-dev/issue-56-p7-searches-service` | Search use cases, search worker, startup wiring | 429 |
 | 8 | `ai-dev/issue-56-p8-http-api` | HTTP API, service and worker tests | 467 |
 | 9 | `ai-dev/issue-56-p9-searches-list` | HTTP tests, frontend API module, types, searches list page | 436 |
-| 10 | `ai-dev/issue-56-p10-searches-ui` | Tab, search items page, AI review section, token text, Playwright | 423 + this file |
+| 10 | `ai-dev/issue-56-p10-searches-ui` | Tab, search items page, AI review section, token text, Playwright | 433 |
+| 11 | `ai-dev/issue-56-p11-workflow-records` | This record, PR review and triage records, todos (moved out of part 10 to keep it under 500 lines) | docs |
+
+PRs: #83–#92 (parts 1–10) and #97 (part 11). The blocking findings of PR review round 1 were fixed with new commits on parts 5–10, which were then rebased and force-pushed; round 2 found nothing blocking. The sizes after the fixes are 430, 499, 437, 496, 442 and 433 lines for parts 5–10.
 
 Known limitation: some tests arrive one or two parts after the code they cover (parts 3, 5, 7), because they share helpers defined with later code. Every part builds and passes `go vet ./...`, `go test ./...` and `npm run build` on its own.
 
 Checks on part 10: `go vet ./...`, `go test -race ./...`, `npm run build` and `npx playwright test` (49 passed, including `tests/amazon-searches.spec.ts`).
 
-Superseded PRs: #81 and #82 (one huge PR each) are closed in favour of this stack.
+Superseded PRs: #81 and #82 (one huge PR each) are superseded by this stack; this run was not permitted to close them, so the user was asked to.
