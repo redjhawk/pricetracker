@@ -29,10 +29,16 @@ import AppMenu from "./components/AppMenu";
 import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
 import SettingsModal from "./components/SettingsModal";
-import TrackedItemsPage from "./components/TrackedItemsPage";
+import TrackedItemsPage, { type Tab } from "./components/TrackedItemsPage";
+import AmazonSearchItems from "./components/AmazonSearchItems";
 
 function getItemId(pathname: string) {
   const match = pathname.match(/^\/items\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getSearchId(pathname: string) {
+  const match = pathname.match(/^\/searches\/([^/]+)\/?$/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -109,7 +115,7 @@ function AppHeader({ onHome, children }: { onHome?: () => void; children: ReactN
 
 function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () => void }) {
   const [items, setItems] = useState<TrackedItem[]>([]);
-  const [selectedPlatform, setSelectedPlatform] = useState<TrackedItem["platform"]>("amazon");
+  const [selectedPlatform, setSelectedPlatform] = useState<Tab>("amazon");
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -130,6 +136,7 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
   const [settingsOpen, setSettingsOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const itemId = getItemId(pathname);
+  const searchId = getSearchId(pathname);
 
   const refreshItems = useCallback(async (quiet = false): Promise<TrackedItem[] | null> => {
     try {
@@ -297,7 +304,14 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
 
       <Content className="app-content">
         <main id="main-content" className="page-shell">
-          {showingDetail ? (
+          {searchId ? (
+            <AmazonSearchItems
+              searchId={searchId}
+              onBack={() => navigate("/")}
+              onViewDetail={(item) => navigate(`/items/${encodeURIComponent(item.id)}`)}
+              onTracked={() => void refreshItems(true)}
+            />
+          ) : showingDetail ? (
             detailLoading ? (
               <InlineLoading description="Loading item details…" />
             ) : detailError ? (
@@ -324,6 +338,7 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
               items={items}
               selectedPlatform={selectedPlatform}
               onPlatformChange={setSelectedPlatform}
+              onOpenSearch={(search) => navigate(`/searches/${encodeURIComponent(search.id)}`)}
               loading={listLoading}
               error={listError}
               refreshError={refreshError}
