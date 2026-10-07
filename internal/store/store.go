@@ -59,6 +59,10 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("fail interrupted AI reviews: %w", err)
@@ -753,8 +757,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id, tracked FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID, &item.Tracked)
 	return item, err
 }
 

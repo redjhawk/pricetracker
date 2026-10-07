@@ -61,6 +61,7 @@ type Listing struct {
 	URL          string
 	PurchaseGoal string
 	OwnerID      int64 // 0 is the open-mode owner
+	Tracked      bool  // false for an item that is only in Amazon searches
 }
 
 type CollectionResult struct {

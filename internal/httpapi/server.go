@@ -124,7 +124,7 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			serverError(w, err)
+			serviceError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"requestedAt": requestedAt, "itemsQueued": 1})

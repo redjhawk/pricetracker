@@ -55,6 +55,7 @@ type Service struct {
 	refreshSlots  chan struct{}
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
+	amazonGate    *amazonGate              // every Amazon request goes through it
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
@@ -66,6 +67,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 		},
 		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: time.Now,
+		amazonGate: newAmazonGate(database, time.Now),
 	}
 }
 
@@ -204,8 +206,15 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 }
 
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
-	if _, err := s.ownedListing(ctx, id); err != nil {
+	listing, err := s.ownedListing(ctx, id)
+	if err != nil {
 		return time.Time{}, err
+	}
+	if !listing.Tracked {
+		return time.Time{}, &Error{Status: 409, Code: "ITEM_NOT_TRACKED", Message: "Search items are checked during the Amazon request windows."}
+	}
+	if listing.Platform == "amazon" && s.amazonGate.current().Blocked {
+		return time.Time{}, &Error{Status: 409, Code: "AMAZON_REQUESTS_STOPPED", Message: "Amazon requests are stopped after repeated failures. Restart them from the Amazon searches tab."}
 	}
 	requestedAt := time.Now().UTC()
 	if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
@@ -272,9 +281,16 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 			log.Printf("no collector registered for platform %q on item %s", item.Platform, id)
 			return
 		}
-		requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
-		result = collector.Collect(requestContext, item)
-		cancel()
+		var stopped error
+		result, stopped = s.amazonGate.do(func() model.CollectionResult {
+			requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
+			defer cancel()
+			return collector.Collect(requestContext, item)
+		})
+		if stopped != nil {
+			log.Printf("Amazon requests stopped; check of item %s skipped", id)
+			return
+		}
 	}
 	if _, err := s.store.Listing(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return
