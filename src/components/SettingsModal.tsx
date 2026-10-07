@@ -125,7 +125,7 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
 
   const loaded = Boolean(settings && claudeToken);
   const loading = open && !loaded && !loadError;
-  const claudeHelper = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). Save an empty field to remove it."
+  const claudeHelper = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for Amazon and LeBoncoin AI reviews. Save an empty field to remove it."
     + (claudeToken && claudeToken.value === null ? " AI reviews are unavailable until a token is saved." : "");
   const hint = settings ? sessionHint(settings) : null;
 
