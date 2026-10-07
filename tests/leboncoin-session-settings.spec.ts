@@ -60,6 +60,9 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
       return;
     }
     if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
+    if (url.pathname === "/api/v1/amazon/requests") {
+      return route.fulfill({ json: { amazonRequests: { stopped: false, stoppedAt: null, consecutiveFailures: 0 } } });
+    }
     const method = request.method();
     const path = url.pathname + url.search;
     if (method === "GET" && path === "/api/v1/items") {

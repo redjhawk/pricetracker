@@ -61,6 +61,9 @@ async function mockApi(context: BrowserContext, initialItems: FixtureItem[] = [a
       return;
     }
     if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
+    const amazonRequests = { stopped: false, stoppedAt: null, consecutiveFailures: 0 };
+    if (url.pathname === "/api/v1/amazon/requests") return route.fulfill({ json: { amazonRequests } });
+    if (url.pathname === "/api/v1/amazon-searches") return route.fulfill({ json: { searches: [], amazonRequests } });
     const method = request.method();
     const path = url.pathname + url.search;
     state.requests.push({ method, path, body: request.postData() });
@@ -148,7 +151,7 @@ test("both tabs remain available for empty platform and collection", async ({ pa
   api.items = [];
   await page.reload();
   await expect(page.getByRole("heading", { name: "No items tracked yet" })).toBeVisible();
-  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Refresh all prices" })).toBeDisabled();
   await page.getByRole("tab", { name: "LeBoncoin" }).click();
   await expect(page.getByRole("button", { name: "Add your first item" })).toBeVisible();
@@ -260,6 +263,8 @@ test("Carbon keyboard navigation and narrow table scrolling preserve access", as
   await page.keyboard.press("Home");
   await expect(amazonTab).toBeFocused();
   await page.keyboard.press("End");
+  await expect(page.getByRole("tab", { name: "Amazon searches" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
   await expect(leboncoinTab).toBeFocused();
   expect(await leboncoinTab.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe("none");
   await page.keyboard.press("Tab");
