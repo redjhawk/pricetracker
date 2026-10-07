@@ -1,7 +1,7 @@
 # Amazon searches with AI review (issue #56)
 
-Stage: technical specification (next)
-State: functional specification ready; no open functional question.
+Stage: implementation (next)
+State: functional, technical and API specifications ready; no open functional question.
 
 User request (GitHub issue #56, redjhawk):
 
@@ -56,4 +56,51 @@ Global summary: [FUNCTIONAL_SPECIFICATIONS.md](../../FUNCTIONAL_SPECIFICATIONS.m
 ## Stage results
 
 1. Functional specification — ready (2026-10-07).
-2–10. Not started.
+2. Technical specification — ready (2026-10-07): [Amazon searches](../../specifications/amazon-searches/technical.md) (TS-AMZ-SEARCH-001–009), [Amazon human browsing](../../specifications/amazon-human-browsing/technical.md) (TS-AMZ-HUMAN-001–007), [Amazon AI review](../../specifications/amazon-ai-review/technical.md) (TS-AMZ-AIR-001–006), [Claude token settings](../../specifications/claude-token-settings/technical.md) (TS-CLT-SET-008 added).
+3. API contract — ready (2026-10-07): [API_SPECIFICATION.md](../../../API_SPECIFICATION.md) section "Amazon searches (2026-10-07)".
+4–10. Not started.
+
+## Technical decisions
+
+- Search items are rows of the existing `items` table with a new `tracked` flag; `UNIQUE(owner_id, canonical_url)` gives sharing between searches and the tracked list for free (D-6). New tables `amazon_searches`, `amazon_search_items`, `amazon_request_state`.
+- One global `amazonGate` (mutex held for each Amazon request) serializes all Amazon traffic, so the 5th consecutive failure and the stop are one atomic step that also blocks tracked-item checks (D-17). Stop state persists in SQLite.
+- One search worker goroutine, Europe/Paris windows, random 30–120 s pauses through an injectable clock/sleeper; one pass per search per window; failed actions retried once at the end of the pass (D-18), not unboundedly.
+- Amazon reviews reuse `ai_reviews`, reservations and failure handling of the LeBoncoin review; a separate small Claude prompt returns only a price rating and explanation.
+
+## Refactoring decisions
+
+| ID | Decision | Reason | Scope | Part |
+| --- | --- | --- | --- | --- |
+| R-1 | Perform | Reuse the items table: list/IDs/due/duplicate queries filter `tracked = 1`; tracked delete untracks an item still in a search | `internal/store/store.go` | 3 |
+| R-2 | Perform | All Amazon requests must stop together: tracked Amazon collection goes through the gate | `internal/service/service.go` | 5 |
+| R-3 | Perform | `AIReview.Review` holds either review shape; decoded by platform; LeBoncoin JSON unchanged | `internal/model`, `internal/store/ai_reviews.go` | 7 |
+| R-4 | Perform | Extract the finish step of `runReview` to share it with Amazon reviews | `internal/service/review.go` | 7 |
+| — | Decline | Generic scheduler abstraction or a second item table: not needed | — | — |
+
+## API contract changes (stage 3) and rationale
+
+- New: `GET/POST /api/v1/amazon-searches`, `GET/DELETE /api/v1/amazon-searches/{id}`, `POST /api/v1/amazon-searches/{id}/items/{itemId}/track`, `POST /api/v1/amazon-searches/{id}/refresh`, `GET /api/v1/amazon/requests` — FR-AMZ-SEARCH-002–014, FR-AMZ-HUMAN-009–011.
+- Item responses add `tracked` (search items are untracked items); list and refresh-all keep their meaning by covering tracked items only — D-6, D-7, D-21.
+- `POST /api/v1/items` on a product already in a search makes it tracked instead of `409` — D-6 ("same if it is added on the amazon item-by-item tab").
+- `DELETE /api/v1/items/{id}` untracks an item still in a search — FR-AMZ-SEARCH-012 corner case.
+- `POST /api/v1/items/{id}/refresh` adds `409 ITEM_NOT_TRACKED` (windows, D-16) and `409 AMAZON_REQUESTS_STOPPED` (stop of all Amazon requests, D-17, FR-AMZ-HUMAN-009).
+- `aiReview` becomes non-null for Amazon search items with an Amazon review shape (`price` only); `aiReviewSummary` in search items — FR-AMZ-AIR-003–005. LeBoncoin contracts unchanged.
+
+## Delivery split plan
+
+Stacked on `ai-dev/issue-56-feature` (created from `master`); estimates count docs, code and tests. Each part builds and passes `go vet ./...`, `go test ./...` and `npm run build` alone; no part exposes a half-working UI (the tab arrives in part 9).
+
+| Part | Content | Main files | Estimate |
+| --- | --- | --- | --- |
+| 1 | Functional specifications (existing WIP commit) | `doc/specifications/amazon-*/functional.md`, `claude-token-settings/functional.md`, `doc/FUNCTIONAL_SPECIFICATIONS.md`, this index | ~240 |
+| 2 | Technical specifications, API contract, index update | `doc/specifications/*/technical.md`, `API_SPECIFICATION.md`, this index | ~430 (measured) |
+| 3 | Store: `tracked` column + R-1, search tables, request-state table, search store functions, tests | `internal/store/store.go`, `internal/store/searches.go`, `internal/store/amazon_requests.go`, tests | ~450 |
+| 4 | Amazon adapter: `ParseSearchURL`, `FetchSearch` parser, `CollectProduct` (no second-hand request, product details), failure diagnostics, fixtures/tests | `internal/amazon/search.go`, `internal/amazon/collector.go`, `internal/model/model.go`, tests | ~400 |
+| 5 | Gate (R-2), windows, refresh `409`s, tests incl. `-race` | `internal/service/amazon_gate.go`, `search_window.go`, `service.go`, tests | ~400 |
+| 6 | Search worker (pass order, pauses, resume, retry once, stop), started in `main.go`; review hook as a no-op; tests with fake clock | `internal/service/search_worker.go`, `cmd/pricefollower/main.go`, tests | ~450 |
+| 7 | Amazon AI review: Claude prompt, R-3, R-4, hook implementation, tests | `internal/claude/amazon_review.go`, `internal/service/amazon_review.go`, `review.go`, `internal/store/ai_reviews.go`, tests | ~450 |
+| 8 | Search use cases and HTTP handlers (list/add/get/delete/track/refresh/status), item `tracked`, ownership tests | `internal/service/searches.go`, `internal/httpapi/searches.go`, `server.go`, tests | ~480 |
+| 9 | Frontend: API module, types, third tab, searches list, search items page, refresh/stop line, Playwright spec | `src/api/searches.ts`, `src/types.ts`, `src/components/AmazonSearches*.tsx`, `TrackedItemsPage.tsx`, `App.tsx`, `tests/amazon-searches.spec.ts` | ~480 |
+| 10 | Frontend: Amazon AI review section, untracked item detail, Amazon tab stop notification, Settings text, Playwright | `src/components/AmazonAiReview.tsx`, `ItemDetail.tsx`, `TrackedItemsPage.tsx`, `SettingsModal.tsx`, tests | ~300 |
+
+If a part measured with `scripts/pr-size.sh` exceeds 500 lines, split it at a file boundary (e.g. part 8: service then handlers; part 9: list page then items page) before opening the PR. Workflow evidence (review, decisions, QA, commit step) goes with the last part.

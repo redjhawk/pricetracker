@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56).
 
 ## Conventions
 
@@ -557,3 +557,105 @@ Issue #42; see [technical specification](doc/specifications/leboncoin-old-price/
 - `timestamp` (string or `null`): `null` only when `oldPrice` is `true` and the listing gave no date; the UI then shows "Old price" in place of the date. A dated old price carries that date.
 - Ordering: undated old prices are older than every other observation; dated ones are ordered by date. Old prices take part in `priceHistory` and in the `lastThreeDetections` periods but never change the latest collection attempt or `status`.
 - Rationale: the user asked for a historical price rather than a new column; a flag on the existing observation keeps one price history and avoids a new item field.
+
+## Amazon searches (2026-10-07)
+
+Issue #56, agent-defined per AGENTS.md. Technical sources: [Amazon searches](doc/specifications/amazon-searches/technical.md), [Amazon human browsing](doc/specifications/amazon-human-browsing/technical.md), [Amazon AI review](doc/specifications/amazon-ai-review/technical.md). Rationale: [change index](doc/changes/2026-10-07-1117-issue-56-amazon-searches/index.md). Additive except where noted. All endpoints follow the existing access rules (owner-scoped in protected mode, open-mode owner otherwise); another owner's search returns `404 SEARCH_NOT_FOUND`. Responses carry `Cache-Control: no-store`.
+
+### Item response changes
+
+- `tracked` (boolean, always present): `true` for items of the Amazon and LeBoncoin tabs; `false` for Amazon items that exist only as search items. Existing items are `true`.
+- `GET /api/v1/items` and `POST /api/v1/items/refresh` cover tracked items only (unchanged for existing data). `GET /api/v1/items/{id}` also returns search items.
+- `POST /api/v1/items` with an Amazon URL whose product is already a search item of the user makes it tracked, keeping history and reviews, and returns `201` with that item; it is collected immediately as a new item.
+- `DELETE /api/v1/items/{id}` on a tracked item that still belongs to a search of the user only untracks it (`204`); it stays in the search with its history. An untracked item returns `404 ITEM_NOT_FOUND`.
+- `POST /api/v1/items/{id}/refresh`: `409 ITEM_NOT_TRACKED` ("Search items are checked during the Amazon request windows.") for an untracked item; `409 AMAZON_REQUESTS_STOPPED` ("Amazon requests are stopped after repeated failures. Restart them from the Amazon searches tab.") for an Amazon item while Amazon requests are stopped. `POST /api/v1/items/refresh` keeps its response; Amazon items are skipped without an attempt while stopped.
+- `aiReview` in `GET /api/v1/items/{id}` is an object for Amazon items that belong to a search of the user or have reviews, and `null` for other Amazon items. The state and review object fields are unchanged; an Amazon `review` contains only `{ "price": { "rating": "good_deal | fair | overpriced", "explanation": "…" } }` (English). `priceCents` is the price the review was based on. No review starts when the price changes; clients compare `latestPrice.amountCents` with `latest.priceCents` to show "price changed". `POST /api/v1/items/{id}/ai-review` still returns `422 AI_REVIEW_UNSUPPORTED` for Amazon items.
+
+### Amazon requests object
+
+```json
+"amazonRequests": { "stopped": false, "stoppedAt": "2026-10-07T21:40:00Z", "consecutiveFailures": 0 }
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `stopped` | boolean | `true`: no Amazon request is sent (searches and tracked Amazon items) until a search refresh restarts them. Application-wide. |
+| `stoppedAt` | string or `null` | Time of the latest stop. Kept after a restart until the next successful Amazon request, then `null`. The UI shows the stop information line while non-null. |
+| `consecutiveFailures` | integer 0–5 | Consecutive failed Amazon requests; reset by any successful request. |
+
+`GET /api/v1/amazon/requests` → `200 { "amazonRequests": {…} }`; other methods `405` (`Allow: GET`).
+
+### Search object
+
+```json
+{
+  "id": "5f0c…",
+  "url": "https://www.amazon.fr/joursprime/?_encoding=UTF8&…",
+  "label": "amazon.fr/joursprime/",
+  "addedAt": "2026-10-07T13:00:00Z",
+  "capturedAt": null,
+  "itemCount": 0,
+  "state": "waiting",
+  "waitingUntil": "2026-10-07T20:00:00Z",
+  "lastError": null
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `url` | string | URL as entered (trimmed), never modified. |
+| `label` | string | Host without `www.` followed by the path. |
+| `capturedAt` | string or `null` | When the first 30 items were captured; `null` before. The item set never changes afterwards. |
+| `itemCount` | integer 0–30 | Captured items. |
+| `state` | `waiting` \| `running` \| `done` \| `stopped` | `waiting`: first retrieval or next pass due, waiting for a request window or its turn. `running`: being processed. `done`: the latest pass is finished. `stopped`: Amazon requests are stopped and this search has unfinished work (Refresh offered). |
+| `waitingUntil` | string or `null` | Start of the next request window (22:00 or 06:00 Europe/Paris, as UTC) when `state` is `waiting` outside a window; else `null`. |
+| `lastError` | object or `null` | `{ "at": "…", "message": "The Amazon search page could not be retrieved." }` for the latest failed results-page request; `null` after a success. Never contains upstream content. |
+
+### List searches
+
+`GET /api/v1/amazon-searches` → `200 { "searches": [ … ], "amazonRequests": {…} }`, most recently added first.
+
+### Add a search
+
+`POST /api/v1/amazon-searches` with `{ "url": "https://www.amazon.fr/joursprime/?…" }` (body ≤ 1 MiB). Stored immediately; this call makes no Amazon request. The first retrieval happens in a request window.
+
+| Status | Code | When | Message |
+| --- | --- | --- | --- |
+| 201 | — | Search object, `state: "waiting"` | |
+| 400 | `INVALID_JSON` | Invalid body, several values, `url` not a string | "Request body must be valid JSON." |
+| 400 | `INVALID_URL` | Empty, longer than 2048 characters, or not an `http`/`https` URL | "Enter an Amazon search URL starting with https://." |
+| 422 | `UNSUPPORTED_SEARCH` | Host is not `amazon.de`, `.fr`, `.es`, `.it`, `.nl`, `.be` (optionally `www.`) | "Only searches on the supported Amazon euro marketplaces can be added." |
+| 409 | `SEARCH_ALREADY_ADDED` | Same trimmed URL already added by the user | "This search is already added: amazon.fr/joursprime/." |
+| 413 | `REQUEST_TOO_LARGE` | Body over 1 MiB | "Request body is too large." |
+| 405 | `METHOD_NOT_ALLOWED` | Other methods on the collection (`Allow: GET, POST`) | "This method is not allowed for the route." |
+
+### Get a search and its items
+
+`GET /api/v1/amazon-searches/{id}` → `200 { "search": {…}, "amazonRequests": {…}, "items": [ … ] }`; `404 SEARCH_NOT_FOUND` ("Amazon search was not found.").
+
+`items` are in captured (Amazon) order. Each is an item response (list shape, without `priceHistory`) plus:
+
+```json
+"position": 1,
+"aiReviewSummary": { "status": "available", "priceRating": "good_deal", "priceCents": 10000 }
+```
+
+`aiReviewSummary.status`: `none`, `pending`, `available`, `failed`, `no_token`. `priceRating` (`good_deal`, `fair`, `overpriced`) and `priceCents` come from the latest succeeded review, else `null`. A product no longer available has item `status: "unavailable"` and keeps its last price.
+
+### Delete a search
+
+`DELETE /api/v1/amazon-searches/{id}` → `204`; `404 SEARCH_NOT_FOUND`. Deletes the search and its items with their price history and reviews, except items that are tracked or belong to another search of the user. No further request is made for it.
+
+### Move an item to the tracked Amazon items
+
+`POST /api/v1/amazon-searches/{id}/items/{itemId}/track` (no body) → `200` item response with `tracked: true` and `nextCheckAt` set. It keeps its history and reviews and stays in the search. `404 SEARCH_NOT_FOUND`; `404 ITEM_NOT_FOUND` when the item is not in that search; `409 ITEM_ALREADY_TRACKED` ("This listing is already being tracked.").
+
+### Refresh a search after a stop
+
+`POST /api/v1/amazon-searches/{id}/refresh` (no body) → `202 { "requestedAt": "…", "search": {…} }`. Restarts all Amazon requests (failure count reset) and starts a new pass of this search, AI reviews included for items without a succeeded review; history and reviews are kept. Outside a window the search is `waiting` until the next one. `404 SEARCH_NOT_FOUND`; `409 AMAZON_NOT_STOPPED` ("Amazon requests are not stopped.") when `stopped` is false and `stoppedAt` is `null`.
+
+Other methods on the routes above return `405 METHOD_NOT_ALLOWED` with the matching `Allow` header.
+
+### Timing (informative, not configurable)
+
+Search work runs only 22:00–01:00 and 06:00–08:00 Europe/Paris, one search at a time and one item at a time, with random 30–120 s pauses; each search gets one pass per window. A failed request is retried once at the end of the pass. Five consecutive failed Amazon requests from any source set `stopped`.
