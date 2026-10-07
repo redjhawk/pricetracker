@@ -14,7 +14,7 @@ type ApiSecondHandDetection = Omit<ApiPriceObservation, "timestamp" | "oldPrice"
   conditionLabel: string;
 };
 
-interface ApiTrackedItem {
+export interface ApiTrackedItem {
   id: string;
   title: string | null;
   platform: TrackedItem["platform"];
@@ -37,6 +37,7 @@ interface ApiTrackedItem {
   nextCheckAt: string | null;
   addedAt: string;
   purchaseGoal: string;
+  tracked: boolean;
   aiReview?: AiReviewState | null;
 }
 
@@ -63,7 +64,7 @@ function mapSecondHandDetection(
   };
 }
 
-function mapItem(item: ApiTrackedItem): TrackedItem {
+export function mapItem(item: ApiTrackedItem): TrackedItem {
   return {
     ...item,
     latestPrice: mapObservation(item.latestPrice),
