@@ -69,8 +69,7 @@ func (w *searchWorker) run(ctx context.Context) {
 			if err != nil && ctx.Err() == nil {
 				log.Printf("load due Amazon searches: %v", err)
 			}
-			if len(due) > 0 {
-				w.runPass(ctx, due[0])
+			if len(due) > 0 && w.runPass(ctx, due[0]) {
 				continue
 			}
 		}
@@ -91,14 +90,15 @@ func (w *searchWorker) canContinue(ctx context.Context, search store.Search) boo
 }
 
 // runPass runs one pass of a search: results page, every item, then one retry of each failed action.
-func (w *searchWorker) runPass(ctx context.Context, search store.Search) {
+// It reports false when the pass stopped before its end, so the worker waits before trying again.
+func (w *searchWorker) runPass(ctx context.Context, search store.Search) bool {
 	w.service.setRunningSearch(search.ID)
 	defer w.service.setRunningSearch("")
 	var failed []int // positions put aside; 0 is the results page
 	position := search.PassPosition
 	if position == 0 {
 		if !w.canContinue(ctx, search) {
-			return
+			return false
 		}
 		if !w.openResults(ctx, &search) {
 			failed = append(failed, 0)
@@ -109,11 +109,11 @@ func (w *searchWorker) runPass(ctx context.Context, search store.Search) {
 	ids, err := w.service.store.SearchItemIDs(ctx, search.ID)
 	if err != nil {
 		log.Printf("load items of Amazon search %s: %v", search.ID, err)
-		return
+		return false
 	}
 	for ; position <= len(ids); position++ {
 		if !w.clock.Sleep(ctx, w.pause()) || !w.canContinue(ctx, search) {
-			return
+			return false
 		}
 		if !w.openItem(ctx, ids[position-1]) {
 			failed = append(failed, position)
@@ -122,7 +122,7 @@ func (w *searchWorker) runPass(ctx context.Context, search store.Search) {
 	}
 	for _, position := range failed {
 		if !w.clock.Sleep(ctx, w.pause()) || !w.canContinue(ctx, search) {
-			return
+			return false
 		}
 		if position == 0 {
 			w.openResults(ctx, &search)
@@ -131,6 +131,7 @@ func (w *searchWorker) runPass(ctx context.Context, search store.Search) {
 		}
 	}
 	w.saveProgress(ctx, search.ID, 0, nextSearchWindowStart(w.clock.Now()))
+	return true
 }
 
 func (w *searchWorker) saveProgress(ctx context.Context, id string, position int, nextRunAt time.Time) {
@@ -142,7 +143,7 @@ func (w *searchWorker) saveProgress(ctx context.Context, id string, position int
 // openResults reads the results page; the first success captures the search items.
 func (w *searchWorker) openResults(ctx context.Context, search *store.Search) bool {
 	var products []amazon.SearchProduct
-	result, err := w.service.amazonGate.do(func() model.CollectionResult {
+	result, err := w.service.amazonGate.do(ctx, func() model.CollectionResult {
 		requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 		defer cancel()
 		var result model.CollectionResult
@@ -154,21 +155,28 @@ func (w *searchWorker) openResults(ctx context.Context, search *store.Search) bo
 	}
 	now := w.clock.Now()
 	if result.Result != "success" {
-		if err := w.service.store.SetSearchError(ctx, search.ID, now, result.Message); err != nil {
-			log.Printf("save error of Amazon search %s: %v", search.ID, err)
-		}
+		w.saveSearchError(ctx, search.ID, now, result.Message)
 		return false
 	}
 	if search.CapturedAt != nil {
-		err = w.service.store.ClearSearchError(ctx, search.ID) // the item set is frozen
-	} else {
-		err = w.captureSearch(ctx, *search, products, now)
-		search.CapturedAt = &now
+		if err := w.service.store.ClearSearchError(ctx, search.ID); err != nil { // the item set is frozen
+			log.Printf("clear error of Amazon search %s: %v", search.ID, err)
+		}
+		return true
 	}
-	if err != nil {
+	if err := w.captureSearch(ctx, *search, products, now); err != nil {
 		log.Printf("save results of Amazon search %s: %v", search.ID, err)
+		w.saveSearchError(ctx, search.ID, now, "The search results could not be saved.")
+		return false
 	}
+	search.CapturedAt = &now
 	return true
+}
+
+func (w *searchWorker) saveSearchError(ctx context.Context, id string, now time.Time, message string) {
+	if err := w.service.store.SetSearchError(ctx, id, now, message); err != nil {
+		log.Printf("save error of Amazon search %s: %v", id, err)
+	}
 }
 
 func (w *searchWorker) captureSearch(ctx context.Context, search store.Search, products []amazon.SearchProduct, now time.Time) error {
@@ -195,7 +203,7 @@ func (w *searchWorker) openItem(ctx context.Context, id string) bool {
 		log.Printf("load search item %s: %v", id, err)
 		return false
 	}
-	result, err := w.service.amazonGate.do(func() model.CollectionResult {
+	result, err := w.service.amazonGate.do(ctx, func() model.CollectionResult {
 		requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 		defer cancel()
 		return w.collector.CollectProduct(requestContext, item)
