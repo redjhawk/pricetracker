@@ -47,6 +47,9 @@ func (f *fakeBrowser) FetchSearch(_ context.Context, search amazon.SearchURLResu
 		url := "https://www.amazon.fr/dp/" + asin
 		products = append(products, amazon.SearchProduct{ASIN: asin, Marketplace: "amazon.fr", URL: url, Canonical: amazon.ParseURL(url).Canonical})
 	}
+	if f.failing("capture") { // a product listed twice cannot be saved
+		products = append(products, products[0])
+	}
 	return products, model.CollectionResult{Result: "success"}
 }
 
@@ -112,6 +115,46 @@ func TestSearchPassRetriesFailedItemOnceAtTheEnd(t *testing.T) {
 	got := strings.Join(browser.events, ",")
 	if !strings.HasSuffix(got, "item B000000003,pause,pause,item B000000002,pause") || strings.Count(got, "item B000000002") != 2 {
 		t.Fatalf("unexpected actions %s", got)
+	}
+}
+
+// stalledClock interrupts every human pause, so no pass makes progress; it cancels the worker after a few sleeps.
+type stalledClock struct {
+	*fakeBrowser
+	cancel context.CancelFunc
+	sleeps []time.Duration
+}
+
+func (c *stalledClock) Sleep(ctx context.Context, d time.Duration) bool {
+	c.sleeps = append(c.sleeps, d)
+	if len(c.sleeps) >= 5 {
+		c.cancel()
+	}
+	return d == time.Minute && ctx.Err() == nil
+}
+
+func TestSearchWorkerWaitsAfterAPassWithoutProgress(t *testing.T) {
+	worker, browser, _ := newTestWorker(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	clock := &stalledClock{fakeBrowser: browser, cancel: cancel}
+	worker.clock = clock
+	worker.run(ctx)
+	if len(clock.sleeps) < 2 || clock.sleeps[1] != time.Minute {
+		t.Fatalf("worker retried the pass without waiting: %v", clock.sleeps)
+	}
+}
+
+func TestSearchPassRetriesFailedCapture(t *testing.T) {
+	worker, browser, _ := newTestWorker(t)
+	browser.fail["capture"] = 2
+	search := runOnePass(t, worker)
+	if search.CapturedAt != nil || search.LastErrorMessage == nil || search.ItemCount != 0 || strings.Join(browser.events, ",") != "results,pause,results" {
+		t.Fatalf("failed capture not recorded and retried: %+v %v", search, browser.events)
+	}
+	browser.events = nil
+	search = runOnePass(t, worker)
+	if search.CapturedAt == nil || search.LastErrorMessage != nil || search.ItemCount != 3 {
+		t.Fatalf("next pass did not capture the items: %+v %v", search, browser.events)
 	}
 }
 
