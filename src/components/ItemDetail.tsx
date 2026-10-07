@@ -14,6 +14,7 @@ import {
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
 import AiReview from "./AiReview";
+import AmazonAiReview from "./AmazonAiReview";
 import PurchaseGoal from "./PurchaseGoal";
 import StatusTag from "./StatusTag";
 
@@ -78,9 +79,11 @@ export default function ItemDetail({
           </div>
         </div>
         <div className="detail-actions">
-          <Button kind="tertiary" size="sm" renderIcon={Renew} onClick={onRefresh} disabled={refreshing}>
-            Refresh price
-          </Button>
+          {item.tracked !== false && (
+            <Button kind="tertiary" size="sm" renderIcon={Renew} onClick={onRefresh} disabled={refreshing}>
+              Refresh price
+            </Button>
+          )}
           <Button
             kind="ghost"
             size="sm"
@@ -89,9 +92,11 @@ export default function ItemDetail({
             target="_blank"
             rel="noopener noreferrer"
           >Open on {item.platform === "amazon" ? "Amazon" : "LeBoncoin"}</Button>
-          <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => onDelete(item)}>
-            Delete
-          </Button>
+          {item.tracked !== false && (
+            <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => onDelete(item)}>
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 
@@ -184,6 +189,13 @@ export default function ItemDetail({
 
       {item.platform === "leboncoin" && (
         <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+      )}
+
+      {item.platform === "amazon" && item.aiReview && (
+        <AmazonAiReview
+          state={item.aiReview}
+          currentPriceCents={item.latestPrice ? Math.round(item.latestPrice.amount * 100) : null}
+        />
       )}
 
       {item.platform === "leboncoin" && item.aiReview && (
