@@ -36,13 +36,17 @@ func newAmazonGate(database *store.Store, now func() time.Time) *amazonGate {
 
 // do runs request unless Amazon requests are stopped. A request_error result is a failure;
 // any other result (success, price_not_found, unavailable) is an Amazon answer and resets the count.
-func (g *amazonGate) do(request func() model.CollectionResult) (model.CollectionResult, error) {
+// A request cancelled through ctx (shutdown) is neither: it returns ctx.Err() and leaves the state unchanged.
+func (g *amazonGate) do(ctx context.Context, request func() model.CollectionResult) (model.CollectionResult, error) {
 	g.request.Lock()
 	defer g.request.Unlock()
 	if g.current().Blocked {
 		return model.CollectionResult{}, errAmazonStopped
 	}
 	result := request()
+	if err := ctx.Err(); err != nil {
+		return model.CollectionResult{}, err
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	now := g.now().UTC()

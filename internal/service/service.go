@@ -307,13 +307,13 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 			return
 		}
 		var stopped error
-		result, stopped = s.amazonGate.do(func() model.CollectionResult {
+		result, stopped = s.amazonGate.do(ctx, func() model.CollectionResult {
 			requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 			defer cancel()
 			return collector.Collect(requestContext, item)
 		})
 		if stopped != nil {
-			log.Printf("Amazon requests stopped; check of item %s skipped", id)
+			log.Printf("check of item %s skipped: %v", id, stopped)
 			return
 		}
 	}
