@@ -55,6 +55,10 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.createSearchSchema(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("fail interrupted AI reviews: %w", err)
@@ -65,7 +69,7 @@ func Open(cfg config.Config) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 // itemsColumns is the current items table definition. Owner 0 is the open-mode owner (no user);
-// two owners may track the same canonical URL.
+// two owners may track the same canonical URL. tracked = 0 marks an item only in Amazon searches.
 const itemsColumns = `
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
@@ -80,6 +84,7 @@ const itemsColumns = `
   added_at TEXT NOT NULL,
   purchase_goal TEXT NOT NULL DEFAULT '',
   owner_id INTEGER NOT NULL DEFAULT 0,
+  tracked INTEGER NOT NULL DEFAULT 1 CHECK (tracked IN (0, 1)),
   UNIQUE (owner_id, canonical_url)`
 
 // Settings tables have one row per owner (0 is the open-mode owner); ensureSettings creates it.
@@ -180,6 +185,7 @@ CREATE TABLE IF NOT EXISTS claude_token (`+claudeTokenColumns+`);
 		{"items", "platform", "TEXT NOT NULL DEFAULT 'amazon'"},
 		{"items", "listing_id", "TEXT NOT NULL DEFAULT ''"},
 		{"items", "purchase_goal", "TEXT NOT NULL DEFAULT ''"},
+		{"items", "tracked", "INTEGER NOT NULL DEFAULT 1 CHECK (tracked IN (0, 1))"},
 		{"price_observations", "is_old_price", "INTEGER NOT NULL DEFAULT 0 CHECK(is_old_price IN (0, 1))"},
 	} {
 		if err := s.ensureColumn(ctx, column.table, column.name, column.declaration); err != nil {
@@ -451,7 +457,7 @@ SELECT id, 8995, 'EUR', 'good', 'Buone condizioni', ? FROM items WHERE id = 'sam
 }
 
 func (s *Store) List(ctx context.Context, ownerID int64) ([]model.Item, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? AND tracked = 1 ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -494,8 +500,8 @@ func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.
 	var item model.Item
 	var asin, title, thumbnail, next sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, tracked FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &item.Tracked)
 	if err != nil {
 		return item, err
 	}
@@ -677,7 +683,7 @@ func statusFor(price *model.Observation, attempt *model.Attempt, staleAfter time
 
 func (s *Store) IsCanonicalTracked(ctx context.Context, ownerID int64, canonicalURL string) (bool, error) {
 	var exists int
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE owner_id = ? AND canonical_url = ?", ownerID, canonicalURL).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM items WHERE owner_id = ? AND canonical_url = ? AND tracked = 1", ownerID, canonicalURL).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -712,7 +718,7 @@ func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time)
 }
 
 func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? ORDER BY added_at DESC, id DESC", ownerID)
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? AND tracked = 1 ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -729,7 +735,7 @@ func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
 }
 
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -824,13 +830,31 @@ func (s *Store) RecordFailure(ctx context.Context, id, result, message string, t
 	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
+// Delete removes a tracked item from the tracked list. An item still in an Amazon search
+// is only untracked, so it stays in the search with its history.
 func (s *Store) Delete(ctx context.Context, ownerID int64, id string) (bool, error) {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ? AND owner_id = ?", id, ownerID)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var inSearch bool
+	if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM amazon_search_items WHERE item_id = ?)", id).Scan(&inSearch); err != nil {
+		return false, err
+	}
+	statement := "DELETE FROM items WHERE id = ? AND owner_id = ? AND tracked = 1"
+	if inSearch {
+		statement = "UPDATE items SET tracked = 0, next_check_at = NULL WHERE id = ? AND owner_id = ? AND tracked = 1"
+	}
+	result, err := tx.ExecContext(ctx, statement, id, ownerID)
 	if err != nil {
 		return false, err
 	}
 	count, err := result.RowsAffected()
-	return count > 0, err
+	if err != nil {
+		return false, err
+	}
+	return count > 0, tx.Commit()
 }
 
 func nullString(value sql.NullString) *string {
