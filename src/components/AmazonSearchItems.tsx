@@ -12,7 +12,7 @@ import {
   TableRow,
   Tag,
 } from "@carbon/react";
-import { ArrowLeft } from "@carbon/icons-react";
+import { ArrowLeft, Launch } from "@carbon/icons-react";
 import type { AmazonRequests, AmazonSearch, SearchItem } from "../types";
 import { getSearch, trackSearchItem } from "../api/searches";
 import { formatSearchDate, formatWindowTime, searchStateText } from "./AmazonSearchesPage";
@@ -166,6 +166,16 @@ export default function AmazonSearchItems({ searchId, onBack, onViewDetail, onTr
                       <TableCell>
                         <div className="row-actions">
                           <Button kind="ghost" size="sm" onClick={() => onViewDetail(item)}>Details</Button>
+                          <Button
+                            kind="ghost"
+                            size="sm"
+                            hasIconOnly
+                            renderIcon={Launch}
+                            iconDescription="Open Amazon listing in a new tab"
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
                           {item.tracked ? (
                             <Tag type="green" size="sm">Tracked</Tag>
                           ) : (
