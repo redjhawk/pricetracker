@@ -38,16 +38,20 @@ func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bo
 	}
 }
 
-// AIReview returns the aiReview field for the item details, or nil for non-LeBoncoin items.
+// AIReview returns the aiReview field for the item details: always for LeBoncoin items; for Amazon
+// items only when they belong to a search or have reviews; otherwise nil.
 func (s *Service) AIReview(ctx context.Context, item model.Item) (*model.AIReviewState, error) {
-	if item.Platform != "leboncoin" {
-		return nil, nil
-	}
-	token, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
+	lastAttempt, succeeded, err := s.store.AIReviews(ctx, item.ID, item.Platform)
 	if err != nil {
 		return nil, err
 	}
-	lastAttempt, succeeded, err := s.store.AIReviews(ctx, item.ID)
+	if item.Platform == "amazon" && lastAttempt == nil {
+		inSearch, err := s.store.IsSearchItem(ctx, item.ID)
+		if err != nil || !inSearch {
+			return nil, err
+		}
+	}
+	token, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -142,14 +146,18 @@ func (s *Service) launchReview(id string, token model.ClaudeToken, details *mode
 func (s *Service) runReview(id string, reviewID int64, token model.ClaudeToken, details *model.ListingDetails, fetchFresh bool) {
 	defer s.workers.Done()
 	defer s.releaseReview(id)
-	ctx := s.workerContext
-	review, err := s.reviewListing(ctx, id, *token.Value, details, fetchFresh)
+	review, err := s.reviewListing(s.workerContext, id, *token.Value, details, fetchFresh)
+	s.finishReview(id, reviewID, token, review.priceCents, &review.content, err)
+}
+
+// finishReview stores the outcome of a review of either platform; content is used only when err is nil.
+func (s *Service) finishReview(id string, reviewID int64, token model.ClaudeToken, priceCents *int64, content any, err error) {
 	// The final write uses a fresh context so a shutdown still records the outcome.
 	finishContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	now := time.Now().UTC()
 	if err == nil {
-		if err := s.store.FinishAIReview(finishContext, reviewID, "succeeded", review.priceCents, &review.content, "", now); err != nil {
+		if err := s.store.FinishAIReview(finishContext, reviewID, "succeeded", priceCents, content, "", now); err != nil {
 			log.Printf("save AI review for item %s: %v", id, err)
 		}
 		if err := s.store.ClearClaudeTokenRejected(finishContext, token.OwnerID, token.Revision); err != nil {
@@ -158,7 +166,7 @@ func (s *Service) runReview(id string, reviewID int64, token model.ClaudeToken, 
 		log.Printf("AI review succeeded item=%s", id)
 		return
 	}
-	message := reviewFailureMessage(ctx, err)
+	message := reviewFailureMessage(s.workerContext, err)
 	if errors.Is(err, claude.ErrRejected) || errors.Is(err, claude.ErrUsageLimit) {
 		if err := s.store.MarkClaudeTokenRejected(finishContext, token.OwnerID, token.Revision, now); err != nil {
 			log.Printf("mark Claude token rejected: %v", err)
@@ -208,6 +216,8 @@ func reviewFailureMessage(ctx context.Context, err error) string {
 		return store.InterruptedReviewMessage
 	case errors.Is(err, errListingNotRetrieved):
 		return listingNotRetrievedMessage
+	case errors.Is(err, errProductNotRead):
+		return "The product could not be read from Amazon."
 	case errors.Is(err, claude.ErrRejected):
 		return "Claude rejected the token. Replace it in Settings."
 	case errors.Is(err, claude.ErrUsageLimit):

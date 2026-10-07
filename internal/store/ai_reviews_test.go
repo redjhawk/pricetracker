@@ -22,7 +22,7 @@ func TestAIReviewsHistoryRestartAndCascade(t *testing.T) {
 	ctx := context.Background()
 	insertTestItem(t, database, "a")
 	base := time.Date(2026, 10, 4, 9, 0, 0, 0, time.UTC)
-	if latest, history, err := database.AIReviews(ctx, "a"); err != nil || latest != nil || history == nil || len(history) != 0 {
+	if latest, history, err := database.AIReviews(ctx, "a", "leboncoin"); err != nil || latest != nil || history == nil || len(history) != 0 {
 		t.Fatalf("empty reviews: %v %v %v", latest, history, err)
 	}
 	price := int64(1500)
@@ -36,19 +36,19 @@ func TestAIReviewsHistoryRestartAndCascade(t *testing.T) {
 	database.FinishAIReview(ctx, second, "succeeded", &price, content, "", base.Add(time.Hour))
 	failed, _ := database.StartAIReview(ctx, "a", base.Add(2*time.Hour))
 	database.FinishAIReview(ctx, failed, "failed", nil, nil, "Claude could not be reached. Try again later.", base.Add(2*time.Hour))
-	latest, history, err := database.AIReviews(ctx, "a")
+	latest, history, err := database.AIReviews(ctx, "a", "leboncoin")
 	if err != nil || latest.ID != failed || latest.Status != "failed" || latest.Review != nil || *latest.ErrorMessage == "" {
 		t.Fatalf("latest %+v %v", latest, err)
 	}
 	if len(history) != 2 || history[0].ID != second || history[1].ID != first || *history[0].PriceCents != 1500 ||
-		*history[0].Review.Condition.Rating != "good" || history[0].ErrorMessage != nil || !history[1].CompletedAt.Equal(base.Add(time.Minute)) {
+		*history[0].Review.(*model.AIReviewContent).Condition.Rating != "good" || history[0].ErrorMessage != nil || !history[1].CompletedAt.Equal(base.Add(time.Minute)) {
 		t.Fatalf("history %+v", history)
 	}
 
 	pending, _ := database.StartAIReview(ctx, "a", base.Add(3*time.Hour))
 	database.Close()
 	reopened := openTestStore(t, dir)
-	latest, _, err = reopened.AIReviews(ctx, "a")
+	latest, _, err = reopened.AIReviews(ctx, "a", "leboncoin")
 	if err != nil || latest.ID != pending || latest.Status != "failed" || *latest.ErrorMessage != InterruptedReviewMessage || latest.CompletedAt == nil {
 		t.Fatalf("pending review not failed at startup: %+v %v", latest, err)
 	}
