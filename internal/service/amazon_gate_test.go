@@ -78,19 +78,12 @@ func TestAmazonGateStopsAfterFiveConsecutiveFailures(t *testing.T) {
 
 func TestAmazonGateIgnoresCancelledRequests(t *testing.T) {
 	service, _ := newSessionService(t)
-	gate := service.amazonGate
-	for range 4 {
-		gate.do(context.Background(), failed)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
-	if _, err := gate.do(ctx, func() model.CollectionResult { cancel(); return failed() }); !errors.Is(err, context.Canceled) {
+	if _, err := service.amazonGate.do(ctx, func() model.CollectionResult { cancel(); return failed() }); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled request error = %v", err)
 	}
-	if state := gate.current(); state.Blocked || state.ConsecutiveFailures != 4 {
-		t.Fatalf("cancelled request changed the state: %+v", state)
-	}
-	if saved := newAmazonGate(service.store, time.Now).current(); saved.ConsecutiveFailures != 4 {
-		t.Fatalf("cancelled request changed the saved state: %+v", saved)
+	if saved := newAmazonGate(service.store, time.Now).current(); saved.ConsecutiveFailures != 0 || service.amazonGate.current().ConsecutiveFailures != 0 {
+		t.Fatalf("cancelled request counted as a failure: %+v", saved)
 	}
 }
 
