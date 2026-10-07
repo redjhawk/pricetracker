@@ -55,6 +55,8 @@ type Service struct {
 	refreshSlots  chan struct{}
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
+	amazonGate    *amazonGate              // every Amazon request goes through it
+	runningSearch string                   // id of the Amazon search the worker is processing
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
@@ -66,6 +68,7 @@ func New(cfg config.Config, database *store.Store) *Service {
 		},
 		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
 		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: time.Now,
+		amazonGate: newAmazonGate(database, time.Now),
 	}
 }
 
@@ -146,6 +149,11 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported Amazon euro marketplaces and LeBoncoin listings."}
 	}
 	itemListing.OwnerID = ownerFrom(ctx)
+	if itemListing.Platform == "amazon" {
+		if item, found, err := s.trackSearchOnlyItem(ctx, itemListing.OwnerID, canonical); err != nil || found {
+			return item, err
+		}
+	}
 	exists, err := s.store.IsCanonicalTracked(ctx, itemListing.OwnerID, canonical)
 	if err != nil {
 		return model.Item{}, err
@@ -171,6 +179,25 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
 	return s.withPending(item, time.Now().UTC()), nil
+}
+
+// trackSearchOnlyItem makes the owner's search-only item for the product tracked, keeping its
+// history and reviews, and collects it as a new item.
+func (s *Service) trackSearchOnlyItem(ctx context.Context, ownerID int64, canonical string) (model.Item, bool, error) {
+	id, err := s.store.UntrackedItemID(ctx, ownerID, canonical)
+	if err != nil || id == "" {
+		return model.Item{}, false, err
+	}
+	if _, err := s.store.TrackItem(ctx, ownerID, id, s.NextCheckAt(time.Now())); err != nil {
+		return model.Item{}, false, err
+	}
+	item, err := s.store.Get(ctx, id)
+	if err != nil {
+		return model.Item{}, false, err
+	}
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
+	return s.withPending(item, time.Now().UTC()), true, nil
 }
 
 func (s *Service) Remove(ctx context.Context, id string) (bool, error) {
@@ -204,8 +231,15 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 }
 
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
-	if _, err := s.ownedListing(ctx, id); err != nil {
+	listing, err := s.ownedListing(ctx, id)
+	if err != nil {
 		return time.Time{}, err
+	}
+	if !listing.Tracked {
+		return time.Time{}, &Error{Status: 409, Code: "ITEM_NOT_TRACKED", Message: "Search items are checked during the Amazon request windows."}
+	}
+	if listing.Platform == "amazon" && s.amazonGate.current().Blocked {
+		return time.Time{}, &Error{Status: 409, Code: "AMAZON_REQUESTS_STOPPED", Message: "Amazon requests are stopped after repeated failures. Restart them from the Amazon searches tab."}
 	}
 	requestedAt := time.Now().UTC()
 	if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
@@ -272,9 +306,16 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 			log.Printf("no collector registered for platform %q on item %s", item.Platform, id)
 			return
 		}
-		requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
-		result = collector.Collect(requestContext, item)
-		cancel()
+		var stopped error
+		result, stopped = s.amazonGate.do(func() model.CollectionResult {
+			requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
+			defer cancel()
+			return collector.Collect(requestContext, item)
+		})
+		if stopped != nil {
+			log.Printf("Amazon requests stopped; check of item %s skipped", id)
+			return
+		}
 	}
 	if _, err := s.store.Listing(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return
