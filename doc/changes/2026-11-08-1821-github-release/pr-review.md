@@ -25,3 +25,9 @@ Known context, not a defect of this PR: the script uses the `build-release.sh am
 ## Re-reviews after fixes (stage 10 blocking fixes or `@claude` fixes)
 
 None yet.
+
+## PR #107
+
+- Review: https://github.com/redjhawk/pricetracker/pull/107#pullrequestreview-5819112468 (head ab0991d)
+- Counts: bug 0, nit 1
+- Nit: GOAMD64 not pinned for amd64 builds. https://github.com/redjhawk/pricetracker/pull/107#discussion_r4507319857. Stage 10 decided non-blocking.
