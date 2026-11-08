@@ -14,3 +14,5 @@ Quote the path with `printf '%q'` (or double quotes) in the message, and mention
 ## Source
 
 - Review recheck in `doc/changes/2026-11-08-1821-github-release/review.md`; decisions in `doc/changes/2026-11-08-1821-github-release/decisions.md`.
+- PR comment (line 59: hardcoded `/tmp`, ~400-character one-line message; triaged non-blocking on 2026-11-08): https://github.com/redjhawk/pricetracker/pull/100#discussion_r4507310364
+- Issue: https://github.com/redjhawk/pricetracker/issues/106
