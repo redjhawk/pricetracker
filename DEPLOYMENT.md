@@ -20,6 +20,16 @@ The script builds the React app, embeds its files, and writes `release/pricefoll
 
 Confirm the Pi's processor and OS architecture before choosing the target. The Go SQLite driver is pure Go and supports Linux ARM, so the release does not need a C compiler or a native module installed on the Pi.
 
+## Publish a GitHub release (amd64)
+
+From a clean, committed clone with Go, Node.js, `git` and an authenticated GitHub CLI (`gh auth login`), run:
+
+```bash
+./scripts/create-github-release.sh
+```
+
+The script refuses a dirty working tree, builds the Linux amd64 binary with `./scripts/build-release.sh amd64`, tags HEAD as `vYYYY.MM.DD-N` (UTC date; N is the first number not already used locally or on origin), pushes the tag, and creates a GitHub release titled after the tag with GitHub-generated notes and a single asset, `pricefollower-linux-amd64`. It prints the tag and the release URL. If the release step fails after the tag was pushed, do not rerun the script (it would create a new tag): the error prints the exact `gh release create` command to finish the release by hand, and the command to delete the tag instead.
+
 ## Deploy an ARMv6 release in one command
 
 After installing dependencies above, use a configured SSH target:
