@@ -76,6 +76,18 @@ sudo /tmp/install-pricefollower.sh /tmp/pricefollower
 
 The installer creates the `pricefollower` service user and group, installs the app in `/opt/pricefollower`, and stores the SQLite database in `/var/lib/pricefollower`. The web interface and API are served from port `3001`. See [DEPLOYMENT.md](DEPLOYMENT.md) for details and updates.
 
+### x86 64-bit (amd64) build
+
+To run the app on a Linux x86 64-bit PC or server instead of a Pi, build with the `amd64` target:
+
+```bash
+npm ci
+go mod download
+./scripts/build-release.sh amd64
+```
+
+Like the ARM targets, this writes a static binary (`CGO_ENABLED=0`) with the frontend embedded to `release/pricefollower` (it overwrites any earlier ARM build). Check it with `file release/pricefollower` (it should report `x86-64`). Run it directly, or install it as a service with the same `copy-dist.sh` and `install-pricefollower.sh` steps above, using the x86 machine as the target. `deploy-armv6.sh` always builds for ARMv6, so do not use it for x86 hosts.
+
 To add users, create the administrator account on the Pi; the command prints a generated password, and running it again resets it:
 
 ```bash

@@ -2,13 +2,17 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-GOARM_VERSION="${1:-7}"
+TARGET="${1:-7}"
 
-if [[ "$GOARM_VERSION" != "6" && "$GOARM_VERSION" != "7" ]]; then
-  echo "Usage: $0 [6|7]" >&2
-  echo "Use 7 for ARMv7 Raspberry Pi systems, or 6 for ARMv6 systems." >&2
-  exit 2
-fi
+case "$TARGET" in
+  6|7)   GO_ENV=(GOARCH=arm GOARM="$TARGET"); TARGET_NAME="ARMv$TARGET" ;;
+  amd64) GO_ENV=(GOARCH=amd64); TARGET_NAME="x86-64 (amd64)" ;;
+  *)
+    echo "Usage: $0 [6|7|amd64]" >&2
+    echo "Use 7 for ARMv7 Raspberry Pi systems, 6 for ARMv6 systems, or amd64 for x86 64-bit PCs." >&2
+    exit 2
+    ;;
+esac
 
 for command in go npm; do
   if ! command -v "$command" >/dev/null 2>&1; then
@@ -28,7 +32,7 @@ cp -R "$PROJECT_DIR/dist/." "$EMBED_DIR/"
 cleanup() { rm -rf "$EMBED_DIR"; }
 trap cleanup EXIT
 
-GOOS=linux GOARCH=arm GOARM="$GOARM_VERSION" CGO_ENABLED=0 \
+env GOOS=linux "${GO_ENV[@]}" CGO_ENABLED=0 \
   go build -trimpath -ldflags="-s -w" -o "$RELEASE_DIR/pricefollower" ./cmd/pricefollower
 
-echo "Built $RELEASE_DIR/pricefollower for Linux ARMv$GOARM_VERSION with the frontend embedded."
+echo "Built $RELEASE_DIR/pricefollower for Linux $TARGET_NAME with the frontend embedded."
