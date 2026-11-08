@@ -327,3 +327,4 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | specified (issue #56) |
 | Amazon human browsing | [amazon-human-browsing](specifications/amazon-human-browsing/functional.md) | specified (issue #56) |
 | Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | specified (issue #56) |
+| GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
