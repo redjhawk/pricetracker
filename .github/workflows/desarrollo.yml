@@ -1,0 +1,54 @@
+# Desarrollo autónomo: una issue con la etiqueta ai-dev, un comentario con @claude o un lanzamiento
+# manual. Nunca escribe en master. El PR se crea con DEV_TOKEN (no GITHUB_TOKEN), así que dispara
+# pruebas → revision-seguridad (fusiona con MERGE_TOKEN) → release.
+name: desarrollo
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tarea: {description: 'Qué debe hacer el agente', required: true}
+concurrency:
+  group: desarrollo-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+jobs:
+  desarrollar:
+    # Repositorio público: solo el propietario, o la identidad de MERGE_TOKEN que usa triage-pr para
+    # reenviar los problemas bloqueantes (variable de repositorio TRIAGE_LOGIN), puede lanzar trabajo en el runner.
+    if: >-
+      (github.actor == 'redjhawk' || (vars.TRIAGE_LOGIN != '' && github.actor == vars.TRIAGE_LOGIN)) &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-dev')) ||
+        (github.event_name != 'issues' && contains(github.event.comment.body, '@claude'))
+      )
+    runs-on: arc-dev
+    environment: desarrollo
+    steps:
+      - uses: actions/checkout@v7
+      - name: Instalar gh si falta
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            v=2.103.3
+            case "$(uname -m)" in aarch64|arm64) arch=arm64 ;; *) arch=amd64 ;; esac
+            curl -fsSL "https://github.com/cli/cli/releases/download/v$v/gh_${v}_linux_${arch}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_${v}_linux_${arch}/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Agente
+        env:
+          GH_TOKEN: ${{ secrets.DEV_TOKEN }}
+          # La tarea viene del lanzamiento manual, de la issue o del comentario; siempre por entorno, nunca interpolada en el script.
+          TAREA_MANUAL: ${{ inputs.tarea }}
+          COMENTARIO: ${{ github.event.comment.body }}
+          ISSUE_TITULO: ${{ github.event.issue.title }}
+          ISSUE_CUERPO: ${{ github.event.issue.body }}
+        run: |
+          TAREA="${TAREA_MANUAL:-${COMENTARIO:-$ISSUE_TITULO$'\n\n'$ISSUE_CUERPO}}"
+          git switch -c "agente/${{ github.run_id }}"
+          # Ejecutar aquí tu agente con la tarea de "$TAREA"
+          git push "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}" HEAD
+          gh pr create --fill --base master

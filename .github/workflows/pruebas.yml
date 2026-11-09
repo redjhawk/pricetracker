@@ -1,0 +1,19 @@
+# Pruebas: solo cuando se aprueba un PR hacia master (lo aprueba triage-pr), sin ningún secreto.
+name: pruebas
+on:
+  pull_request_review:
+    types: [submitted]
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.base.ref == 'master'
+    runs-on: arc-test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: {go-version: stable}
+      - run: go test ./...
+      - run: go test -tags=integration ./...
