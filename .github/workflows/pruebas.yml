@@ -1,4 +1,5 @@
-# Pruebas: solo cuando se aprueba un PR hacia master (lo aprueba triage-pr), sin ningún secreto.
+# Pruebas: solo cuando se aprueba un PR (lo aprueba triage-pr), sin ningún secreto.
+# Mismas comprobaciones que hacía ci-deploy: dependencias, go vet, tests de Go y compilación del frontend.
 name: pruebas
 on:
   pull_request_review:
@@ -7,13 +8,21 @@ permissions:
   contents: read
 jobs:
   pruebas:
-    if: >-
-      github.event.review.state == 'approved' &&
-      github.event.pull_request.base.ref == 'master'
+    if: github.event.review.state == 'approved'
     runs-on: arc-test
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: {go-version: stable}
+      - uses: actions/setup-node@v7
+        with: {node-version: 22}
+      - name: Instalar dependencias
+        run: |
+          npm ci
+          go mod download
+      - run: go vet ./...
       - run: go test ./...
       - run: go test -tags=integration ./...
+      - name: Comprobación de tipos y compilación del frontend
+        run: npm run build

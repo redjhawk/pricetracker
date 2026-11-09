@@ -5,8 +5,8 @@
 name: revision-pr
 on:
   pull_request_target:
+    # Todas las bases: los PR divididos apuntan a la rama de la funcionalidad, no a master
     types: [opened, synchronize, reopened]
-    branches: [master]
 permissions:
   contents: read
   pull-requests: write
