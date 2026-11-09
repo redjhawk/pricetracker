@@ -17,9 +17,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   desarrollar:
-    # Repositorio público: solo el propietario puede lanzar trabajo en el runner.
+    # Repositorio público: solo el propietario, o la identidad de MERGE_TOKEN que usa triage-pr para
+    # reenviar los problemas bloqueantes (variable de repositorio TRIAGE_LOGIN), puede lanzar trabajo en el runner.
     if: >-
-      github.actor == 'redjhawk' &&
+      (github.actor == 'redjhawk' || (vars.TRIAGE_LOGIN != '' && github.actor == vars.TRIAGE_LOGIN)) &&
       (
         github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-dev')) ||

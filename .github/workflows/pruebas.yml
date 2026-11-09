@@ -1,12 +1,15 @@
-# Pruebas: en cada PR, sin ningún secreto.
+# Pruebas: solo cuando se aprueba un PR hacia master (lo aprueba triage-pr), sin ningún secreto.
 name: pruebas
 on:
-  pull_request:
-    branches: [master]
+  pull_request_review:
+    types: [submitted]
 permissions:
   contents: read
 jobs:
   pruebas:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.base.ref == 'master'
     runs-on: arc-test
     steps:
       - uses: actions/checkout@v7
