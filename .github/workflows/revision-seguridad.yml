@@ -1,0 +1,67 @@
+# Revisión de seguridad y fusión: se lanza cuando terminan las pruebas y usa el workflow de master,
+# así que un PR no puede cambiar la lógica del revisor. El código del PR solo se lee, nunca se ejecuta.
+# Los PR de forks nunca se fusionan solos.
+name: revision-seguridad
+on:
+  workflow_run:
+    workflows: [pruebas]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  revisar:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: arc-review
+    environment: revision
+    steps:
+      - uses: actions/checkout@v7
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v7
+        with: {go-version: stable}
+      - name: Instalar gh si falta
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            v=2.103.3
+            case "$(uname -m)" in aarch64|arm64) arch=arm64 ;; *) arch=amd64 ;; esac
+            curl -fsSL "https://github.com/cli/cli/releases/download/v$v/gh_${v}_linux_${arch}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_${v}_linux_${arch}/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Localizar el PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=$(gh pr list --search "${{ github.event.workflow_run.head_sha }}" --json number -q '.[0].number')
+          echo "PR=$PR" >> "$GITHUB_ENV"
+          git fetch origin "pull/$PR/head:pr"
+          git worktree add ../pr pr
+      - name: Zonas sensibles (requieren revisión humana)
+        run: |
+          if git diff --name-only origin/master...pr | grep -E '^(\.github/|CODEOWNERS|go\.(mod|sum))'; then
+            echo "Cambios sensibles: no se fusiona automáticamente"; exit 1
+          fi
+      - name: Análisis determinista
+        working-directory: ../pr
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+          "$(go env GOPATH)/bin/gosec" ./...
+          # gitleaks desde su release oficial, con verificación de la suma SHA-256
+          v=8.30.1
+          case "$(uname -m)" in aarch64|arm64) arch=arm64 ;; *) arch=x64 ;; esac
+          file="gitleaks_${v}_linux_${arch}.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v$v/$file"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v$v/gitleaks_${v}_checksums.txt" | grep " $file\$" | sha256sum -c -
+          tar -xzf "$file" gitleaks
+          cd "$GITHUB_WORKSPACE/../pr"
+          "$RUNNER_TEMP/gitleaks" git --redact --log-opts="origin/master..pr" .
+      - name: Revisión del agente
+        run: echo "Lanzar aquí el agente de revisión sobre ../pr, en modo solo lectura"
+      - name: Fusionar
+        env:
+          GH_TOKEN: ${{ secrets.MERGE_TOKEN }}
+        run: gh pr merge "$PR" --squash

@@ -1,0 +1,16 @@
+# Pruebas: en cada PR, sin ningún secreto.
+name: pruebas
+on:
+  pull_request:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: arc-test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: {go-version: stable}
+      - run: go test ./...
+      - run: go test -tags=integration ./...
