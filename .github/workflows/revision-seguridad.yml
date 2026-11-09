@@ -8,6 +8,8 @@ on:
     types: [completed]
 permissions:
   contents: read
+  # gh pr list y gh pr view con GITHUB_TOKEN para localizar el PR
+  pull-requests: read
 jobs:
   revisar:
     if: >-
