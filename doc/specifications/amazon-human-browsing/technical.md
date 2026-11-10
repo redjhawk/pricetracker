@@ -1,6 +1,6 @@
 # Technical specification: Amazon human browsing
 
-Status: ready
+Status: superseded by [Amazon searches removal technical](../amazon-searches-removal/technical.md) and [Amazon request stop technical](../amazon-request-stop/technical.md) (issue #111, 2026-11-10)
 Functional specification: [functional.md](functional.md), FR-AMZ-HUMAN-001–012 (ready, 2026-10-07)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon searches (2026-10-07)" (request status, refresh after stop)
 Companions: [Amazon searches technical](../amazon-searches/technical.md), [Amazon AI review technical](../amazon-ai-review/technical.md)

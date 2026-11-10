@@ -558,7 +558,9 @@ Issue #42; see [technical specification](doc/specifications/leboncoin-old-price/
 - Ordering: undated old prices are older than every other observation; dated ones are ordered by date. Old prices take part in `priceHistory` and in the `lastThreeDetections` periods but never change the latest collection attempt or `status`.
 - Rationale: the user asked for a historical price rather than a new column; a flag on the existing observation keeps one price history and avoids a new item field.
 
-## Amazon searches (2026-10-07)
+## Amazon searches (2026-10-07) — removed (issue #111)
+
+**Removed by issue #111 (2026-11-10); kept below only as history, not part of the current contract.** The routes `/api/v1/amazon-searches…` and `GET /api/v1/amazon/requests` now return `404 ROUTE_NOT_FOUND`; the item field `tracked`, `409 ITEM_NOT_TRACKED`, `409 AMAZON_REQUESTS_STOPPED`, Amazon `aiReview` objects (Amazon details return `aiReview: null` again), the search-item reuse on add and the untrack-on-delete behavior are gone. The current Amazon stop contract is "Amazon per-item stop (issue #111)" below. Rationale: [change index](doc/changes/2026-11-10-0141-issue-111-delete-amazon-searches/index.md).
 
 Issue #56, agent-defined per AGENTS.md. Technical sources: [Amazon searches](doc/specifications/amazon-searches/technical.md), [Amazon human browsing](doc/specifications/amazon-human-browsing/technical.md), [Amazon AI review](doc/specifications/amazon-ai-review/technical.md). Rationale: [change index](doc/changes/2026-10-07-1117-issue-56-amazon-searches/index.md). Additive except where noted. All endpoints follow the existing access rules (owner-scoped in protected mode, open-mode owner otherwise); another owner's search returns `404 SEARCH_NOT_FOUND`. Responses carry `Cache-Control: no-store`.
 
@@ -659,3 +661,18 @@ Other methods on the routes above return `405 METHOD_NOT_ALLOWED` with the match
 ### Timing (informative, not configurable)
 
 Search work runs only 22:00–01:00 and 06:00–08:00 Europe/Paris, one search at a time and one item at a time, with random 30–120 s pauses; each search gets one pass per window. A failed request is retried once at the end of the pass. Five consecutive failed Amazon requests from any source set `stopped`.
+
+## Amazon per-item stop (issue #111)
+
+Agent-defined per AGENTS.md. Technical sources: [Amazon request stop](doc/specifications/amazon-request-stop/technical.md), [Amazon searches removal](doc/specifications/amazon-searches-removal/technical.md). Rationale: [change index](doc/changes/2026-11-10-0141-issue-111-delete-amazon-searches/index.md).
+
+### Item response change
+
+- `amazonStoppedAt` (string or `null`, always present in list, add and details responses): when the Amazon item was stopped after 5 consecutive failed Amazon requests; `null` when not stopped and for LeBoncoin items. The stop is application-wide in effect (the 5th failure stops the Amazon items of all owners), the field is owner-scoped like the item.
+- The Amazon tab shows a warning while any listed Amazon item has a non-null `amazonStoppedAt`.
+
+### Effect on existing endpoints
+
+- `POST /api/v1/items/{id}/refresh` on a stopped Amazon item → `202` as usual; the check is sent despite the stop. An Amazon answer (success, price not found, unavailable) sets only that item's `amazonStoppedAt` to `null`; a failure leaves it set. Clients poll `GET /api/v1/items` as for any refresh.
+- `POST /api/v1/items/refresh`: response unchanged (`itemsQueued` counts every tracked item); stopped Amazon items are skipped without a request or a new attempt. Scheduled checks skip them too.
+- `POST /api/v1/items` adds a new Amazon item with `amazonStoppedAt: null`, even while other items are stopped.

@@ -1,6 +1,6 @@
 # Technical specification: Amazon AI review
 
-Status: ready
+Status: superseded by [Amazon searches removal technical](../amazon-searches-removal/technical.md) (issue #111, 2026-11-10)
 Functional specification: [functional.md](functional.md), FR-AMZ-AIR-001–010 (ready, 2026-10-07)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon searches (2026-10-07)" (AI review fields)
 Companions: [LeBoncoin AI review technical](../leboncoin-ai-review/technical.md) (reused machinery), [Amazon human browsing technical](../amazon-human-browsing/technical.md), [Claude token settings technical](../claude-token-settings/technical.md)

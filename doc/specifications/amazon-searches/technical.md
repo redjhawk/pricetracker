@@ -1,6 +1,6 @@
 # Technical specification: Amazon searches
 
-Status: ready
+Status: superseded by [Amazon searches removal technical](../amazon-searches-removal/technical.md) (issue #111, 2026-11-10)
 Functional specification: [functional.md](functional.md), FR-AMZ-SEARCH-001–016 (ready, 2026-10-07)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon searches (2026-10-07)"
 Companions: [Amazon human browsing technical](../amazon-human-browsing/technical.md) (worker, gate, windows), [Amazon AI review technical](../amazon-ai-review/technical.md)
