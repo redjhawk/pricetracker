@@ -68,6 +68,16 @@ test("open mode shows only the version", async ({ page, context }) => {
   await expect(dialog).not.toContainText("Username");
 });
 
+test("REV-002: ended session shows no stale username and returns to the login page", async ({ page, context }) => {
+  const ended = { status: 200, json: { mode: "protected", user: null, version } };
+  await mockApi(context, [userSession, ended]);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Application menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Information", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Log in to Price follower" })).toBeVisible();
+  await expect(page.getByText("alice")).toHaveCount(0);
+});
+
 test("loading indicator while the version is pending", async ({ page, context }) => {
   await mockApi(context, [openSession, { ...openSession, delayMs: 1500 }]);
   await page.goto("/");

@@ -37,3 +37,13 @@ Existing Playwright mocks were not changed: they omit `version`, which only affe
 - Playwright tests are unverified in this environment; QA must run them where Chromium can start.
 - Manual release build with `PRICEFOLLOWER_VERSION` and `npm run dev:api` check not executed.
 - The `release.yml` push may be refused for missing `workflow` token scope (coordinator handles it, see technical spec).
+
+## Review fixes
+
+| Finding | Fix |
+| --- | --- |
+| REV-001 | `scripts/build-release.sh`: tag computed separately (`TAG=... \|\| true`), `VERSION="${PRICEFOLLOWER_VERSION:-${TAG:+$TAG-dev}}"`, then `VERSION="${VERSION:-dev}"`; no tag gives `dev`, a tag gives `<tag>-dev`, an explicit `PRICEFOLLOWER_VERSION` wins. `technical.md` Backend line aligned. |
+| REV-002 | `InformationModal`: when the refetched session is `mode: "protected"` with `user: null`, the username is hidden and the existing `authRequiredEvent` is dispatched, so the root reloads the session and shows the login page. New Playwright case "REV-002: ended session shows no stale username and returns to the login page". `technical.md` frontend note corrected (the endpoint returns 200 with `user: null`, not 401). |
+| REV-003 | `technical.md` mapping 013 now references `src/index.css`. No code change. |
+
+Checks after the fixes: `go test ./...` passed (all packages ok); `npm run build` passed; `tsc --noEmit --strict` on `tests/app-information.spec.ts` passed. Playwright is still not runnable here (missing `libnspr4.so`), so the REV-002 case is unexecuted and must be run by QA.

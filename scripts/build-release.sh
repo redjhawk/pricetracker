@@ -22,7 +22,9 @@ for command in go npm; do
 done
 
 cd "$PROJECT_DIR"
-VERSION="${PRICEFOLLOWER_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo dev)-dev}"
+TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+VERSION="${PRICEFOLLOWER_VERSION:-${TAG:+$TAG-dev}}"
+VERSION="${VERSION:-dev}"
 npm run build
 
 EMBED_DIR="$PROJECT_DIR/web/static/dist"
