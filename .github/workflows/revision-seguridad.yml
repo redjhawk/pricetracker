@@ -14,8 +14,7 @@ jobs:
   revisar:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request_review' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.event == 'issue_comment'
     runs-on: arc-review
     environment: revision
     steps:
@@ -34,13 +33,22 @@ jobs:
       - name: Localizar el PR
         env:
           GH_TOKEN: ${{ github.token }}
+          # Título de pruebas: "pruebas PR #<n> triage-ok <sha>", con el PR y la cabeza ya probados
+          TITLE: ${{ github.event.workflow_run.display_title }}
         run: |
-          PR=$(gh pr list --search "${{ github.event.workflow_run.head_sha }}" --json number -q '.[0].number')
+          [[ "$TITLE" =~ ^pruebas\ PR\ \#([0-9]+)\ triage-ok\ ([0-9a-f]{40})$ ]] || { echo "::error::Título inesperado: $TITLE"; exit 1; }
+          PR="${BASH_REMATCH[1]}"; SHA="${BASH_REMATCH[2]}"
+          read -r state head_sha head_repo < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" -q '"\(.state) \(.head.sha) \(.head.repo.full_name)"')
+          [ "$head_repo" = "$GITHUB_REPOSITORY" ] || { echo "::error::PR de un fork: no se fusiona"; exit 1; }
+          [ "$state" = open ] || { echo "::error::El PR #$PR no está abierto"; exit 1; }
+          [ "$head_sha" = "$SHA" ] || { echo "::error::El PR #$PR cambió desde las pruebas ($SHA → $head_sha)"; exit 1; }
+          echo "SHA=$SHA" >> "$GITHUB_ENV"
           # Los PR divididos apuntan a la rama de la funcionalidad; el PR final, a master
           BASE=$(gh pr view "$PR" --json baseRefName -q .baseRefName)
           HEAD=$(gh pr view "$PR" --json headRefName -q .headRefName)
           { echo "PR=$PR"; echo "BASE=$BASE"; echo "HEAD=$HEAD"; } >> "$GITHUB_ENV"
-          git fetch origin "pull/$PR/head:pr"
+          git fetch origin "$SHA"
+          git branch pr "$SHA"
           git worktree add ../pr pr
       - name: Zonas sensibles (requieren revisión humana)
         run: |
@@ -65,13 +73,13 @@ jobs:
           cd "$GITHUB_WORKSPACE/../pr"
           "$RUNNER_TEMP/gitleaks" git --redact --log-opts="origin/$BASE..pr" .
       # La revisión del agente la hacen revision-pr y triage-pr antes de las pruebas: si este workflow
-      # se ejecuta, el PR ya está aprobado sin comentarios bloqueantes.
+      # se ejecuta, triage-pr comentó triage-ok: no quedan comentarios bloqueantes.
       - name: Fusionar
         env:
           GH_TOKEN: ${{ secrets.MERGE_TOKEN }}
         run: |
           if [ "$BASE" = master ]; then
-            gh pr merge "$PR" --squash
+            gh pr merge "$PR" --squash --match-head-commit "$SHA"
             exit 0
           fi
           # Parte de un cambio dividido: el PR siguiente apunta a esta rama; se reapunta a la rama de la
@@ -79,8 +87,8 @@ jobs:
           for next in $(gh pr list --base "$HEAD" --state open --json number -q '.[].number'); do
             gh api "repos/$GITHUB_REPOSITORY/pulls/$next" --method PATCH -f base="$BASE" >/dev/null
           done
-          gh pr merge "$PR" --merge
-          # Última parte fusionada: desarrollo abre el PR final (con DEV_TOKEN, para que triage-pr pueda aprobarlo)
+          gh pr merge "$PR" --merge --match-head-commit "$SHA"
+          # Última parte fusionada: desarrollo abre el PR final (con DEV_TOKEN, para que se disparen revision-pr y triage-pr)
           issue=$(sed -n 's#^ai-dev/issue-\([0-9]*\)-feature$#\1#p' <<<"$BASE")
           if [ -n "$issue" ] && [ -z "$(gh pr list --base "$BASE" --state open --json number -q '.[].number')" ]; then
             gh issue comment "$issue" --body "@claude Todas las partes están fusionadas en \`$BASE\`. Abre el PR final de \`$BASE\` a \`master\` con 'Closes #$issue', que liste las partes en orden de fusión."

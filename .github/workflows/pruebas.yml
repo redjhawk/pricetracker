@@ -1,22 +1,47 @@
-# Pruebas: solo cuando se aprueba un PR (lo aprueba triage-pr), sin ningún secreto.
+# Pruebas: cuando triage-pr comenta `triage-ok <sha>` en un PR (no queda nada bloqueante), sin ningún secreto.
 # Mismas comprobaciones que hacía ci-deploy: dependencias, go vet, tests de Go y compilación del frontend.
+# El título de la ejecución lleva el PR y el sha probado: revision-seguridad los lee de ahí para fusionar
+# exactamente esa cabeza.
 name: pruebas
+run-name: pruebas PR #${{ github.event.issue.number }} ${{ github.event.comment.body }}
 on:
-  pull_request_review:
-    types: [submitted]
+  issue_comment:
+    types: [created]
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   pruebas:
-    if: github.event.review.state == 'approved'
+    # Solo comentarios en PR, del propietario o de la identidad de triage-pr
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, 'triage-ok ') &&
+      (github.event.comment.user.login == 'redjhawk' ||
+       (vars.TRIAGE_LOGIN != '' && github.event.comment.user.login == vars.TRIAGE_LOGIN))
     runs-on: arc-test
     timeout-minutes: 30
     steps:
+      - name: Comprobar el PR y la cabeza aprobada por triage
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          [[ "$BODY" =~ ^triage-ok\ ([0-9a-f]{40})$ ]] || { echo "::error::El comentario debe ser exactamente 'triage-ok <sha de 40 caracteres>'"; exit 1; }
+          sha="${BASH_REMATCH[1]}"
+          read -r state head_sha head_repo < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" -q '"\(.state) \(.head.sha) \(.head.repo.full_name)"')
+          [ "$head_repo" = "$GITHUB_REPOSITORY" ] || { echo "::error::PR de un fork: no se prueba"; exit 1; }
+          [ "$state" = open ] || { echo "::error::El PR #$PR no está abierto"; exit 1; }
+          [ "$head_sha" = "$sha" ] || { echo "::error::La cabeza del PR ($head_sha) no es la revisada por triage ($sha)"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
       # Pruebas desactivadas temporalmente: el job termina en verde para que revision-seguridad
       # (que se lanza al completarse pruebas con éxito) siga fusionando. Para reactivarlas,
       # borra este paso y descomenta los de abajo.
       - run: echo "Pruebas desactivadas temporalmente"
-    #   - uses: actions/checkout@v7
     #   - uses: actions/setup-go@v7
     #     with: {go-version: stable}
     #   - uses: actions/setup-node@v7

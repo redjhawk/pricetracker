@@ -56,4 +56,5 @@ jobs:
             No modifiques ficheros, no hagas commits ni push y no ejecutes el código del PR.
           claude_args: |
             --max-turns 80
+            --add-dir ../pr
             --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews --method POST --input *),Write(/tmp/**)"
