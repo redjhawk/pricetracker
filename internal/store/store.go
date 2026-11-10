@@ -55,7 +55,7 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	if err := s.createSearchSchema(context.Background()); err != nil {
+	if err := s.removeAmazonSearches(context.Background()); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -73,7 +73,8 @@ func Open(cfg config.Config) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 // itemsColumns is the current items table definition. Owner 0 is the open-mode owner (no user);
-// two owners may track the same canonical URL. tracked = 0 marks an item only in Amazon searches.
+// two owners may track the same canonical URL. tracked is a leftover of the removed Amazon
+// searches (issue #111): every item is tracked (1).
 const itemsColumns = `
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
@@ -268,6 +269,32 @@ func (s *Store) rebuildTable(ctx context.Context, table string, statements []str
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("migrate %s table: %w", table, err)
+	}
+	return tx.Commit()
+}
+
+// removeAmazonSearches deletes the Amazon searches of issue #56 once (issue #111): search-only
+// items (tracked = 0) with their history, attempts and reviews, the Amazon AI reviews and the
+// search tables. Tracked items keep their whole history.
+func (s *Store) removeAmazonSearches(ctx context.Context) error {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'amazon_search_items')").Scan(&exists); err != nil || !exists {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, statement := range []string{
+		"DELETE FROM items WHERE tracked = 0",
+		"DELETE FROM ai_reviews WHERE item_id IN (SELECT id FROM items WHERE platform = 'amazon')",
+		"DROP TABLE IF EXISTS amazon_search_items",
+		"DROP TABLE IF EXISTS amazon_searches",
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("remove Amazon searches: %w", err)
+		}
 	}
 	return tx.Commit()
 }
@@ -502,13 +529,14 @@ func (s *Store) GetWithHistory(ctx context.Context, id string) (model.Item, erro
 
 func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.Item, error) {
 	var item model.Item
-	var asin, title, thumbnail, next sql.NullString
+	var asin, title, thumbnail, next, stopped sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, tracked FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &item.Tracked)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, amazon_stopped_at FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &stopped)
 	if err != nil {
 		return item, err
 	}
+	item.AmazonStoppedAt = optionalTimestamp(stopped)
 	if item.Platform == "amazon" && asin.Valid {
 		item.ASIN = &asin.String
 	}
@@ -739,7 +767,7 @@ func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
 }
 
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND amazon_stopped_at IS NULL AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -757,8 +785,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id, tracked FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID, &item.Tracked)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID)
 	return item, err
 }
 
@@ -834,31 +862,13 @@ func (s *Store) RecordFailure(ctx context.Context, id, result, message string, t
 	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
-// Delete removes a tracked item from the tracked list. An item still in an Amazon search
-// is only untracked, so it stays in the search with its history.
 func (s *Store) Delete(ctx context.Context, ownerID int64, id string) (bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	var inSearch bool
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM amazon_search_items WHERE item_id = ?)", id).Scan(&inSearch); err != nil {
-		return false, err
-	}
-	statement := "DELETE FROM items WHERE id = ? AND owner_id = ? AND tracked = 1"
-	if inSearch {
-		statement = "UPDATE items SET tracked = 0, next_check_at = NULL WHERE id = ? AND owner_id = ? AND tracked = 1"
-	}
-	result, err := tx.ExecContext(ctx, statement, id, ownerID)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ? AND owner_id = ?", id, ownerID)
 	if err != nil {
 		return false, err
 	}
 	count, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return count > 0, tx.Commit()
+	return count > 0, err
 }
 
 func nullString(value sql.NullString) *string {

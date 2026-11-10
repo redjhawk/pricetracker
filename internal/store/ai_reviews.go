@@ -69,10 +69,9 @@ func (s *Store) FinishAIReview(ctx context.Context, id int64, status string, pri
 }
 
 // AIReviews returns the latest attempt of any status and up to 50 succeeded reviews, newest first.
-// Stored reviews are decoded in the review shape of the item's platform.
-func (s *Store) AIReviews(ctx context.Context, itemID, platform string) (*model.AIReview, []model.AIReview, error) {
+func (s *Store) AIReviews(ctx context.Context, itemID string) (*model.AIReview, []model.AIReview, error) {
 	const columns = "id, status, price_cents, review_json, error_message, created_at, completed_at"
-	latest, err := scanAIReview(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM ai_reviews WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", itemID), platform)
+	latest, err := scanAIReview(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM ai_reviews WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", itemID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, make([]model.AIReview, 0), nil
 	}
@@ -86,7 +85,7 @@ func (s *Store) AIReviews(ctx context.Context, itemID, platform string) (*model.
 	defer rows.Close()
 	succeeded := make([]model.AIReview, 0)
 	for rows.Next() {
-		review, err := scanAIReview(rows, platform)
+		review, err := scanAIReview(rows)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -97,7 +96,7 @@ func (s *Store) AIReviews(ctx context.Context, itemID, platform string) (*model.
 
 type scanner interface{ Scan(dest ...any) error }
 
-func scanAIReview(row scanner, platform string) (*model.AIReview, error) {
+func scanAIReview(row scanner) (*model.AIReview, error) {
 	var review model.AIReview
 	var price sql.NullInt64
 	var reviewJSON, message, completed sql.NullString
@@ -109,10 +108,7 @@ func scanAIReview(row scanner, platform string) (*model.AIReview, error) {
 		review.PriceCents = &price.Int64
 	}
 	if reviewJSON.Valid {
-		var content any = &model.AIReviewContent{}
-		if platform == "amazon" {
-			content = &model.AmazonAIReviewContent{}
-		}
+		content := &model.AIReviewContent{}
 		if err := json.Unmarshal([]byte(reviewJSON.String), content); err != nil {
 			return nil, fmt.Errorf("decode stored AI review %d: %w", review.ID, err)
 		}
@@ -122,13 +118,6 @@ func scanAIReview(row scanner, platform string) (*model.AIReview, error) {
 	review.CreatedAt = parseTimestamp(created)
 	review.CompletedAt = optionalTimestamp(completed)
 	return &review, nil
-}
-
-// IsSearchItem reports whether the item belongs to at least one Amazon search.
-func (s *Store) IsSearchItem(ctx context.Context, itemID string) (bool, error) {
-	var exists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM amazon_search_items WHERE item_id = ?)", itemID).Scan(&exists)
-	return exists, err
 }
 
 // LatestPriceCents returns the most recent recorded price, or nil when none exists.

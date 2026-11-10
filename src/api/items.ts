@@ -37,7 +37,6 @@ export interface ApiTrackedItem {
   nextCheckAt: string | null;
   addedAt: string;
   purchaseGoal: string;
-  tracked: boolean;
   aiReview?: AiReviewState | null;
 }
 

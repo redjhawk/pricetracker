@@ -103,25 +103,6 @@ func (c *Collector) Collect(ctx context.Context, item model.Listing) model.Colle
 	return c.withSecondHand(ctx, item, result)
 }
 
-// CollectProduct reads a product page with a single request, as a person opening the item would:
-// no second-hand offer request is sent, so the second-hand status comes from the product page only.
-// A successful read also returns the product details used by the AI review.
-func (c *Collector) CollectProduct(ctx context.Context, item model.Listing) model.CollectionResult {
-	result, page := c.productPage(ctx, item)
-	result.SecondHandStatus = "check_error"
-	if page == "" {
-		return result
-	}
-	status, amount, condition, label := secondHandOfferFromProductPage(page)
-	if status == "available" {
-		result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = status, amount, condition, label
-	}
-	if result.Result == "success" {
-		result.Product = productDetails(page, result)
-	}
-	return result
-}
-
 // productPage requests and parses the product page. The page is empty unless the product was read
 // (success or price_not_found). A failure keeps the request URL, HTTP status and a response excerpt.
 func (c *Collector) productPage(ctx context.Context, item model.Listing) (model.CollectionResult, string) {
@@ -198,37 +179,6 @@ func excerpt(body []byte) string {
 		}
 		return r
 	}, text)
-}
-
-var listItemPattern = regexp.MustCompile(`(?is)<li\b[^>]*>(.*?)</li>`)
-
-// productDetails extracts what the AI review reads from a product page; each text is bounded to 4 KB.
-func productDetails(page string, result model.CollectionResult) *model.ProductDetails {
-	details := &model.ProductDetails{PriceCents: &result.AmountCents, Features: []string{}}
-	if result.Title != nil {
-		details.Title = *result.Title
-	}
-	size := 0
-	for _, match := range listItemPattern.FindAllStringSubmatch(elementByID(page, "feature-bullets"), -1) {
-		feature := textContent(match[1])
-		if feature == "" || size+len(feature) > 4096 {
-			continue
-		}
-		size += len(feature)
-		details.Features = append(details.Features, feature)
-	}
-	description := textContent(elementByID(page, "productDescription"))
-	details.Description = strings.ToValidUTF8(description[:min(len(description), 4096)], "")
-	return details
-}
-
-// elementByID returns the whole element with the id, nested elements included.
-func elementByID(page, id string) string {
-	open := regexp.MustCompile(`(?is)<[a-z][\w:-]*\b[^>]*\bid=["']` + regexp.QuoteMeta(id) + `["']`).FindStringIndex(page)
-	if open == nil {
-		return ""
-	}
-	return page[open[0]:elementEnd(page, open[0])]
 }
 
 func (c *Collector) withSecondHand(ctx context.Context, item model.Listing, result model.CollectionResult) model.CollectionResult {

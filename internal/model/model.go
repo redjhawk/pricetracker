@@ -49,7 +49,7 @@ type Item struct {
 	NextCheckAt         *time.Time       `json:"nextCheckAt"`
 	AddedAt             time.Time        `json:"addedAt"`
 	PurchaseGoal        string           `json:"purchaseGoal"`
-	Tracked             bool             `json:"tracked"` // false for an item that is only in Amazon searches
+	AmazonStoppedAt     *time.Time       `json:"amazonStoppedAt"` // set when Amazon checks of the item are stopped
 }
 
 type Listing struct {
@@ -61,7 +61,6 @@ type Listing struct {
 	URL          string
 	PurchaseGoal string
 	OwnerID      int64 // 0 is the open-mode owner
-	Tracked      bool  // false for an item that is only in Amazon searches
 }
 
 type CollectionResult struct {
@@ -77,19 +76,10 @@ type CollectionResult struct {
 	Listing                  *ListingDetails // LeBoncoin only; kept in memory for AI reviews, never persisted
 	OldPriceCents            *int64          // LeBoncoin old price; recorded only for a new item
 	OldPriceAt               *time.Time      // date of the old price; nil when the listing gives none
-	Product                  *ProductDetails // Amazon single-request read only; kept in memory for AI reviews, never persisted
 	// Failure diagnostics for logs (Amazon); never persisted nor returned by the API.
 	RequestURL      string
 	HTTPStatus      int // 0 when no response was received
 	ResponseExcerpt string
-}
-
-// ProductDetails is the Amazon product page content sent to an AI review.
-type ProductDetails struct {
-	Title       string
-	PriceCents  *int64
-	Features    []string
-	Description string
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.
@@ -141,11 +131,6 @@ type AIFairPrice struct {
 	SuggestedOfferCents int64 `json:"suggestedOfferCents"`
 }
 
-// AmazonAIReviewContent is a validated Claude review of an Amazon product price.
-type AmazonAIReviewContent struct {
-	Price AIRating `json:"price"`
-}
-
 // AIReview is one stored review attempt.
 type AIReview struct {
 	ID           int64      `json:"id"`
@@ -153,7 +138,7 @@ type AIReview struct {
 	PriceCents   *int64     `json:"priceCents"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	CompletedAt  *time.Time `json:"completedAt"`
-	Review       any        `json:"review"` // *AIReviewContent (LeBoncoin) or *AmazonAIReviewContent; nil when none
+	Review       any        `json:"review"` // *AIReviewContent; nil when none
 	ErrorMessage *string    `json:"errorMessage"`
 }
 

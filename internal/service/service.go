@@ -56,7 +56,6 @@ type Service struct {
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
 	amazonGate    *amazonGate              // every Amazon request goes through it
-	runningSearch string                   // id of the Amazon search the worker is processing
 }
 
 func New(cfg config.Config, database *store.Store) *Service {
@@ -149,11 +148,6 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 		return model.Item{}, &Error{Status: 422, Code: "UNSUPPORTED_LISTING", Message: "This listing is outside the supported Amazon euro marketplaces and LeBoncoin listings."}
 	}
 	itemListing.OwnerID = ownerFrom(ctx)
-	if itemListing.Platform == "amazon" {
-		if item, found, err := s.trackSearchOnlyItem(ctx, itemListing.OwnerID, canonical); err != nil || found {
-			return item, err
-		}
-	}
 	exists, err := s.store.IsCanonicalTracked(ctx, itemListing.OwnerID, canonical)
 	if err != nil {
 		return model.Item{}, err
@@ -181,25 +175,6 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	return s.withPending(item, time.Now().UTC()), nil
 }
 
-// trackSearchOnlyItem makes the owner's search-only item for the product tracked, keeping its
-// history and reviews, and collects it as a new item.
-func (s *Service) trackSearchOnlyItem(ctx context.Context, ownerID int64, canonical string) (model.Item, bool, error) {
-	id, err := s.store.UntrackedItemID(ctx, ownerID, canonical)
-	if err != nil || id == "" {
-		return model.Item{}, false, err
-	}
-	if _, err := s.store.TrackItem(ctx, ownerID, id, s.NextCheckAt(time.Now())); err != nil {
-		return model.Item{}, false, err
-	}
-	item, err := s.store.Get(ctx, id)
-	if err != nil {
-		return model.Item{}, false, err
-	}
-	s.workers.Add(1)
-	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
-	return s.withPending(item, time.Now().UTC()), true, nil
-}
-
 func (s *Service) Remove(ctx context.Context, id string) (bool, error) {
 	return s.store.Delete(ctx, ownerFrom(ctx), id)
 }
@@ -225,21 +200,14 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 	s.mu.Unlock()
 	for _, id := range queued {
 		s.workers.Add(1)
-		go s.runQueuedCollection(id)
+		go s.runQueuedCollection(id, false)
 	}
 	return requestedAt, len(ids), nil
 }
 
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
-	listing, err := s.ownedListing(ctx, id)
-	if err != nil {
+	if _, err := s.ownedListing(ctx, id); err != nil {
 		return time.Time{}, err
-	}
-	if !listing.Tracked {
-		return time.Time{}, &Error{Status: 409, Code: "ITEM_NOT_TRACKED", Message: "Search items are checked during the Amazon request windows."}
-	}
-	if listing.Platform == "amazon" && s.amazonGate.current().Blocked {
-		return time.Time{}, &Error{Status: 409, Code: "AMAZON_REQUESTS_STOPPED", Message: "Amazon requests are stopped after repeated failures. Restart them from the Amazon searches tab."}
 	}
 	requestedAt := time.Now().UTC()
 	if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
@@ -253,17 +221,18 @@ func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error)
 	s.mu.Unlock()
 	if !active {
 		s.workers.Add(1)
-		go s.runQueuedCollection(id)
+		go s.runQueuedCollection(id, true)
 	}
 	return requestedAt, nil
 }
 
-func (s *Service) runQueuedCollection(id string) {
+// runQueuedCollection runs a reserved collection; manual (Refresh price) checks a stopped Amazon item too.
+func (s *Service) runQueuedCollection(id string, manual bool) {
 	defer s.workers.Done()
 	select {
 	case s.refreshSlots <- struct{}{}:
 		defer func() { <-s.refreshSlots }()
-		s.collectReserved(s.workerContext, id, false)
+		s.collectReserved(s.workerContext, id, false, manual)
 	case <-s.workerContext.Done():
 		s.releaseCollection(id)
 	}
@@ -284,10 +253,10 @@ func (s *Service) collect(ctx context.Context, id string, newItem bool) {
 	}
 	s.inFlight[id] = started
 	s.mu.Unlock()
-	s.collectReserved(ctx, id, newItem)
+	s.collectReserved(ctx, id, newItem, false)
 }
 
-func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) {
+func (s *Service) collectReserved(ctx context.Context, id string, newItem, manual bool) {
 	defer func() { s.mu.Lock(); delete(s.inFlight, id); s.mu.Unlock() }()
 	item, err := s.store.Listing(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -307,7 +276,7 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem bool) 
 			return
 		}
 		var stopped error
-		result, stopped = s.amazonGate.do(ctx, func() model.CollectionResult {
+		result, stopped = s.amazonGate.do(ctx, id, manual, func() model.CollectionResult {
 			requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
 			defer cancel()
 			return collector.Collect(requestContext, item)
