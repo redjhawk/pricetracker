@@ -8,6 +8,7 @@ export interface SessionUser {
 export interface SessionState {
   mode: "open" | "protected";
   user: SessionUser | null;
+  version: string;
 }
 
 export interface UserSummary {
