@@ -529,13 +529,14 @@ func (s *Store) GetWithHistory(ctx context.Context, id string) (model.Item, erro
 
 func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.Item, error) {
 	var item model.Item
-	var asin, title, thumbnail, next sql.NullString
+	var asin, title, thumbnail, next, stopped sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, amazon_stopped_at FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &stopped)
 	if err != nil {
 		return item, err
 	}
+	item.AmazonStoppedAt = optionalTimestamp(stopped)
 	if item.Platform == "amazon" && asin.Valid {
 		item.ASIN = &asin.String
 	}
@@ -766,7 +767,7 @@ func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
 }
 
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND amazon_stopped_at IS NULL AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
 	if err != nil {
 		return nil, err
 	}

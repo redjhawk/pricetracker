@@ -49,6 +49,7 @@ type Item struct {
 	NextCheckAt         *time.Time       `json:"nextCheckAt"`
 	AddedAt             time.Time        `json:"addedAt"`
 	PurchaseGoal        string           `json:"purchaseGoal"`
+	AmazonStoppedAt     *time.Time       `json:"amazonStoppedAt"` // set when Amazon checks of the item are stopped
 }
 
 type Listing struct {
@@ -79,13 +80,6 @@ type CollectionResult struct {
 	RequestURL      string
 	HTTPStatus      int // 0 when no response was received
 	ResponseExcerpt string
-}
-
-// AmazonRequests is the application-wide Amazon request state.
-type AmazonRequests struct {
-	Stopped             bool       `json:"stopped"`
-	StoppedAt           *time.Time `json:"stoppedAt"`
-	ConsecutiveFailures int        `json:"consecutiveFailures"`
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.
