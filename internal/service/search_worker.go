@@ -52,6 +52,12 @@ type searchWorker struct {
 // humanPause is a random pause from 30 to 120 seconds inclusive.
 func humanPause() time.Duration { return time.Duration(30+mathrand.Intn(91)) * time.Second }
 
+func (s *Service) setRunningSearch(id string) {
+	s.mu.Lock()
+	s.runningSearch = id
+	s.mu.Unlock()
+}
+
 // RunSearchWorker processes due Amazon searches until ctx is cancelled.
 func (s *Service) RunSearchWorker(ctx context.Context) {
 	worker := &searchWorker{service: s, collector: amazon.NewCollector(s.config.UserAgent), clock: realClock{}, pause: humanPause}
