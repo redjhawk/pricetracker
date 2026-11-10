@@ -49,7 +49,6 @@ type Item struct {
 	NextCheckAt         *time.Time       `json:"nextCheckAt"`
 	AddedAt             time.Time        `json:"addedAt"`
 	PurchaseGoal        string           `json:"purchaseGoal"`
-	Tracked             bool             `json:"tracked"` // false for an item that is only in Amazon searches
 }
 
 type Listing struct {
@@ -61,7 +60,6 @@ type Listing struct {
 	URL          string
 	PurchaseGoal string
 	OwnerID      int64 // 0 is the open-mode owner
-	Tracked      bool  // false for an item that is only in Amazon searches
 }
 
 type CollectionResult struct {
