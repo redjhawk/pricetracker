@@ -55,6 +55,10 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.removeAmazonSearches(context.Background()); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -69,7 +73,8 @@ func Open(cfg config.Config) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 // itemsColumns is the current items table definition. Owner 0 is the open-mode owner (no user);
-// two owners may track the same canonical URL. tracked = 0 marks an item only in Amazon searches.
+// two owners may track the same canonical URL. tracked is a leftover of the removed Amazon
+// searches (issue #111): every item is tracked (1).
 const itemsColumns = `
   id TEXT PRIMARY KEY,
   asin TEXT NOT NULL,
@@ -264,6 +269,32 @@ func (s *Store) rebuildTable(ctx context.Context, table string, statements []str
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("migrate %s table: %w", table, err)
+	}
+	return tx.Commit()
+}
+
+// removeAmazonSearches deletes the Amazon searches of issue #56 once (issue #111): search-only
+// items (tracked = 0) with their history, attempts and reviews, the Amazon AI reviews and the
+// search tables. Tracked items keep their whole history.
+func (s *Store) removeAmazonSearches(ctx context.Context) error {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'amazon_search_items')").Scan(&exists); err != nil || !exists {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, statement := range []string{
+		"DELETE FROM items WHERE tracked = 0",
+		"DELETE FROM ai_reviews WHERE item_id IN (SELECT id FROM items WHERE platform = 'amazon')",
+		"DROP TABLE IF EXISTS amazon_search_items",
+		"DROP TABLE IF EXISTS amazon_searches",
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("remove Amazon searches: %w", err)
+		}
 	}
 	return tx.Commit()
 }
