@@ -3,7 +3,7 @@
 # El título de la ejecución lleva el PR y el sha probado: revision-seguridad los lee de ahí para fusionar
 # exactamente esa cabeza.
 name: pruebas
-run-name: pruebas PR #${{ github.event.issue.number }} ${{ github.event.comment.body }}
+run-name: "pruebas PR #${{ github.event.issue.number }} ${{ github.event.comment.body }}"
 on:
   issue_comment:
     types: [created]
