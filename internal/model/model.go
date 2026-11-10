@@ -141,11 +141,6 @@ type AIFairPrice struct {
 	SuggestedOfferCents int64 `json:"suggestedOfferCents"`
 }
 
-// AmazonAIReviewContent is a validated Claude review of an Amazon product price.
-type AmazonAIReviewContent struct {
-	Price AIRating `json:"price"`
-}
-
 // AIReview is one stored review attempt.
 type AIReview struct {
 	ID           int64      `json:"id"`
@@ -153,7 +148,7 @@ type AIReview struct {
 	PriceCents   *int64     `json:"priceCents"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	CompletedAt  *time.Time `json:"completedAt"`
-	Review       any        `json:"review"` // *AIReviewContent (LeBoncoin) or *AmazonAIReviewContent; nil when none
+	Review       any        `json:"review"` // *AIReviewContent; nil when none
 	ErrorMessage *string    `json:"errorMessage"`
 }
 
