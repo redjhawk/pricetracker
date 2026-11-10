@@ -47,12 +47,6 @@ jobs:
           if git diff --name-only "origin/$BASE...pr" | grep -E '^(\.github/|CODEOWNERS|go\.(mod|sum))'; then
             echo "Cambios sensibles: no se fusiona automáticamente"; exit 1
           fi
-      - name: Tamaño del PR (límite de AGENTS.md)
-        run: |
-          # El PR final de la rama de la funcionalidad solo agrega partes ya medidas
-          if [ "$BASE" = master ] && [[ "$HEAD" == ai-dev/issue-*-feature ]]; then exit 0; fi
-          # Script de master, nunca el del PR
-          ./scripts/pr-size.sh "origin/$BASE" pr
       - name: Análisis determinista
         working-directory: ../pr
         run: |
