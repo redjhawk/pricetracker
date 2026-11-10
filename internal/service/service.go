@@ -72,6 +72,12 @@ func New(cfg config.Config, database *store.Store) *Service {
 	}
 }
 
+// AmazonRequests returns the application-wide Amazon request state.
+func (s *Service) AmazonRequests() model.AmazonRequests {
+	state := s.amazonGate.current()
+	return model.AmazonRequests{Stopped: state.Blocked, StoppedAt: state.StoppedAt, ConsecutiveFailures: state.ConsecutiveFailures}
+}
+
 func (s *Service) Close() {
 	s.stopWorkers()
 	s.workers.Wait()
