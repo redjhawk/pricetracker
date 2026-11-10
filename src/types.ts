@@ -51,13 +51,9 @@ export interface TrackedItem {
   nextCheckAt: string | null;
   addedAt: string;
   purchaseGoal: string;
+  /** When Amazon checks of the item were stopped after repeated failures; null otherwise. */
+  amazonStoppedAt: string | null;
   aiReview?: AiReviewState | null;
-}
-
-export interface AmazonRequests {
-  stopped: boolean;
-  stoppedAt: string | null;
-  consecutiveFailures: number;
 }
 
 export interface AiReviewContent {

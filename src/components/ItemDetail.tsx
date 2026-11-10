@@ -100,6 +100,15 @@ export default function ItemDetail({
         <InlineNotification kind="error" title="Could not refresh price" subtitle={refreshError} lowContrast className="detail-notification" />
       )}
 
+      {item.platform === "amazon" && item.amazonStoppedAt && (
+        <InlineNotification
+          kind="warning"
+          title={`Amazon checks of this item are stopped since ${dateTime.format(new Date(item.amazonStoppedAt))}. Refresh price restarts it.`}
+          lowContrast
+          hideCloseButton
+          className="detail-notification"
+        />
+      )}
       {item.status === "stale" && (
         <InlineNotification
           kind="warning"
