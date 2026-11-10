@@ -38,18 +38,14 @@ func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bo
 	}
 }
 
-// AIReview returns the aiReview field for the item details: always for LeBoncoin items; for Amazon
-// items only when they belong to a search or have reviews; otherwise nil.
+// AIReview returns the aiReview field for the item details: LeBoncoin items only; nil for Amazon items.
 func (s *Service) AIReview(ctx context.Context, item model.Item) (*model.AIReviewState, error) {
-	lastAttempt, succeeded, err := s.store.AIReviews(ctx, item.ID, item.Platform)
+	if item.Platform != "leboncoin" {
+		return nil, nil
+	}
+	lastAttempt, succeeded, err := s.store.AIReviews(ctx, item.ID)
 	if err != nil {
 		return nil, err
-	}
-	if item.Platform == "amazon" && lastAttempt == nil {
-		inSearch, err := s.store.IsSearchItem(ctx, item.ID)
-		if err != nil || !inSearch {
-			return nil, err
-		}
 	}
 	token, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
 	if err != nil {
@@ -216,8 +212,6 @@ func reviewFailureMessage(ctx context.Context, err error) string {
 		return store.InterruptedReviewMessage
 	case errors.Is(err, errListingNotRetrieved):
 		return listingNotRetrievedMessage
-	case errors.Is(err, errProductNotRead):
-		return "The product could not be read from Amazon."
 	case errors.Is(err, claude.ErrRejected):
 		return "Claude rejected the token. Replace it in Settings."
 	case errors.Is(err, claude.ErrUsageLimit):
