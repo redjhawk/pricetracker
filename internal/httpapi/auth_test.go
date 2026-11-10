@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"pricefollower.local/internal/version"
 )
 
 // request sends a request with an optional session cookie and returns the recorder.
@@ -55,7 +57,7 @@ func TestAccessMatrixOpenAndProtectedModes(t *testing.T) {
 	// Open mode: no login needed, even with the admin account present.
 	expect(http.MethodGet, "/api/v1/items", "", "", http.StatusOK, "")
 	session := expect(http.MethodGet, "/api/v1/auth/session", "", "", http.StatusOK, "")
-	if strings.TrimSpace(session.Body.String()) != `{"mode":"open","user":null}` {
+	if strings.TrimSpace(session.Body.String()) != `{"mode":"open","user":null,"version":"`+version.Current()+`"}` || version.Current() == "" {
 		t.Fatalf("open session %s", session.Body.String())
 	}
 	expect(http.MethodGet, "/api/v1/admin/users", "", "", http.StatusUnauthorized, "AUTH_REQUIRED")
@@ -78,7 +80,7 @@ func TestAccessMatrixOpenAndProtectedModes(t *testing.T) {
 	expect(http.MethodGet, "/api/v1/items", "", user, http.StatusOK, "")
 	expect(http.MethodGet, "/api/v1/admin/users", "", user, http.StatusForbidden, "FORBIDDEN")
 	session = expect(http.MethodGet, "/api/v1/auth/session", "", user, http.StatusOK, "")
-	if strings.TrimSpace(session.Body.String()) != `{"mode":"protected","user":{"username":"alice","role":"user"}}` {
+	if strings.TrimSpace(session.Body.String()) != `{"mode":"protected","user":{"username":"alice","role":"user"},"version":"`+version.Current()+`"}` {
 		t.Fatalf("user session %s", session.Body.String())
 	}
 	var list struct {
