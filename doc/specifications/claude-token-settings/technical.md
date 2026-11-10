@@ -1,7 +1,7 @@
 # Technical specification: Claude token settings
 
 Status: ready
-Functional specification: [functional.md](functional.md), FR-CLT-SET-001–011 (ready, 2026-10-04)
+Functional specification: [functional.md](functional.md), FR-CLT-SET-001–011 (ready, 2026-10-04); FR-CLT-SET-013 amendment (issue #111, 2026-11-10)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Claude token settings and AI reviews (2026-10-04)"
 Companions: [LeBoncoin AI review technical](../leboncoin-ai-review/technical.md), [LeBoncoin session settings technical](../leboncoin-session-settings/technical.md)
 
@@ -18,7 +18,8 @@ Companions: [LeBoncoin AI review technical](../leboncoin-ai-review/technical.md)
 | TS-CLT-SET-005 | CLT-009 | `lastRejectedAt` set by reviews on 401/403/429 conditionally on the token revision; cleared on every save | store, service (review worker, see TS-LBC-AIR-006) | Store test: rejection with stale revision ignored; save clears it |
 | TS-CLT-SET-006 | CLT-001–003, CLT-006, CLT-009–011 | Second Carbon `TextInput` entry in `SettingsModal`; save through `PUT /api/v1/settings` | `src/components/SettingsModal.tsx`, `src/api/settings.ts` | Playwright mocked-API spec `tests/claude-token-settings.spec.ts`; manual keyboard/400 px QA |
 | TS-CLT-SET-007 | CLT-008 | Token only in the settings endpoints and the outgoing `Authorization` header; never logged, never in error messages, items or reviews | `internal/claude`, service, handlers | Go tests grep logs/responses for the token; QA |
-| TS-CLT-SET-008 | CLT-012 (issue #56) | Helper text of the Claude token entry states the token is used for Amazon and LeBoncoin AI reviews; exact text in [Amazon AI review technical](../amazon-ai-review/technical.md). Frontend text only; backend and API not affected | `src/components/SettingsModal.tsx` | Playwright text assertion |
+| TS-CLT-SET-008 | Superseded by TS-CLT-SET-009 (issue #111). CLT-012 (issue #56) | Helper text of the Claude token entry states the token is used for Amazon and LeBoncoin AI reviews; exact text in [Amazon AI review technical](../amazon-ai-review/technical.md). Frontend text only; backend and API not affected | `src/components/SettingsModal.tsx` | Playwright text assertion |
+| TS-CLT-SET-009 | CLT-013 (issue #111) | `claudeHelper` becomes "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Save an empty field to remove it." Frontend text only; backend and API not affected | `src/components/SettingsModal.tsx` (and any test asserting the old text) | `npm run build`; QA: helper text mentions LeBoncoin, not Amazon |
 
 ## Frontend
 

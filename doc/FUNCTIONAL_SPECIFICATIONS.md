@@ -110,13 +110,11 @@ When a Claude token is saved, an AI review of a LeBoncoin item is requested auto
 
 The add-item form offers an optional **Purchase goal** field, saved for LeBoncoin items only. The LeBoncoin details page shows the goal in an editable field with a save action. A non-empty goal is sent with every review request; an empty goal means no goal. Details: [purchase goal](specifications/leboncoin-purchase-goal/functional.md).
 
-### 5.6b Follow Amazon searches
+### 5.6b Amazon failure stop
 
-An **Amazon searches** tab, next to the Amazon and LeBoncoin tabs, lists the user's searches. The user adds an Amazon results URL as a search; the first 30 items of its first retrieval (link, title, price) are kept and never change afterwards. Clicking a search shows those items like tracked Amazon items, with price history, and **unreachable** when Amazon no longer offers them. An item appearing in several searches or in the tracked Amazon list is one shared item. A search item can be moved to the tracked Amazon list and stays visible in the search. A search can only be deleted, which removes its items unless they are tracked or in another search. Searches belong to their user and also work in open mode. Details: [Amazon searches](specifications/amazon-searches/functional.md).
+The Amazon searches feature (issue #56) was removed in issue #111: no searches tab, saved searches and search-only items with their history and Amazon AI reviews are deleted, and tracked Amazon items are unchanged. Details: [Amazon searches removal](specifications/amazon-searches-removal/functional.md).
 
-Search work runs only 22:00–01:00 and 06:00–08:00 Paris time, like a person: open the search, open one item, read it, close it, next item, with random 30 s–2 min pauses. Failed requests are logged with the server's response and retried after the others; after 5 consecutive failures all Amazon requests stop, including tracked Amazon items, and each search shows a **Refresh** button with an information line until a refresh succeeds. Details: [Amazon human browsing](specifications/amazon-human-browsing/functional.md).
-
-Each search item is reviewed in English by Claude with the user's token as soon as its data is read, judging the price against its characteristics. When the price later changes, the item says the last review was based on the older price, shown. Details: [Amazon AI review](specifications/amazon-ai-review/functional.md).
+Failed Amazon requests are logged with the server's response. After 5 consecutive failures every tracked Amazon item is stopped, each with its own stopped state: scheduled checks and **Refresh all prices** skip it and the Amazon tab shows a warning. A successful **Refresh price** on an item restarts only that item. Details: [Amazon request stop](specifications/amazon-request-stop/functional.md).
 
 ### 5.7 Users and login
 
@@ -215,9 +213,9 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-28 | LeBoncoin items receive AI reviews on add, price change, goal change, and manual refresh, shown with history on the details page ([FR-LBC-AIR-*](specifications/leboncoin-ai-review/functional.md)). | Must |
 | FR-29 | The operator can set an optional purchase goal for a LeBoncoin item when adding it and on its details page; it is sent with every review request ([FR-PURCHASE-GOAL-*](specifications/leboncoin-purchase-goal/functional.md)). | Must |
 | FR-30 | Local users and login, phase 1: admin device command, open and protected modes, login/logout with lockout and 30-day sessions, administrator user list and user creation, per-user items and settings, inheritance by the first user ([FR-MODE-*, FR-AUTH-*, FR-ADMIN-*, FR-SHARE-001/005/006, FR-SETTINGS-001](specifications/multi-user-login/delivery-plan.md)). | Must |
-| FR-32 | Amazon searches tab: add and delete searches, first 30 items frozen with prices and history, shared items, move to tracked Amazon items ([FR-AMZ-SEARCH-*](specifications/amazon-searches/functional.md)). | Must |
-| FR-33 | Search work follows request windows, random pauses, item-by-item order, failure logging and the stop/refresh rule for all Amazon requests ([FR-AMZ-HUMAN-*](specifications/amazon-human-browsing/functional.md)). | Must |
-| FR-34 | Amazon search items receive an English Claude review judging price against characteristics, with a price-changed notice ([FR-AMZ-AIR-*](specifications/amazon-ai-review/functional.md)). | Must |
+| FR-32 | Removed (issue #111): no Amazon searches; search-only items and Amazon AI reviews are deleted ([FR-AMZ-SRCH-DEL-*](specifications/amazon-searches-removal/functional.md)). | Must |
+| FR-33 | After 5 consecutive Amazon failures each tracked Amazon item is stopped, skipped by scheduled and all-item refresh, warned in the Amazon tab, and restarted individually by a successful Refresh price ([FR-AMZ-STOP-*](specifications/amazon-request-stop/functional.md)). | Must |
+| FR-34 | Superseded by FR-32 (issue #111). | — |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -318,13 +316,15 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | LeBoncoin session collection | [leboncoin-session-collection](specifications/leboncoin-session-collection/functional.md) | implemented |
 | LeBoncoin session capture | [leboncoin-session-capture](specifications/leboncoin-session-capture/functional.md) | implemented |
 | Session file removal | [leboncoin-session-file-removal](specifications/leboncoin-session-file-removal/functional.md) | implemented |
-| Claude token settings | [claude-token-settings](specifications/claude-token-settings/functional.md) | implemented; FR-CLT-SET-012 specified (issue #56) |
+| Claude token settings | [claude-token-settings](specifications/claude-token-settings/functional.md) | implemented; FR-CLT-SET-013 specified (issue #111) |
 | LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
 | Remote ARMv6 deployment | [armv6-remote-deployment](specifications/armv6-remote-deployment/functional.md) | implemented (operations) |
 | Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned |
 | LeBoncoin old price | [leboncoin-old-price](specifications/leboncoin-old-price/functional.md) | implemented |
-| Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | specified (issue #56) |
-| Amazon human browsing | [amazon-human-browsing](specifications/amazon-human-browsing/functional.md) | specified (issue #56) |
-| Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | specified (issue #56) |
+| Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | superseded (issue #111) |
+| Amazon human browsing | [amazon-human-browsing](specifications/amazon-human-browsing/functional.md) | superseded (issue #111) |
+| Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | superseded (issue #111) |
+| Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
+| Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |

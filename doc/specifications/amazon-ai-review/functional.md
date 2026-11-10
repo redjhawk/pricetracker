@@ -1,6 +1,6 @@
 # Functional specification: Amazon AI review
 
-Status: ready
+Status: superseded (issue #111) by [Amazon searches removal](../amazon-searches-removal/functional.md). Kept for history.
 Owner: functional specification agent
 User decision/reference: GitHub issue #56 (redjhawk) and clarifications D-1–D-21 recorded in the [change index](../../changes/2026-10-07-1117-issue-56-amazon-searches/index.md).
 
