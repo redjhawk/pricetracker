@@ -11,19 +11,18 @@ import (
 	"pricefollower.local/internal/store"
 )
 
-// amazonFailureLimit is the number of consecutive failed Amazon requests that stops all Amazon requests.
+// amazonFailureLimit is the number of consecutive failed Amazon requests that stops every Amazon item.
 const amazonFailureLimit = 5
 
-var errAmazonStopped = errors.New("Amazon requests are stopped")
+var errAmazonStopped = errors.New("Amazon checks of the item are stopped")
 
-// amazonGate serializes every Amazon request (tracked items and searches), counts consecutive
-// failures and stops all Amazon requests at the limit. The state is persisted in SQLite.
+// amazonGate serializes every Amazon request, counts consecutive failures across all items and,
+// at the limit, stops every Amazon item of every owner. The count and the stops are persisted in SQLite.
 type amazonGate struct {
-	request sync.Mutex // held for the whole Amazon request, so the 5th failure and the stop are one step
-	mu      sync.Mutex // guards state
-	state   store.AmazonRequestState
-	store   *store.Store
-	now     func() time.Time
+	request  sync.Mutex // held for the whole Amazon request, so the 5th failure and the stop are one step
+	failures int        // guarded by request
+	store    *store.Store
+	now      func() time.Time
 }
 
 func newAmazonGate(database *store.Store, now func() time.Time) *amazonGate {
@@ -31,56 +30,49 @@ func newAmazonGate(database *store.Store, now func() time.Time) *amazonGate {
 	if err != nil {
 		log.Printf("load Amazon request state: %v", err)
 	}
-	return &amazonGate{state: state, store: database, now: now}
+	return &amazonGate{failures: state.ConsecutiveFailures, store: database, now: now}
 }
 
-// do runs request unless Amazon requests are stopped. A request_error result is a failure;
-// any other result (success, price_not_found, unavailable) is an Amazon answer and resets the count.
+// do runs the request of item id unless the item is stopped; a manual check (Refresh price) runs
+// even then. A request_error result is a failure; any other result (success, price_not_found,
+// unavailable) is an Amazon answer: it resets the count and restarts the item.
 // A request cancelled through ctx (shutdown) is neither: it returns ctx.Err() and leaves the state unchanged.
-func (g *amazonGate) do(ctx context.Context, request func() model.CollectionResult) (model.CollectionResult, error) {
+func (g *amazonGate) do(ctx context.Context, id string, manual bool, request func() model.CollectionResult) (model.CollectionResult, error) {
 	g.request.Lock()
 	defer g.request.Unlock()
-	if g.current().Blocked {
+	stopped, err := g.store.AmazonStopped(ctx, id)
+	if err != nil {
+		return model.CollectionResult{}, err
+	}
+	if stopped && !manual {
 		return model.CollectionResult{}, errAmazonStopped
 	}
 	result := request()
 	if err := ctx.Err(); err != nil {
 		return model.CollectionResult{}, err
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
 	now := g.now().UTC()
 	if result.Result == "request_error" {
 		log.Printf("Amazon request failed url=%s at=%s status=%d error=%s response=%s",
 			result.RequestURL, now.Format(time.RFC3339), result.HTTPStatus, result.Message, result.ResponseExcerpt)
-		g.state.ConsecutiveFailures++
-		if g.state.ConsecutiveFailures >= amazonFailureLimit {
-			g.state.Blocked, g.state.StoppedAt = true, &now
-			log.Printf("Amazon requests stopped after %d consecutive failures at %s", amazonFailureLimit, now.Format(time.RFC3339))
+		g.failures++
+		if g.failures >= amazonFailureLimit {
+			if err := g.store.StopAmazonItems(context.Background(), now); err != nil {
+				log.Printf("stop Amazon items: %v", err)
+			}
+			g.failures = 0
+			log.Printf("Amazon checks stopped after %d consecutive failures at %s", amazonFailureLimit, now.Format(time.RFC3339))
 		}
 	} else {
-		g.state.ConsecutiveFailures, g.state.StoppedAt = 0, nil
+		g.failures = 0
+		if stopped {
+			if err := g.store.ClearAmazonStop(context.Background(), id); err != nil {
+				log.Printf("restart Amazon item %s: %v", id, err)
+			}
+		}
 	}
-	g.save()
-	return result, nil
-}
-
-// restart allows Amazon requests again; stoppedAt stays until the next Amazon success.
-func (g *amazonGate) restart() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.state.Blocked, g.state.ConsecutiveFailures = false, 0
-	g.save()
-}
-
-func (g *amazonGate) current() store.AmazonRequestState {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.state
-}
-
-func (g *amazonGate) save() {
-	if err := g.store.SaveAmazonRequestState(context.Background(), g.state); err != nil {
+	if err := g.store.SaveAmazonFailures(context.Background(), g.failures); err != nil {
 		log.Printf("save Amazon request state: %v", err)
 	}
+	return result, nil
 }
