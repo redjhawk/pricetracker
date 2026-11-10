@@ -101,8 +101,14 @@ jobs:
             base="$feature"
             closing="Part of #$ISSUE_NUMBER"
           fi
-          ahead=$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$BRANCH" -q .ahead_by 2>/dev/null || echo 0)
-          if [ "${ahead:-0}" = 0 ]; then
+          # Sin rama remota (Claude no publicó nada en ella) no hay PR que abrir
+          if ! gh api "repos/$GITHUB_REPOSITORY/branches/$BRANCH" >/dev/null 2>&1; then
+            echo "La rama $BRANCH no existe en remoto; no se abre PR."
+            exit 0
+          fi
+          ahead=$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$BRANCH" -q .ahead_by 2>/dev/null) || ahead=0
+          case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
+          if [ "$ahead" = 0 ]; then
             echo "No hay commits en $BRANCH; no se abre PR."
             exit 0
           fi
