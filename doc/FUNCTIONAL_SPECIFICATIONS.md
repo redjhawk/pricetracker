@@ -218,6 +218,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-32 | Amazon searches tab: add and delete searches, first 30 items frozen with prices and history, shared items, move to tracked Amazon items ([FR-AMZ-SEARCH-*](specifications/amazon-searches/functional.md)). | Must |
 | FR-33 | Search work follows request windows, random pauses, item-by-item order, failure logging and the stop/refresh rule for all Amazon requests ([FR-AMZ-HUMAN-*](specifications/amazon-human-browsing/functional.md)). | Must |
 | FR-34 | Amazon search items receive an English Claude review judging price against characteristics, with a price-changed notice ([FR-AMZ-AIR-*](specifications/amazon-ai-review/functional.md)). | Must |
+| FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -314,6 +315,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Platform tabs | [platform-tabs](specifications/platform-tabs/functional.md) | implemented |
 | Tracked item identity | [tracked-items-identity](specifications/tracked-items-identity/functional.md) | implemented |
 | Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented |
+| Application information | [app-information](specifications/app-information/functional.md) | specified (issue #115) |
 | LeBoncoin session settings | [leboncoin-session-settings](specifications/leboncoin-session-settings/functional.md) | implemented |
 | LeBoncoin session collection | [leboncoin-session-collection](specifications/leboncoin-session-collection/functional.md) | implemented |
 | LeBoncoin session capture | [leboncoin-session-capture](specifications/leboncoin-session-capture/functional.md) | implemented |

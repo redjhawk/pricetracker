@@ -2,7 +2,7 @@
 
 - Issue: https://github.com/redjhawk/pricetracker/issues/115
 - Started (UTC): 2026-11-10 05:41
-- Current stage: functional-specification
+- Current stage: technical-specification (functional specification ready)
 
 ## Scope
 
