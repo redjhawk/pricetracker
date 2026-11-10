@@ -2,7 +2,7 @@
 
 - Issue: https://github.com/redjhawk/pricetracker/issues/115
 - Started (UTC): 2026-11-10 05:41
-- Current stage: development (functional, technical and API specifications ready)
+- Current stage: review (implementation done, see `implementation.md`; Playwright not runnable in the development environment)
 
 ## API contract change (stage 3, agent-defined)
 

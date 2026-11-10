@@ -27,6 +27,7 @@ import AdminPage from "./components/AdminPage";
 import LoginPage from "./components/LoginPage";
 import AppMenu from "./components/AppMenu";
 import DeleteModal from "./components/DeleteModal";
+import InformationModal from "./components/InformationModal";
 import ItemDetail from "./components/ItemDetail";
 import SettingsModal from "./components/SettingsModal";
 import TrackedItemsPage, { type Tab } from "./components/TrackedItemsPage";
@@ -81,21 +82,39 @@ export default function App() {
   }
   if (!session) return <Loading description="Loading Price follower" />;
   if (session.user?.role === "admin") {
-    return (
-      <>
-        <AppHeader>
-          <AppMenu onLogout={() => void handleLogout()} />
-        </AppHeader>
-        <Content className="app-content">
-          <main id="main-content" className="page-shell"><AdminPage /></main>
-        </Content>
-      </>
-    );
+    return <AdminApp username={session.user.username} onLogout={() => void handleLogout()} />;
   }
   if (!session.user && (session.mode === "protected" || window.location.pathname === "/login")) {
     return <LoginPage openMode={session.mode === "open"} />;
   }
-  return <TrackerApp openMode={session.mode === "open"} onLogout={session.user ? () => void handleLogout() : undefined} />;
+  return (
+    <TrackerApp
+      openMode={session.mode === "open"}
+      username={session.user?.username ?? null}
+      onLogout={session.user ? () => void handleLogout() : undefined}
+    />
+  );
+}
+
+function AdminApp({ username, onLogout }: { username: string; onLogout: () => void }) {
+  const [informationOpen, setInformationOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <AppHeader>
+        <AppMenu onOpenInformation={() => setInformationOpen(true)} onLogout={onLogout} triggerRef={menuButtonRef} />
+      </AppHeader>
+      <Content className="app-content">
+        <main id="main-content" className="page-shell"><AdminPage /></main>
+      </Content>
+      <InformationModal
+        open={informationOpen}
+        username={username}
+        onClose={() => setInformationOpen(false)}
+        launcherButtonRef={menuButtonRef}
+      />
+    </>
+  );
 }
 
 function AppHeader({ onHome, children }: { onHome?: () => void; children: ReactNode }) {
@@ -113,7 +132,7 @@ function AppHeader({ onHome, children }: { onHome?: () => void; children: ReactN
   );
 }
 
-function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () => void }) {
+function TrackerApp({ openMode, username, onLogout }: { openMode: boolean; username: string | null; onLogout?: () => void }) {
   const [items, setItems] = useState<TrackedItem[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState<Tab>("amazon");
   const [listLoading, setListLoading] = useState(true);
@@ -134,6 +153,7 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TrackedItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [informationOpen, setInformationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const itemId = getItemId(pathname);
   const searchId = getSearchId(pathname);
@@ -299,7 +319,12 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
         <Button kind="primary" size="sm" renderIcon={Add} onClick={() => setAddOpen(true)}>
           Add item
         </Button>
-        <AppMenu onOpenSettings={() => setSettingsOpen(true)} onLogout={onLogout} triggerRef={menuButtonRef} />
+        <AppMenu
+          onOpenInformation={() => setInformationOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onLogout={onLogout}
+          triggerRef={menuButtonRef}
+        />
       </AppHeader>
 
       <Content className="app-content">
@@ -370,6 +395,12 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        launcherButtonRef={menuButtonRef}
+      />
+      <InformationModal
+        open={informationOpen}
+        username={username}
+        onClose={() => setInformationOpen(false)}
         launcherButtonRef={menuButtonRef}
       />
     </>

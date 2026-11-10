@@ -22,6 +22,7 @@ for command in go npm; do
 done
 
 cd "$PROJECT_DIR"
+VERSION="${PRICEFOLLOWER_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo dev)-dev}"
 npm run build
 
 EMBED_DIR="$PROJECT_DIR/web/static/dist"
@@ -33,6 +34,6 @@ cleanup() { rm -rf "$EMBED_DIR"; }
 trap cleanup EXIT
 
 env GOOS=linux "${GO_ENV[@]}" CGO_ENABLED=0 \
-  go build -trimpath -ldflags="-s -w" -o "$RELEASE_DIR/pricefollower" ./cmd/pricefollower
+  go build -trimpath -ldflags="-s -w -X pricefollower.local/internal/version.Version=$VERSION" -o "$RELEASE_DIR/pricefollower" ./cmd/pricefollower
 
-echo "Built $RELEASE_DIR/pricefollower for Linux $TARGET_NAME with the frontend embedded."
+echo "Built $RELEASE_DIR/pricefollower for Linux $TARGET_NAME (version $VERSION) with the frontend embedded."
