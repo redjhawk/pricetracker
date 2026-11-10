@@ -56,7 +56,6 @@ type Service struct {
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
 	amazonGate    *amazonGate              // every Amazon request goes through it
-	runningSearch string                   // id of the Amazon search the worker is processing
 }
 
 func New(cfg config.Config, database *store.Store) *Service {

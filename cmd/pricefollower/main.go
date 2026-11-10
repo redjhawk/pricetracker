@@ -82,9 +82,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	schedulerDone := make(chan struct{})
 	go func() { defer close(schedulerDone); items.RunScheduler(ctx) }()
-	searchWorkerDone := make(chan struct{})
-	go func() { defer close(searchWorkerDone); items.RunSearchWorker(ctx) }()
-	defer func() { stop(); <-schedulerDone; <-searchWorkerDone }()
+	defer func() { stop(); <-schedulerDone }()
 
 	api := httpapi.New(cfg, items)
 	server := &http.Server{

@@ -159,29 +159,3 @@ func TestRefreshOfSearchItemIsRefused(t *testing.T) {
 		t.Fatalf("refresh error = %v", err)
 	}
 }
-
-func TestSearchWindows(t *testing.T) {
-	paris := func(month time.Month, day, hour, minute int) time.Time {
-		return time.Date(2026, month, day, hour, minute, 0, 0, parisLocation)
-	}
-	for _, test := range []struct {
-		at     time.Time
-		inside bool
-		next   time.Time
-	}{
-		{paris(10, 7, 21, 59), false, paris(10, 7, 22, 0)},
-		{paris(10, 7, 22, 0), true, paris(10, 8, 6, 0)},
-		{paris(10, 8, 0, 59), true, paris(10, 8, 6, 0)},
-		{paris(10, 8, 1, 0), false, paris(10, 8, 6, 0)},
-		{paris(10, 8, 5, 59), false, paris(10, 8, 6, 0)},
-		{paris(10, 8, 7, 59), true, paris(10, 8, 22, 0)},
-		{paris(10, 8, 8, 0), false, paris(10, 8, 22, 0)},
-		{paris(3, 29, 1, 30), false, paris(3, 29, 6, 0)},  // spring DST change day
-		{paris(10, 25, 0, 30), true, paris(10, 25, 6, 0)}, // autumn DST change day
-		{paris(10, 24, 23, 0), true, paris(10, 25, 6, 0)},
-	} {
-		if inSearchWindow(test.at) != test.inside || !nextSearchWindowStart(test.at).Equal(test.next) {
-			t.Errorf("%s: inside=%v next=%s", test.at, inSearchWindow(test.at), nextSearchWindowStart(test.at).In(parisLocation))
-		}
-	}
-}
