@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115).
 
 ## Conventions
 
@@ -512,6 +512,8 @@ Agent-defined from [the technical specification](doc/specifications/multi-user-l
 ### Get the session state
 
 `GET /api/v1/auth/session` → `200 { "mode": "protected", "user": { "username": "alice", "role": "user" } }`. `mode` is `open` or `protected`; `user` is `null` without a valid session; `role` is `admin` or `user`.
+
+Since 2026-11-10 (issue #115, [technical spec](doc/specifications/app-information/technical.md)) the response also carries `version` (string, always present, never null): the release tag `vYYYYMMDDHHMMSS` embedded at build time, `<latest tag>-dev` for development builds, or `dev` when no tag is available. Example: `{ "mode": "open", "user": null, "version": "v20261109200945" }`. Rationale: additive, backward-compatible field on an endpoint every shell already loads in all modes, so no new endpoint is needed.
 
 ### Log in
 

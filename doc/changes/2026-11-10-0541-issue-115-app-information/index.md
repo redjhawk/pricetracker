@@ -2,7 +2,11 @@
 
 - Issue: https://github.com/redjhawk/pricetracker/issues/115
 - Started (UTC): 2026-11-10 05:41
-- Current stage: technical-specification (functional specification ready)
+- Current stage: development (functional, technical and API specifications ready)
+
+## API contract change (stage 3, agent-defined)
+
+`GET /api/v1/auth/session` gains a required `version` string. Rationale: the change is additive and backward compatible, and the endpoint is already open in all modes and loaded by every shell, so no new endpoint is needed. The release workflow must pass the tag to `scripts/build-release.sh` via `PRICEFOLLOWER_VERSION`. If token scope blocks that workflow edit, it is reported as a limitation.
 
 ## Scope
 
