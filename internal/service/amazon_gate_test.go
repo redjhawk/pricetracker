@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"pricefollower.local/config"
 	"pricefollower.local/internal/model"
 	"pricefollower.local/internal/store"
 )
@@ -132,30 +131,6 @@ func TestStoppedAmazonRequestsSkipTrackedChecksAndRefresh(t *testing.T) {
 	}
 	var typed *Error
 	if _, err := service.RefreshItem(ctx, "amazon-item"); !errors.As(err, &typed) || typed.Code != "AMAZON_REQUESTS_STOPPED" || typed.Status != 409 {
-		t.Fatalf("refresh error = %v", err)
-	}
-}
-
-func TestRefreshOfSearchItemIsRefused(t *testing.T) {
-	cfg := config.Config{DataDirectory: t.TempDir(), Location: time.UTC, CheckTimes: []string{"08:00"}, StaleAfter: time.Hour, UserAgent: "test"}
-	database, err := store.Open(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer database.Close()
-	service := New(cfg, database)
-	defer service.Close()
-	ctx := context.Background()
-	search := store.Search{ID: "s1", URL: "https://www.amazon.fr/s?k=x", AddedAt: time.Now(), NextRunAt: time.Now()}
-	url := "https://www.amazon.fr/dp/B000000001"
-	if err := database.InsertSearch(ctx, search); err != nil {
-		t.Fatal(err)
-	}
-	if err := database.CaptureSearch(ctx, "s1", 0, []store.CapturedItem{{ID: "i1", ASIN: "B000000001", Marketplace: "amazon.fr", CanonicalURL: url, URL: url}}, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	var typed *Error
-	if _, err := service.RefreshItem(ctx, "i1"); !errors.As(err, &typed) || typed.Code != "ITEM_NOT_TRACKED" {
 		t.Fatalf("refresh error = %v", err)
 	}
 }

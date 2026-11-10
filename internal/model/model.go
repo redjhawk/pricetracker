@@ -77,19 +77,17 @@ type CollectionResult struct {
 	Listing                  *ListingDetails // LeBoncoin only; kept in memory for AI reviews, never persisted
 	OldPriceCents            *int64          // LeBoncoin old price; recorded only for a new item
 	OldPriceAt               *time.Time      // date of the old price; nil when the listing gives none
-	Product                  *ProductDetails // Amazon single-request read only; kept in memory for AI reviews, never persisted
 	// Failure diagnostics for logs (Amazon); never persisted nor returned by the API.
 	RequestURL      string
 	HTTPStatus      int // 0 when no response was received
 	ResponseExcerpt string
 }
 
-// ProductDetails is the Amazon product page content sent to an AI review.
-type ProductDetails struct {
-	Title       string
-	PriceCents  *int64
-	Features    []string
-	Description string
+// AmazonRequests is the application-wide Amazon request state.
+type AmazonRequests struct {
+	Stopped             bool       `json:"stopped"`
+	StoppedAt           *time.Time `json:"stoppedAt"`
+	ConsecutiveFailures int        `json:"consecutiveFailures"`
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.
