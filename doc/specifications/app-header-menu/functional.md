@@ -31,6 +31,8 @@ Excluded: user accounts, login/logout, user names or avatars, per-user preferenc
 
 ## Open questions
 
+Issue #115 adds an **Information** entry to this menu; see [application information](../app-information/functional.md) (FR-APP-INFO-*), which prevails over the single-entry statements above.
+
 None affecting this handoff. Menu contents are exactly what the user requested (one Settings link); additional entries are out of scope until requested.
 
 ## Traceability
