@@ -54,10 +54,6 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 		s.handleAmazonRequests(w, r)
 		return
 	}
-	if path == searchesPath || strings.HasPrefix(path, searchesPath+"/") {
-		s.handleSearches(w, r)
-		return
-	}
 	if path == "/api/v1/items" && r.Method == http.MethodGet {
 		items, err := s.service.List(r.Context())
 		if err != nil {
@@ -318,6 +314,19 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
+}
+
+func methodNotAllowed(w http.ResponseWriter, allow string) {
+	w.Header().Set("Allow", allow)
+	writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
+}
+
+func (s *Server) handleAmazonRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, "GET")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"amazonRequests": s.service.AmazonRequests()})
 }
 
 func serviceError(w http.ResponseWriter, err error) {
