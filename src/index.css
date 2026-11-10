@@ -482,3 +482,12 @@ input {
 .ai-review-history {
   margin-block-start: var(--cds-spacing-06);
 }
+
+.information-list dt {
+  margin-block-start: var(--cds-spacing-05);
+  font-weight: 600;
+}
+
+.information-list dd {
+  overflow-wrap: anywhere;
+}

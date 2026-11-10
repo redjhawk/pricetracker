@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"pricefollower.local/internal/service"
+	"pricefollower.local/internal/version"
 )
 
 const sessionCookie = "pricefollower_session"
@@ -106,7 +107,7 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		if loggedIn {
 			current = &userJSON{Username: user.Username, Role: user.Role}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"mode": mode, "user": current})
+		writeJSON(w, http.StatusOK, map[string]any{"mode": mode, "user": current, "version": version.Current()})
 	case "/api/v1/auth/login":
 		if !allowMethod(w, r, http.MethodPost) {
 			return
