@@ -13,6 +13,7 @@ import {
 } from "@carbon/react";
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
+import { dateTime } from "../dateTime";
 import AiReview from "./AiReview";
 import PurchaseGoal from "./PurchaseGoal";
 import StatusTag from "./StatusTag";
@@ -32,15 +33,6 @@ interface Props {
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const priceLabel = (amount: number) => amount === 0 ? "Gratuit" : euro.format(amount);
-const dateTime = new Intl.DateTimeFormat("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-  timeZoneName: "short",
-});
 
 export default function ItemDetail({
   item,

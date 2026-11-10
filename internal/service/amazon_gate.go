@@ -57,11 +57,13 @@ func (g *amazonGate) do(ctx context.Context, id string, manual bool, request fun
 			result.RequestURL, now.Format(time.RFC3339), result.HTTPStatus, result.Message, result.ResponseExcerpt)
 		g.failures++
 		if g.failures >= amazonFailureLimit {
+			// On a persistence error the count stays at the limit, so the next failure retries the stop.
 			if err := g.store.StopAmazonItems(context.Background(), now); err != nil {
 				log.Printf("stop Amazon items: %v", err)
+			} else {
+				g.failures = 0
+				log.Printf("Amazon checks stopped after %d consecutive failures at %s", amazonFailureLimit, now.Format(time.RFC3339))
 			}
-			g.failures = 0
-			log.Printf("Amazon checks stopped after %d consecutive failures at %s", amazonFailureLimit, now.Format(time.RFC3339))
 		}
 	} else {
 		g.failures = 0

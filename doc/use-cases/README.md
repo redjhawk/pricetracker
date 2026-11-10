@@ -22,3 +22,4 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 ## Price collection
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)
+- [UC-PC-02 — Restart a stopped Amazon item while Refresh all is pending](price-collection/UC-PC-02-restart-stopped-amazon-item-during-refresh-all.md)
