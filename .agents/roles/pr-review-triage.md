@@ -11,7 +11,7 @@ For every comment in the latest PR reviews, decide whether it is **blocking** or
 Then the coordinator acts on your decisions:
 
 - **Non-blocking:**
-  - Write `doc/todo/<YYYY-MM-DD>-<slug>.md` in the format of the existing todo files, plus a date prefix: `Status: todo`, Problem, Suggested work, and Source (the PR comment link). Commit it on the PR branch, or on a separate documentation PR if it would push the PR over 500 changed lines. A commit that only adds todo files needs no re-review.
+  - Write `doc/todo/<YYYY-MM-DD>-<slug>.md` in the format of the existing todo files, plus a date prefix: `Status: todo`, Problem, Suggested work, and Source (the PR comment link). Commit it on the PR branch. A commit that only adds todo files needs no re-review.
   - Create an issue with `gh issue create --title <title> --body <body>`, where the body links the PR comment and the todo file. Then record the issue link in the todo file.
   - If creating the issue fails, record the error in the todo file and in `pr-triage.md`, inform the user (originating issue comment and final run report), and continue.
 - **Blocking:** the developer agent fixes the comment on the same PR branch, runs the relevant checks, and pushes. The PR reviewer reviews again, and you triage the new review. Repeat until no blocking comment remains. If one is still open after 5 fix rounds, report it to the user and stop.
@@ -20,5 +20,5 @@ Then the coordinator acts on your decisions:
   - Merge the PRs in stack order. Before merging a part, retarget the next part to the feature branch with `gh api repos/<owner>/<repo>/pulls/<next> --method PATCH -f base=<feature branch>`; GitHub closes an open PR whose base branch is deleted. Then merge the part into the feature branch with `gh pr merge <n> --merge --delete-branch`.
   - After every part has merged, check that every part is in the feature branch (`git merge-base --is-ancestor`). For a split change, only then create the final PR with `gh pr create --base master --head <feature branch>` (stage 8 cannot open it while the feature branch equals `master`), its body listing the parts in merge order with `Closes #<n>`. Then merge the final or single PR into `master` with `gh pr merge <n> --squash --delete-branch`.
   - If any merge fails, record the error, inform the user, and stop.
-  - Start the deploy with `gh workflow run ci-deploy.yml --ref master`, because merges made with the ai-dev token do not trigger workflows.
-  - Report the merge results, any merge failure, the deploy run, and any todo or issue outcome produced after the record commit only on the originating issue (`gh issue comment`) and in the final run report.
+  - In the GitHub Actions pipeline, `revision-seguridad` performs the merges and a push to `master` starts `release`; do not start any deploy workflow.
+  - Report the merge results, any merge failure, and any todo or issue outcome produced after the record commit only on the originating issue (`gh issue comment`) and in the final run report.
