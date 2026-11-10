@@ -1,7 +1,7 @@
 # Desarrollo autónomo (etapas 1 a 8 de doc/workflow/WORKFLOW.md): una issue con la etiqueta ai-dev,
 # un comentario con @claude o un lanzamiento manual. Claude especifica, implementa, revisa, decide, hace QA
 # y abre los PR; nunca escribe en master. Las etapas siguientes las hacen otros workflows:
-# revision-pr (9, revisión del PR) → triage-pr (10, issues, reenvío o aprobación) → pruebas → revision-seguridad
+# revision-pr (9, revisión del PR) → triage-pr (10, issues, reenvío o comentario triage-ok) → pruebas → revision-seguridad
 # (fusión) → release. Los PR se abren y actualizan con DEV_TOKEN (no GITHUB_TOKEN) para que esos workflows se disparen.
 # Un comentario @claude en un PR (por ejemplo, el de triage-pr con problemas bloqueantes) corrige esa misma rama.
 name: desarrollo

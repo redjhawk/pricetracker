@@ -48,17 +48,19 @@ desarrollo (arc-dev, DEV_TOKEN)            stages 1–8: specs, code, review, de
         │ without one, and does nothing if the run branch was never pushed
         ▼
 revision-pr (arc-review, pull_request_target)   stage 9: inline review comments only, using master's workflow; own-repo PRs only
-        │ workflow_run: completed (success)
+        │ workflow_run: completed (success); triage-pr skips the run if the PR is no longer open at that head
         ▼
 triage-pr (arc-review, MERGE_TOKEN)        stage 10: non-blocking → new issue; blocking → `@claude` comment ──► desarrollo
-        │ no blocking comment left: approves the PR                     fixes the same branch, which re-runs revision-pr
+        │ no blocking comment left: comments `triage-ok <head sha>`      fixes the same branch, which re-runs revision-pr
         ▼
-pruebas (arc-test, no secrets)             on an approved review. Test steps are currently disabled; the job succeeds
-        │ workflow_run: completed (success)
+pruebas (arc-test, no secrets)             on a `triage-ok <sha>` comment by redjhawk or TRIAGE_LOGIN, if the PR is open,
+        │                                          from this repo, and its head is still that sha. Test steps are
+        │                                          currently disabled; the job succeeds
+        │ workflow_run: completed (success); run title "pruebas PR #<n> triage-ok <sha>"
         ▼
 revision-seguridad (arc-review, MERGE_TOKEN)
         │ PRs touching .github/, CODEOWNERS or go.mod/go.sum stop here for a human merge;
-        │ govulncheck, gosec, gitleaks; then merges: --squash into master, or --merge for a part into its feature
+        │ checks the head is still the tested sha; govulncheck, gosec, gitleaks; then merges (--match-head-commit): --squash into master, or --merge for a part into its feature
         │ branch, after retargeting the next part. After the last part it asks desarrollo (`@claude`) for the final PR
         ▼
 release (arc-build, on push to master)     builds linux/amd64 with the frontend embedded and publishes a GitHub release

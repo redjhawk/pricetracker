@@ -1,7 +1,7 @@
 # Triage de los comentarios de revision-pr. Los no bloqueantes se convierten en issues nuevas; los
 # bloqueantes se reenvían a desarrollo con un comentario @claude en la issue del PR que lista lo que hay
-# que cambiar. Si no queda nada bloqueante, aprueba el PR, y esa aprobación lanza pruebas.
-# Usa MERGE_TOKEN: su identidad debe ser distinta del autor del PR (DEV_TOKEN) para poder aprobar.
+# que cambiar. Si no queda nada bloqueante, comenta en el PR `triage-ok <sha de la cabeza>`, y ese comentario lanza pruebas.
+# Usa MERGE_TOKEN (su identidad debe ser redjhawk o TRIAGE_LOGIN, las únicas que pruebas acepta).
 name: triage-pr
 on:
   workflow_run:
@@ -29,12 +29,23 @@ jobs:
             echo "$RUNNER_TEMP/gh_${v}_linux_${arch}/bin" >> "$GITHUB_PATH"
           fi
       - name: Localizar el PR
+        id: pr
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          PR=$(gh pr list --search "${{ github.event.workflow_run.head_sha }}" --json number -q '.[0].number')
+          # Cualquier estado: un PR fusionado o cerrado no se tria
+          read -r PR STATE HEAD_SHA < <(gh pr list --state all --search "$SHA" --json number,state,headRefOid \
+            -q '.[0] | "\(.number) \(.state) \(.headRefOid)"') || true
+          if [ -z "$PR" ] || [ "$STATE" != OPEN ] || [ "$HEAD_SHA" != "$SHA" ]; then
+            echo "Sin PR abierto con cabeza $SHA (PR=${PR:-ninguno}, estado=${STATE:-}); no hay nada que triar."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "PR=$PR" >> "$GITHUB_ENV"
+          echo "found=true" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
+        if: steps.pr.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ secrets.MERGE_TOKEN }}
         with:
@@ -57,11 +68,13 @@ jobs:
                   línea, enlace al comentario y qué debe cambiar. Ese comentario relanza el workflow desarrollo sobre la rama del PR.
                c. Indícalo en el ticket: en cada issue que el PR cierra o de la que forma parte (`gh pr view ${{ env.PR }} --json closingIssuesReferences,body`)
                   publica con `gh issue comment` la misma lista de problemas y el enlace al PR, sin mencionar @claude.
-               No apruebes el PR.
-            3. Si no queda ningún comentario bloqueante: aprueba el PR con
-               `gh pr review ${{ env.PR }} --approve --body "<resumen del triage>"`. La aprobación lanza el workflow pruebas.
-            Termina comentando en el PR el resumen de tus decisiones (comentario, bloquea o no, razón, issue creada).
-            No modifiques ficheros, no hagas commits, no fusiones el PR.
+               No publiques el comentario triage-ok.
+            3. Comenta en el PR el resumen de tus decisiones (comentario, bloquea o no, razón, issue creada).
+            4. Solo si no queda ningún comentario bloqueante, y como último paso, publica un comentario aparte cuyo cuerpo sea
+               exactamente, sin nada más:
+               `gh pr comment ${{ env.PR }} --body "triage-ok ${{ github.event.workflow_run.head_sha }}"`
+               Ese comentario indica que el PR se puede fusionar y lanza el workflow pruebas.
+            Nunca apruebes el PR con gh pr review. No modifiques ficheros, no hagas commits, no fusiones el PR.
           claude_args: |
             --max-turns 60
-            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api --paginate repos/${{ github.repository }}/pulls/*),Bash(gh api --paginate repos/${{ github.repository }}/issues/${{ env.PR }}/comments),Bash(gh issue create:*),Bash(gh issue comment:*),Bash(gh pr comment ${{ env.PR }}:*),Bash(gh pr review ${{ env.PR }} --approve:*)"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api --paginate repos/${{ github.repository }}/pulls/*),Bash(gh api --paginate repos/${{ github.repository }}/issues/${{ env.PR }}/comments),Bash(gh issue create:*),Bash(gh issue comment:*),Bash(gh pr comment ${{ env.PR }}:*)"
