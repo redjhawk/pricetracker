@@ -22,6 +22,8 @@ Confirm the Pi's processor and OS architecture before choosing the target. The G
 
 ## Publish a GitHub release (amd64)
 
+Every push to `master` (a merged PR) runs the `release` workflow, which builds the Linux amd64 binary with `./scripts/build-release.sh amd64` and publishes a GitHub release `v<UTC timestamp>` with `pricefollower-linux-amd64` and its `.sha256`. Use the script below only for a manual release.
+
 From a clean, committed clone with Go, Node.js, `git` and an authenticated GitHub CLI (`gh auth login`), run:
 
 ```bash
