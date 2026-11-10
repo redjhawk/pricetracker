@@ -8,7 +8,7 @@ Stage: pull-request
 - The decision summary was posted on issue #111.
 - QA: [qa.md](qa.md). The API and service cases pass, with no defects. Browser QA is **blocked** because Chromium needs `libnspr4.so`, which this runner does not have. The UI states were checked in the source only.
 - Checks on the tip (`ai-dev/issue-111-review-fixes`): `go vet ./...`, `go test ./...` and `npm run build` pass.
-- REV-005 limitation: the developer ran the three checks on each part when committing it. The coordinator could not re-run them on each branch alone, because `git worktree` and checking out another branch need approval in this session.
+- REV-005 resolved: before pushing each part, the coordinator checked out that part branch and ran `go vet ./...`, `go test ./...` (no `FAIL`) and `npm run build`. All 13 branches passed.
 
 ## Stack (each PR targets the previous branch; PR 1 targets `ai-dev/issue-111-feature`)
 
