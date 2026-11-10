@@ -1,7 +1,7 @@
 # Review decisions: issue #115 application information
 
 Reviewed specification revisions: `doc/specifications/app-information/functional.md`, `doc/specifications/app-information/technical.md`, `API_SPECIFICATION.md` (session `version`, 2026-11-10) at `abca625`
-Reviewed code revision: `2b3eaba848ea5bedd7ea6ab21ed58bebcc14ae1f` (`git diff origin/master...HEAD`)
+Reviewed code revision: `2b3eaba848ea5bedd7ea6ab21ed58bebcc14ae1f` (`git diff origin/master...HEAD`); fixes rechecked at `41180419765ec5060db20ed0cc3e9192dd7cb24e`
 Reviewer: independent reviewer agent ([review.md](review.md))
 Adjudicator: independent review adjudicator agent (separate from developer and reviewer)
 
@@ -17,7 +17,7 @@ Adjudicator: independent review adjudicator agent (separate from developer and r
 - What must change: compute the tag separately, e.g. `TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)`, then `VERSION="${PRICEFOLLOWER_VERSION:-${TAG:+$TAG-dev}}"; VERSION="${VERSION:-dev}"`; update `technical.md` line 29 to the same logic.
 - Validation condition: in a checkout without tags and with `PRICEFOLLOWER_VERSION` unset, the script computes `dev`; with a tag `v20261109200945` it computes `v20261109200945-dev`; with `PRICEFOLLOWER_VERSION=v20261109200945` it computes `v20261109200945`. Reviewer rechecks the script and spec line.
 - Specification decision: not applicable (technical correction; API contract unchanged).
-- Resolution: pending (routed to developer).
+- Resolution: fixed in `4118041`; reviewer recheck ([review.md](review.md), "Recheck of review fixes"): empty `TAG` gives `dev`, a tag gives `<tag>-dev`, `PRICEFOLLOWER_VERSION` takes precedence; technical spec aligned. Status: resolved (recheck by code reading).
 - Follow-up: none beyond the fix; the `release.yml` hunk remains a recorded maintainer limitation.
 
 ### REV-002: Stale username shown when the session ended before opening the modal
@@ -30,7 +30,7 @@ Adjudicator: independent review adjudicator agent (separate from developer and r
 - What must change: when the refetched session reports `mode` protected with `user === null`, apply the existing ended-session behavior (the same logged-out flow the app uses, i.e. return to login) and never render the stale username. Correct the technical spec statement about 401 handling to describe the actual mechanism. Add a Playwright case.
 - Validation condition: Playwright test: logged-in user, session route mocked/ended to return `user: null`, open Information -> the previous username is not displayed and the app shows the login flow; existing app-information tests still pass. Reviewer rechecks.
 - Specification decision: not applicable (behavior already specified).
-- Resolution: pending (routed to developer, then reviewer/QA).
+- Resolution: fixed in `4118041`; reviewer recheck: protected mode with `user: null` hides the username and dispatches the existing `authRequiredEvent` (`src/api/client.ts`), which `App.tsx:63` handles by reloading the session into the login page; open mode unaffected; new Playwright case added; technical spec corrected. Status: resolved. The recheck did not run tests; the Playwright suite must pass in QA before the final diff is committed. Note: `sessionEnded` is never reset; harmless because the modal unmounts when the shell switches to login.
 - Follow-up: none.
 
 ### REV-003: CSS file differs from technical spec
@@ -43,19 +43,19 @@ Adjudicator: independent review adjudicator agent (separate from developer and r
 - What must change: replace `src/styles.css` with `src/index.css` in `technical.md` mapping 013.
 - Validation condition: `technical.md` references `src/index.css`; no code change.
 - Specification decision: not applicable.
-- Resolution: pending (routed to technical specifier/developer).
+- Resolution: fixed in `4118041`; technical spec now names `src/index.css`. Status: resolved.
 - Follow-up: none.
 
 ## Decision summary (published, informational)
 
 | Finding | Criticality | Disposition | What was done |
 |---|---|---|---|
-| REV-001 Build script yields `dev-dev` without tags | non-critical | fix | Build script fallback to be corrected to `dev` and technical spec aligned |
-| REV-002 Stale username after session ended | non-critical | fix | Modal to apply ended-session flow when refetched `user` is null; Playwright regression case; spec note corrected |
-| REV-003 CSS file name in technical spec | non-critical | fix | Technical spec to reference `src/index.css`; no code change |
+| REV-001 Build script yields `dev-dev` without tags | non-critical | fix | Fixed in `4118041`: untagged builds report `dev`; technical spec aligned; reviewer rechecked |
+| REV-002 Stale username after session ended | non-critical | fix | Fixed in `4118041`: modal hides the username and triggers the existing login flow when the session has ended; Playwright case added; spec corrected; reviewer rechecked |
+| REV-003 CSS file name in technical spec | non-critical | fix | Fixed in `4118041`: technical spec references `src/index.css` |
 
 Published as an issue comment: by the coordinator on issue #115. Included in the final run report: yes.
 
 ## Release readiness
 
-No critical findings. All three non-critical findings are accepted as fixes and pending; they must be implemented, rechecked by the reviewer, and covered by QA before commit. Known limitation remains: the `.github/workflows/release.yml` hunk needs a maintainer (token scope), so CI releases do not carry the release tag (FR-APP-INFO-007) until applied; after the REV-001 fix they show `dev`.
+No critical findings. All three non-critical findings are fixed in `4118041` and the reviewer rechecked them by reading the code, with no new findings. Remaining condition: QA must run the tests, including the new REV-002 Playwright case, and they must pass on the final diff before commit. Known limitation remains: the `.github/workflows/release.yml` hunk needs a maintainer (token scope), so CI releases do not carry the release tag (FR-APP-INFO-007) until applied; after the REV-001 fix they show `dev`.

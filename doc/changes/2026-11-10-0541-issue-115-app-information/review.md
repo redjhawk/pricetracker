@@ -38,3 +38,13 @@ Known limitation (not a finding): the `.github/workflows/release.yml` hunk (comp
 - FR-001..006: menu order Information/Settings/Log out (user), Information/Log out (admin), open mode; username shown only when logged in; no email. Covered by Playwright.
 - FR-009..013: loading, error text, retry on reopen, Close/icon/Escape with focus return via `launcherButtonRef`, keyboard, 400 px wrap. Covered by Playwright.
 - Backend: additive `version` field, `sync.Once` resolution, 2 s git timeout, unit tests for resolve; auth tests updated. No security concern (release tag is public). No unspecified behavior found.
+
+## Recheck of review fixes
+
+Rechecked revision: `41180419765ec5060db20ed0cc3e9192dd7cb24e` (`git diff HEAD~1 HEAD`). The code was read only; the tests were not run.
+
+- REV-001: resolved. `TAG` is empty when there is no tag, so `${TAG:+$TAG-dev}` expands to nothing and `VERSION` defaults to `dev`. `PRICEFOLLOWER_VERSION` still takes precedence. With a tag the result is still `<tag>-dev`. The technical spec was updated to match.
+- REV-002: resolved. When the refetched session has `mode: "protected"` and `user: null`, the modal hides the username and dispatches the existing `authRequiredEvent` (`src/api/client.ts`). `App.tsx:63` listens for it and reloads the session, which renders the login page. Open mode (`user: null` is expected there) is not affected. The new Playwright case covers it. The technical spec was updated.
+- REV-003: resolved. The technical spec now names `src/index.css`.
+
+New findings: none. Note: `sessionEnded` is never reset, but this does no harm because the shell unmounts the modal when it switches to the login page.
