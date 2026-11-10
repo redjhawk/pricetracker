@@ -78,11 +78,9 @@ export default function ItemDetail({
           </div>
         </div>
         <div className="detail-actions">
-          {item.tracked !== false && (
-            <Button kind="tertiary" size="sm" renderIcon={Renew} onClick={onRefresh} disabled={refreshing}>
-              Refresh price
-            </Button>
-          )}
+          <Button kind="tertiary" size="sm" renderIcon={Renew} onClick={onRefresh} disabled={refreshing}>
+            Refresh price
+          </Button>
           <Button
             kind="ghost"
             size="sm"
@@ -91,11 +89,9 @@ export default function ItemDetail({
             target="_blank"
             rel="noopener noreferrer"
           >Open on {item.platform === "amazon" ? "Amazon" : "LeBoncoin"}</Button>
-          {item.tracked !== false && (
-            <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => onDelete(item)}>
-              Delete
-            </Button>
-          )}
+          <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => onDelete(item)}>
+            Delete
+          </Button>
         </div>
       </div>
 
