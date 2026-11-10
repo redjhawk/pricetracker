@@ -9,9 +9,9 @@ Scope: autonomous development workflow (`AGENTS.md`, `doc/workflow/WORKFLOW.md` 
 - **FR-WORKFLOW-PR-001** In autonomous development, the agent creates pull requests from the work branch to `master` at the end of the workflow, once the review stage (review and review decisions) and QA have passed (QA ordering superseded by [workflow-stage-order](../workflow-stage-order/functional.md)).
 - **FR-WORKFLOW-PR-002** Pull requests are opened ready for review, not as drafts.
 - **FR-WORKFLOW-PR-003** The agent writes each pull request's description.
-- **FR-WORKFLOW-PR-004** Each pull request targets 450 changed lines with a ±50 margin when splitting; 500 changed lines is the only enforced limit. Smaller PRs are acceptable when the change or a separate-kind PR is smaller; unrelated work is never combined to reach the target.
-- **FR-WORKFLOW-PR-005** Changed lines are added plus deleted lines. Specifications and documentation count; generated files (for example `package-lock.json`) do not count.
-- **FR-WORKFLOW-PR-006** A change exceeding 500 changed lines is split into several pull requests.
+- **FR-WORKFLOW-PR-004** Removed: there is no changed-line limit or target per pull request; unrelated work is never combined in one PR.
+- **FR-WORKFLOW-PR-005** Removed with FR-WORKFLOW-PR-004 (changed lines are no longer counted).
+- **FR-WORKFLOW-PR-006** A change may be split into several pull requests when that makes it easier to review.
 - **FR-WORKFLOW-PR-007** Split pull requests are stacked: PR 1 targets `master`, PR 2 targets PR 1's branch, and so on. (Base superseded by [workflow-feature-branch](../workflow-feature-branch/functional.md): PR 1 targets a feature branch, and a final PR merges that branch into `master`.)
 - **FR-WORKFLOW-PR-008** Refactoring is always its own pull request, placed before the feature when better done first, or after it when found during or after development.
 - **FR-WORKFLOW-PR-009** Dependency updates are always their own pull request.
