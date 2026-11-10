@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   InlineLoading,
@@ -20,8 +20,8 @@ import {
   TextInput,
 } from "@carbon/react";
 import { Add, Launch, Renew } from "@carbon/icons-react";
-import type { AmazonRequests, TrackedItem } from "../types";
-import { getAmazonRequests } from "../api/searches";
+import type { TrackedItem } from "../types";
+import { dateTime } from "../dateTime";
 import StatusTag from "./StatusTag";
 
 interface Props {
@@ -54,21 +54,14 @@ const time = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   timeZone: "UTC",
 });
-const stopDate = new Intl.DateTimeFormat("en-GB", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/Paris",
-});
 
 export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete, onRefreshItem, refreshingItemIds, itemRefreshError }: Props) {
   const [search, setSearch] = useState("");
-  const [amazonRequests, setAmazonRequests] = useState<AmazonRequests | null>(null);
-  useEffect(() => {
-    if (selectedPlatform !== "amazon") return;
-    getAmazonRequests().then(setAmazonRequests).catch(() => setAmazonRequests(null));
-  }, [selectedPlatform, items]);
+  // The Amazon tab warning shows the most recent stop of the listed Amazon items.
+  const latestAmazonStop = items.reduce<string | null>(
+    (latest, item) => item.platform === "amazon" && item.amazonStoppedAt && (!latest || Date.parse(item.amazonStoppedAt) > Date.parse(latest)) ? item.amazonStoppedAt : latest,
+    null,
+  );
   const platformItems = useMemo(() => items.filter((item) => item.platform === selectedPlatform), [items, selectedPlatform]);
   const filteredItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -130,10 +123,11 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
           {platforms.map((platform) => (
             <TabPanel key={platform}>
               {platform === selectedPlatform && <>
-                {platform === "amazon" && amazonRequests?.stopped && amazonRequests.stoppedAt && (
+                {platform === "amazon" && latestAmazonStop && (
                   <InlineNotification
                     kind="warning"
-                    title={`Amazon requests are stopped since ${stopDate.format(new Date(amazonRequests.stoppedAt))} after repeated failures. Restart them from the Amazon searches tab.`}
+                    title={`Amazon checks were stopped on ${dateTime.format(new Date(latestAmazonStop))} after repeated failures.`}
+                    subtitle="Restart each item with Refresh price on its details page."
                     lowContrast
                     hideCloseButton
                     className="detail-notification"

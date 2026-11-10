@@ -188,9 +188,21 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 	if err := s.store.SetNextChecks(ctx, ids, s.NextCheckAt(requestedAt)); err != nil {
 		return time.Time{}, 0, err
 	}
-	queued := make([]string, 0, len(ids))
-	s.mu.Lock()
+	// Stopped Amazon items are not reserved: the gate would skip them, and a reservation would
+	// hide a later Refresh price (manual check) of the item. They still count as queued.
+	unstopped := make([]string, 0, len(ids))
 	for _, id := range ids {
+		stopped, err := s.store.AmazonStopped(ctx, id)
+		if err != nil {
+			return time.Time{}, 0, err
+		}
+		if !stopped {
+			unstopped = append(unstopped, id)
+		}
+	}
+	queued := make([]string, 0, len(unstopped))
+	s.mu.Lock()
+	for _, id := range unstopped {
 		if _, active := s.inFlight[id]; active {
 			continue
 		}

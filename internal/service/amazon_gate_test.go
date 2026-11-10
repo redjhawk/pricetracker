@@ -3,8 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -194,5 +196,74 @@ func TestFailedRefreshPriceKeepsTheItemStopped(t *testing.T) {
 	item, err := database.Get(ctx, "a")
 	if err != nil || item.AmazonStoppedAt == nil || item.LastAttempt == nil || item.LastAttempt.Result != "request_error" || service.amazonGate.failures != 1 {
 		t.Fatalf("failed refresh: %+v failures=%d %v", item, service.amazonGate.failures, err)
+	}
+}
+
+func TestRefreshItemRestartsStoppedItemWhileRefreshAllQueued(t *testing.T) {
+	service, database := newSessionService(t)
+	ctx := context.Background()
+	insertAmazonItems(t, database, "a", "b", "c")
+	if err := database.StopAmazonItems(ctx, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var requested sync.Map
+	service.collectors["amazon"] = fakeAmazon(func(_ context.Context, item model.Listing) model.CollectionResult {
+		requested.Store(item.ID, true)
+		return succeeded()
+	})
+	for range cap(service.refreshSlots) { // queue every run behind busy slots
+		service.refreshSlots <- struct{}{}
+	}
+	_, count, err := service.RefreshAll(ctx)
+	if err != nil || count != 3 {
+		t.Fatalf("RefreshAll = %d, %v", count, err)
+	}
+	service.mu.Lock()
+	reserved := len(service.inFlight)
+	service.mu.Unlock()
+	if reserved != 0 {
+		t.Errorf("Refresh all reserved %d stopped items", reserved)
+	}
+	if _, err := service.RefreshItem(ctx, "a"); err != nil {
+		t.Fatal(err)
+	}
+	for range cap(service.refreshSlots) {
+		<-service.refreshSlots
+	}
+	waitIdle(t, service)
+	if _, ok := requested.Load("a"); !ok || stopped(t, database, "a") || !stopped(t, database, "b") || !stopped(t, database, "c") {
+		t.Fatalf("Refresh price during Refresh all: requested a=%v", ok)
+	}
+}
+
+func TestAmazonGateRetriesTheStopWhenSavingItFails(t *testing.T) {
+	service, database := newSessionService(t)
+	insertAmazonItems(t, database, "a")
+	db, err := sql.Open("sqlite", filepath.Join(service.config.DataDirectory, "pricefollower.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("CREATE TRIGGER fail_stop BEFORE UPDATE OF amazon_stopped_at ON items WHEN NEW.amazon_stopped_at IS NOT NULL BEGIN SELECT RAISE(ABORT, 'storage failure'); END"); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureLog(t)
+	gate, ctx := service.amazonGate, context.Background()
+	for range amazonFailureLimit {
+		if _, err := gate.do(ctx, "a", false, failed); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if stopped(t, database, "a") || gate.failures != amazonFailureLimit || strings.Contains(logs.String(), "Amazon checks stopped") {
+		t.Fatalf("failed stop: failures=%d logs=%q", gate.failures, logs.String())
+	}
+	if _, err := db.Exec("DROP TRIGGER fail_stop"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gate.do(ctx, "a", false, failed); err != nil {
+		t.Fatal(err)
+	}
+	if !stopped(t, database, "a") || gate.failures != 0 || !strings.Contains(logs.String(), "Amazon checks stopped") {
+		t.Fatalf("stop not retried: failures=%d", gate.failures)
 	}
 }

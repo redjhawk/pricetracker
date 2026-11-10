@@ -13,6 +13,7 @@ import {
 } from "@carbon/react";
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
+import { dateTime } from "../dateTime";
 import AiReview from "./AiReview";
 import PurchaseGoal from "./PurchaseGoal";
 import StatusTag from "./StatusTag";
@@ -32,15 +33,6 @@ interface Props {
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const priceLabel = (amount: number) => amount === 0 ? "Gratuit" : euro.format(amount);
-const dateTime = new Intl.DateTimeFormat("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-  timeZoneName: "short",
-});
 
 export default function ItemDetail({
   item,
@@ -100,6 +92,15 @@ export default function ItemDetail({
         <InlineNotification kind="error" title="Could not refresh price" subtitle={refreshError} lowContrast className="detail-notification" />
       )}
 
+      {item.platform === "amazon" && item.amazonStoppedAt && (
+        <InlineNotification
+          kind="warning"
+          title={`Amazon checks of this item are stopped since ${dateTime.format(new Date(item.amazonStoppedAt))}. Refresh price restarts it.`}
+          lowContrast
+          hideCloseButton
+          className="detail-notification"
+        />
+      )}
       {item.status === "stale" && (
         <InlineNotification
           kind="warning"

@@ -37,6 +37,7 @@ export interface ApiTrackedItem {
   nextCheckAt: string | null;
   addedAt: string;
   purchaseGoal: string;
+  amazonStoppedAt: string | null;
   aiReview?: AiReviewState | null;
 }
 
