@@ -120,13 +120,6 @@ func scanAIReview(row scanner) (*model.AIReview, error) {
 	return &review, nil
 }
 
-// IsSearchItem reports whether the item belongs to at least one Amazon search.
-func (s *Store) IsSearchItem(ctx context.Context, itemID string) (bool, error) {
-	var exists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM amazon_search_items WHERE item_id = ?)", itemID).Scan(&exists)
-	return exists, err
-}
-
 // LatestPriceCents returns the most recent recorded price, or nil when none exists.
 func (s *Store) LatestPriceCents(ctx context.Context, itemID string) (*int64, error) {
 	var amount int64
