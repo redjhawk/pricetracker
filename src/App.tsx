@@ -30,15 +30,9 @@ import DeleteModal from "./components/DeleteModal";
 import ItemDetail from "./components/ItemDetail";
 import SettingsModal from "./components/SettingsModal";
 import TrackedItemsPage, { type Tab } from "./components/TrackedItemsPage";
-import AmazonSearchItems from "./components/AmazonSearchItems";
 
 function getItemId(pathname: string) {
   const match = pathname.match(/^\/items\/([^/]+)\/?$/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function getSearchId(pathname: string) {
-  const match = pathname.match(/^\/searches\/([^/]+)\/?$/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -136,7 +130,6 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
   const [settingsOpen, setSettingsOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const itemId = getItemId(pathname);
-  const searchId = getSearchId(pathname);
 
   const refreshItems = useCallback(async (quiet = false): Promise<TrackedItem[] | null> => {
     try {
@@ -304,14 +297,7 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
 
       <Content className="app-content">
         <main id="main-content" className="page-shell">
-          {searchId ? (
-            <AmazonSearchItems
-              searchId={searchId}
-              onBack={() => navigate("/")}
-              onViewDetail={(item) => navigate(`/items/${encodeURIComponent(item.id)}`)}
-              onTracked={() => void refreshItems(true)}
-            />
-          ) : showingDetail ? (
+          {showingDetail ? (
             detailLoading ? (
               <InlineLoading description="Loading item details…" />
             ) : detailError ? (
