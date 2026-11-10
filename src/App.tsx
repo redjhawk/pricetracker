@@ -324,7 +324,6 @@ function TrackerApp({ openMode, onLogout }: { openMode: boolean; onLogout?: () =
               items={items}
               selectedPlatform={selectedPlatform}
               onPlatformChange={setSelectedPlatform}
-              onOpenSearch={(search) => navigate(`/searches/${encodeURIComponent(search.id)}`)}
               loading={listLoading}
               error={listError}
               refreshError={refreshError}

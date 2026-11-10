@@ -20,16 +20,14 @@ import {
   TextInput,
 } from "@carbon/react";
 import { Add, Launch, Renew } from "@carbon/icons-react";
-import type { AmazonRequests, AmazonSearch, TrackedItem } from "../types";
+import type { AmazonRequests, TrackedItem } from "../types";
 import { getAmazonRequests } from "../api/searches";
-import AmazonSearchesPage, { formatSearchDate } from "./AmazonSearchesPage";
 import StatusTag from "./StatusTag";
 
 interface Props {
   items: TrackedItem[];
   selectedPlatform: Tab;
   onPlatformChange: (platform: Tab) => void;
-  onOpenSearch: (search: AmazonSearch) => void;
   loading: boolean;
   error: string | null;
   refreshError: string | null;
@@ -46,8 +44,8 @@ interface Props {
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
-export type Tab = TrackedItem["platform"] | "amazon-searches";
-const platforms = ["amazon", "leboncoin", "amazon-searches"] as const;
+export type Tab = TrackedItem["platform"];
+const platforms = ["amazon", "leboncoin"] as const;
 const priceLabel = (amount: number) => amount === 0 ? "Gratuit" : euro.format(amount);
 const time = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
@@ -56,8 +54,15 @@ const time = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   timeZone: "UTC",
 });
+const stopDate = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Paris",
+});
 
-export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete, onRefreshItem, refreshingItemIds, itemRefreshError, onOpenSearch }: Props) {
+export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete, onRefreshItem, refreshingItemIds, itemRefreshError }: Props) {
   const [search, setSearch] = useState("");
   const [amazonRequests, setAmazonRequests] = useState<AmazonRequests | null>(null);
   useEffect(() => {
@@ -120,18 +125,15 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
         <TabList aria-label="Listing platforms">
           <Tab>Amazon</Tab>
           <Tab>LeBoncoin</Tab>
-          <Tab>Amazon searches</Tab>
         </TabList>
         <TabPanels>
           {platforms.map((platform) => (
             <TabPanel key={platform}>
-              {platform === "amazon-searches" ? (
-                platform === selectedPlatform && <AmazonSearchesPage onOpenSearch={onOpenSearch} />
-              ) : platform === selectedPlatform && <>
+              {platform === selectedPlatform && <>
                 {platform === "amazon" && amazonRequests?.stopped && amazonRequests.stoppedAt && (
                   <InlineNotification
                     kind="warning"
-                    title={`Amazon requests are stopped since ${formatSearchDate(amazonRequests.stoppedAt)} after repeated failures. Restart them from the Amazon searches tab.`}
+                    title={`Amazon requests are stopped since ${stopDate.format(new Date(amazonRequests.stoppedAt))} after repeated failures. Restart them from the Amazon searches tab.`}
                     lowContrast
                     hideCloseButton
                     className="detail-notification"
