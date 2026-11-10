@@ -3,7 +3,17 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 )
+
+var searchTime = time.Date(2026, 10, 7, 20, 0, 0, 0, time.UTC)
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestAmazonRequestStatePersists(t *testing.T) {
 	dir := t.TempDir()
