@@ -55,10 +55,6 @@ func Open(cfg config.Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	if err := s.createSearchSchema(context.Background()); err != nil {
-		db.Close()
-		return nil, err
-	}
 	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -504,8 +500,8 @@ func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.
 	var item model.Item
 	var asin, title, thumbnail, next sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, tracked FROM items WHERE id = ?`, id).
-		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &item.Tracked)
+	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal FROM items WHERE id = ?`, id).
+		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal)
 	if err != nil {
 		return item, err
 	}
@@ -757,8 +753,8 @@ func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {
 	var item model.Listing
-	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id, tracked FROM items WHERE id = ?", id).
-		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID, &item.Tracked)
+	err := s.db.QueryRowContext(ctx, "SELECT id, platform, listing_id, asin, marketplace, url, purchase_goal, owner_id FROM items WHERE id = ?", id).
+		Scan(&item.ID, &item.Platform, &item.ListingID, &item.ASIN, &item.Marketplace, &item.URL, &item.PurchaseGoal, &item.OwnerID)
 	return item, err
 }
 
@@ -834,31 +830,13 @@ func (s *Store) RecordFailure(ctx context.Context, id, result, message string, t
 	return s.RecordCollection(ctx, id, model.CollectionResult{Result: result, Message: message, SecondHandStatus: "check_error"}, timestamp)
 }
 
-// Delete removes a tracked item from the tracked list. An item still in an Amazon search
-// is only untracked, so it stays in the search with its history.
 func (s *Store) Delete(ctx context.Context, ownerID int64, id string) (bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	var inSearch bool
-	if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM amazon_search_items WHERE item_id = ?)", id).Scan(&inSearch); err != nil {
-		return false, err
-	}
-	statement := "DELETE FROM items WHERE id = ? AND owner_id = ? AND tracked = 1"
-	if inSearch {
-		statement = "UPDATE items SET tracked = 0, next_check_at = NULL WHERE id = ? AND owner_id = ? AND tracked = 1"
-	}
-	result, err := tx.ExecContext(ctx, statement, id, ownerID)
+	result, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ? AND owner_id = ?", id, ownerID)
 	if err != nil {
 		return false, err
 	}
 	count, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return count > 0, tx.Commit()
+	return count > 0, err
 }
 
 func nullString(value sql.NullString) *string {
