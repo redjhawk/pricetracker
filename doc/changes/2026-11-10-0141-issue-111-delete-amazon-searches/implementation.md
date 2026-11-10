@@ -49,3 +49,15 @@ Re-slicing against the plan: `service/amazon_review_test.go` moved to part 5 (it
 ## Checks executed
 
 Every part: `go vet ./...` (no output), `go test ./...` (`amazon`, `claude`, `httpapi`, `leboncoin`, `service`, `store`: ok), `npm run build` (`tsc -b && vite build`: built). Playwright could not run: the Chromium headless shell fails to start (`libnspr4.so: cannot open shared object file`); QA must run the specs in an environment with the browser libraries.
+
+## Review fixes
+
+Branch `ai-dev/issue-111-review-fixes`, stacked on `ai-dev/issue-111-item-stop-frontend` (tip-commit placement preferred in [decisions.md](decisions.md)).
+
+- REV-001 (critical) and REV-003: `RefreshAll` (`internal/service/service.go`) no longer reserves stopped Amazon items in `inFlight`; it still returns the count of every tracked item (`itemsQueued` unchanged). A later Refresh price reserves the item and runs it as a manual check, so it is checked and restarted; a running manual check stays single-flight. Use case [UC-PC-02](../../use-cases/price-collection/UC-PC-02-restart-stopped-amazon-item-during-refresh-all.md); regression test `TestRefreshItemRestartsStoppedItemWhileRefreshAllQueued` (busy `refreshSlots`, three stopped items; asserts count 3, no reservation after Refresh all, request and restart of `a`, `b`/`c` still stopped).
+  - Evidence: without the service/gate change the test fails (`Refresh all reserved 3 stopped items`, `Refresh price during Refresh all: requested a=false`); with it the test passes.
+- REV-002: one formatter `src/dateTime.ts` (en-GB, UTC, year, zone label, the details page's former format) used by the details page and by the Amazon tab stop warning, which previously used Europe/Paris without a label.
+- REV-004: `amazon_gate.go` keeps the count at the limit when `StopAmazonItems` fails, so the next failure retries the stop; "Amazon checks stopped" is logged only after a successful update. Test `TestAmazonGateRetriesTheStopWhenSavingItFails` (SQLite trigger makes the stop fail) fails without the change (`failures=0`, stop logged) and passes with it.
+- REV-005: not executed. Running the checks on each part branch needs a `git worktree add`, `git checkout` of another branch or `git archive`, and each was refused by this environment's permission policy. Remains open for the coordinator/QA.
+
+Checks on `ai-dev/issue-111-review-fixes`: `go vet ./...` (no output), `go test ./...` (all packages ok), `npm run build` (built). Playwright not run (same browser library limitation).

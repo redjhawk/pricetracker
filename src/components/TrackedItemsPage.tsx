@@ -21,6 +21,7 @@ import {
 } from "@carbon/react";
 import { Add, Launch, Renew } from "@carbon/icons-react";
 import type { TrackedItem } from "../types";
+import { dateTime } from "../dateTime";
 import StatusTag from "./StatusTag";
 
 interface Props {
@@ -52,13 +53,6 @@ const time = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   timeZone: "UTC",
-});
-const stopDate = new Intl.DateTimeFormat("en-GB", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/Paris",
 });
 
 export default function TrackedItemsPage({ items, selectedPlatform, onPlatformChange, loading, error, refreshError, refreshing, refreshCount, onRetry, onRefresh, onAdd, onViewDetail, onDelete, onRefreshItem, refreshingItemIds, itemRefreshError }: Props) {
@@ -132,7 +126,7 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                 {platform === "amazon" && latestAmazonStop && (
                   <InlineNotification
                     kind="warning"
-                    title={`Amazon checks were stopped on ${stopDate.format(new Date(latestAmazonStop))} after repeated failures.`}
+                    title={`Amazon checks were stopped on ${dateTime.format(new Date(latestAmazonStop))} after repeated failures.`}
                     subtitle="Restart each item with Refresh price on its details page."
                     lowContrast
                     hideCloseButton
