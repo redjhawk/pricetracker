@@ -246,7 +246,7 @@ test("existing prices, statuses and Amazon offer states survive the split", asyn
   await expect(page.getByRole("cell")).toHaveCount(4);
 });
 
-test("Carbon keyboard navigation and narrow table scrolling preserve access", async ({ page, context }) => {
+test("Carbon keyboard navigation and the narrow stacked table preserve access", async ({ page, context }) => {
   await mockApi(context);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
@@ -270,7 +270,8 @@ test("Carbon keyboard navigation and narrow table scrolling preserve access", as
   await expect(identity).toBeVisible();
   expect(await identity.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   const container = page.locator(".tracked-table-container .cds--data-table-content");
-  expect(await container.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  // FR-RESPONSIVE-004 (issue #140): the narrow table stacks instead of scrolling sideways.
+  expect(await container.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.getByRole("button", { name: "Options", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "View details", exact: true })).toBeVisible();
 });

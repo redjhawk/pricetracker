@@ -173,7 +173,7 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                       />
                     </div>
                     <TableContainer className="tracked-table-container">
-                      <Table size="lg" aria-label="Tracked items">
+                      <Table size="lg" aria-label="Tracked items" className="responsive-table">
                         <TableHead>
                           <TableRow>
                             <TableHeader>Item</TableHeader>
@@ -207,7 +207,7 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell data-label="Prices">
                                 {item.lastThreeDetections.length || item.latestPrice ? (
                                   <ul className="price-history-list">
                                     {(item.lastThreeDetections.length
@@ -224,7 +224,7 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                                   </ul>
                                 ) : <span className="muted">Awaiting first price</span>}
                               </TableCell>
-                              {selectedPlatform === "amazon" && <TableCell>
+                              {selectedPlatform === "amazon" && <TableCell data-label="Amazon second-hand offer">
                                 {item.secondHandOffer?.status === "available" && item.secondHandOffer.latestDetection ? (
                                   <div className="latest-price">
                                     <strong>{priceLabel(item.secondHandOffer.latestDetection.amount)}</strong>
@@ -242,7 +242,7 @@ export default function TrackedItemsPage({ items, selectedPlatform, onPlatformCh
                                   </div>
                                 ) : item.secondHandOffer ? <span className="muted">Amazon offer check unavailable</span> : <span className="muted">—</span>}
                               </TableCell>}
-                              <TableCell><StatusTag status={item.status} /></TableCell>
+                              <TableCell data-label="Status"><StatusTag status={item.status} /></TableCell>
                               <TableCell>
                                 <div className="row-actions">
                                   <Button

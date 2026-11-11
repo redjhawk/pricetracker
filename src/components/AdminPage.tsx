@@ -120,7 +120,7 @@ export default function AdminPage() {
           <Button kind="tertiary" size="sm" onClick={() => void refresh()}>Retry</Button>
         </div>
       )}
-      <TableContainer>
+      <TableContainer className="responsive-table-container">
         <TableToolbar aria-label="Users toolbar">
           <TableToolbarContent>
             <Button renderIcon={Add} onClick={() => setAddOpen(true)}>Add user</Button>
@@ -133,7 +133,7 @@ export default function AdminPage() {
             <p>No users yet. Adding the first user turns on login and gives them the existing items and settings.</p>
           </div>
         ) : (
-          <Table size="lg" aria-label="Users">
+          <Table size="lg" aria-label="Users" className="responsive-table">
             <TableHead>
               <TableRow>
                 <TableHeader>Username</TableHeader>
@@ -143,8 +143,8 @@ export default function AdminPage() {
             <TableBody>
               {users.map((user) => (
                 <TableRow key={user.username}>
-                  <TableCell>{user.username}</TableCell>
-                  <TableCell>{user.lastLoginAt ? dateTime.format(new Date(user.lastLoginAt)) : "Never"}</TableCell>
+                  <TableCell data-label="Username">{user.username}</TableCell>
+                  <TableCell data-label="Last login">{user.lastLoginAt ? dateTime.format(new Date(user.lastLoginAt)) : "Never"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
