@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 013, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 017, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -53,6 +53,22 @@ All three live inside the phone query (`max-width: 671.98px`), and the new Playw
 - `.detail-breadcrumb .cds--breadcrumb-item { min-width: 0; max-width: 100% }` and `.detail-breadcrumb .cds--link { overflow-wrap: anywhere; white-space: normal }`: the current breadcrumb item repeats the item title, and the 200-character title overflowed (FR-RESPONSIVE-010).
 
 Intermediate widths (REV-001, QA-F001): the page itself did not scroll at 700 px and 1000 px. QA then found that between 672 px and about 1005 px the tracked-items table overflowed inside Carbon's `.cds--data-table-content` scroller, which cut off Status and the row actions. **Decision: the TS-RESPONSIVE-003 fallback is applied.** The stacked-table rules (`.responsive-table` blocks, visually hidden `thead`, `td[data-label]::before`, `.row-actions` start-aligned) now live in `@media (max-width: 1055.98px)` for both tables (tracked items and admin users). The other phone rules stay at 671.98px. Desktop (≥1056 px) is unchanged. Use case: [UC-TI-05](../../use-cases/tracked-items/UC-TI-05-review-tracked-items-at-tablet-width.md).
+
+### Full-width tracked-items list on phones (FR-RESPONSIVE-014 to 017)
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-014 | TS-RESPONSIVE-011 | `src/index.css` | Playwright: at 320/360 px the `.tracked-table-container` box has left ≈ 0 and right ≈ viewport width, both tabs |
+| FR-RESPONSIVE-015 | TS-RESPONSIVE-012 | — (existing cell padding) | Playwright: leftmost cell text at x ≥ 4 |
+| FR-RESPONSIVE-016 | TS-RESPONSIVE-013 | `src/index.css` | Playwright: `expectNoHorizontalScroll` at 320/360 px; existing phone tests unchanged |
+| FR-RESPONSIVE-017 | TS-RESPONSIVE-014 | `src/index.css` | Playwright: at 700 px the container's left/right edges equal those of the `.tracked-table-search` row (the tab panel content box, REV-002); existing desktop/tablet tests |
+
+- **TS-RESPONSIVE-011 Edge-to-edge list.** The lateral gap at phone width is the sum of three sources: Carbon's `.cds--content` padding (`2rem` each side; the app only overrides its block-start padding in `.app-content`), the `.page-shell` inset (`width: min(100% - 2 * spacing-05, 96rem)`, centered, so `spacing-05` = 1rem each side), and the Carbon tab panel `.cds--tab-content` padding (`var(--cds-layout-density-padding-inline-local)`, 1rem at normal density): 4rem = 64 px per side (REV-001). Inside `@media (max-width: 671.98px)`, `.tracked-table-container { margin-inline: calc(-1 * (2rem + var(--cds-spacing-05) + var(--cds-layout-density-padding-inline-local, 1rem))) }`; the token is inherited from the ancestor `.cds--tab-content`, so a density change follows automatically. Use case: [UC-TI-06](../../use-cases/tracked-items/UC-TI-06-review-tracked-items-full-width-on-phone.md). The class is used only by the tracked-items `TableContainer` in `TrackedItemsPage.tsx`; the admin table (`.responsive-table-container`) is not affected. As a block with `width: auto`, negative margins widen it to exactly the viewport.
+- **TS-RESPONSIVE-012 Inner padding.** Kept from TS-RESPONSIVE-003: each card `td` has `padding-inline: var(--cds-spacing-05)` (16 px), so text and actions stay inset.
+- **TS-RESPONSIVE-013 No horizontal scroll; other elements unchanged.** The container's border box equals the viewport width, so the document does not widen. The heading, tabs, Amazon-stop warning, empty states and the search field (`.tracked-table-search`) keep their current page margins: the search is a form field, not a card, and FR-RESPONSIVE-016 keeps surrounding content as before; it stays aligned with the heading and tabs.
+- **TS-RESPONSIVE-014 Scope.** Single rule in the phone query; nothing changes at ≥ 672 px or on other screens. Risk: if `.cds--content` padding, the `.page-shell` inset, or the `.cds--tab-content` padding / `--cds-layout-density-padding-inline-local` token change, the calc must follow (noted in the CSS comment).
+
+Backend and API: not affected; `API_SPECIFICATION.md` unchanged.
 
 ## Backend
 
