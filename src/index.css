@@ -632,6 +632,13 @@ img {
 }
 
 @media (max-width: 671.98px) {
+  /* TS-RESPONSIVE-011: tracked-items cards edge to edge. The gap is Carbon's
+     .cds--content padding (2rem), the .page-shell inset (spacing-05) and the
+     Carbon tab panel (.cds--tab-content) padding, read from its density token. */
+  .tracked-table-container {
+    margin-inline: calc(-1 * (2rem + var(--cds-spacing-05) + var(--cds-layout-density-padding-inline-local, 1rem)));
+  }
+
   .responsive-table-container .cds--toolbar-content {
     flex-wrap: wrap;
   }

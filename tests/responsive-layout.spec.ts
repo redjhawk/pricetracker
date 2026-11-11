@@ -253,3 +253,47 @@ test("desktop keeps the tracked table header row", async ({ page, context }) => 
   expect(await header.evaluate((element) => getComputedStyle(element).display)).toBe("table-header-group");
   await expect(page.getByRole("columnheader", { name: "Prices" })).toBeVisible();
 });
+
+// FR-RESPONSIVE-014..017: the tracked-items list spans the full viewport width on phones.
+async function listBox(page: Page) {
+  return page.locator(".tracked-table-container").evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const textLeft = Math.min(...[...element.querySelectorAll("tbody td")].map((td) => {
+      const range = document.createRange();
+      range.selectNodeContents(td);
+      return range.getBoundingClientRect().left;
+    }));
+    return { left: box.left, right: box.right, textLeft, width: document.documentElement.clientWidth };
+  });
+}
+
+// Regression test for UC-TI-06 (REV-001: the Carbon tab panel padding left 16 px margins).
+for (const width of [320, 360]) {
+  test(`${width}px tracked-items list spans the full width`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await mockApi(context);
+    await page.goto("/");
+    await expect(page.getByRole("table", { name: "Tracked items" }).getByRole("button", { name: longTitle })).toBeVisible();
+    for (const tab of ["Amazon", "LeBoncoin"]) {
+      await page.getByRole("tab", { name: tab }).click();
+      const box = await listBox(page);
+      expect(Math.abs(box.left)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.right - box.width)).toBeLessThanOrEqual(1);
+      expect(box.textLeft).toBeGreaterThanOrEqual(4);
+      await expectNoHorizontalScroll(page);
+    }
+  });
+}
+
+test("700px tracked-items list keeps its page margins", async ({ page, context }) => {
+  await page.setViewportSize({ width: 700, height: 800 });
+  await mockApi(context);
+  await page.goto("/");
+  await expect(page.getByRole("table", { name: "Tracked items" }).getByRole("button", { name: longTitle })).toBeVisible();
+  const box = await listBox(page);
+  // REV-002: the list is inside the tab panel, so it lines up with the search row, not .page-shell.
+  const search = await page.locator(".tracked-table-search").evaluate((element) => element.getBoundingClientRect().toJSON());
+  expect(box.left).toBeCloseTo(search.left, 0);
+  expect(box.right).toBeCloseTo(search.right, 0);
+  expect(box.left).toBeGreaterThan(8);
+});
