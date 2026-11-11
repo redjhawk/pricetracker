@@ -386,18 +386,14 @@ input {
   text-align: end;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1055.98px) {
   .page-shell {
     width: min(100% - 2 * var(--cds-spacing-05), 96rem);
     padding-block-start: var(--cds-spacing-05);
   }
 
-  .tracked-table-container {
-    overflow-x: auto;
-  }
-
-  .tracked-table-container table {
-    min-width: 66rem;
+  .item-cell {
+    min-width: 0;
   }
 
   .detail-summary {
@@ -405,7 +401,7 @@ input {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 671.98px) {
   .page-heading,
   .detail-heading {
     align-items: flex-start;
@@ -490,4 +486,183 @@ input {
 
 .information-list dd {
   overflow-wrap: anywhere;
+}
+
+/* Responsive layout (issue #140): long content wraps instead of widening the page. */
+.page-heading > div,
+.summary-tile {
+  min-width: 0;
+}
+
+img {
+  max-width: 100%;
+}
+
+.page-heading h1,
+.detail-heading h1,
+.item-title.cds--btn,
+.item-asin,
+.detail-tags .cds--tag,
+.summary-footnote,
+.purchase-goal,
+.ai-review,
+.page-description,
+.empty-state,
+.detail-notification,
+.modal-notification,
+.delete-copy,
+.modal-intro,
+.responsive-table td,
+.cds--modal-content {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 671.98px) {
+  .cds--header__name {
+    min-width: 0;
+    padding-inline: var(--cds-spacing-05) var(--cds-spacing-03);
+  }
+
+  .brand-mark {
+    min-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.1;
+    white-space: normal;
+  }
+
+  .detail-breadcrumb .cds--breadcrumb-item {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .detail-breadcrumb .cds--link {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .login-page {
+    padding-inline: var(--cds-spacing-05);
+  }
+
+  .detail-notification.cds--inline-notification,
+  .modal-notification.cds--inline-notification {
+    min-inline-size: 0;
+  }
+
+  .page-heading-actions .cds--btn {
+    max-width: 100%;
+  }
+
+  .tracked-table-search .tracked-search {
+    flex-basis: 100%;
+  }
+
+  .cds--tabs .cds--tabs__nav-item {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .empty-state {
+    padding: var(--cds-spacing-05);
+  }
+
+  .item-title.cds--btn {
+    max-width: 100%;
+  }
+
+  .latest-price,
+  .price-history-list li {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .detail-tags .cds--tag {
+    max-width: 100%;
+    height: auto;
+    white-space: normal;
+  }
+
+}
+
+/* Tables become stacked cards below desktop (QA-F001: Carbon's inner scroller
+   hid Status and actions between 672px and 1055px); the header stays in the DOM, visually hidden. */
+@media (max-width: 1055.98px) {
+  .responsive-table,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-table thead {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .responsive-table tr {
+    height: auto;
+    padding-block: var(--cds-spacing-03);
+    border-block-end: 1px solid var(--cds-border-subtle);
+  }
+
+  .responsive-table tbody tr td {
+    height: auto;
+    padding: var(--cds-spacing-03) var(--cds-spacing-05);
+    border: 0;
+  }
+
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-block-end: var(--cds-spacing-02);
+    color: var(--cds-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 671.98px) {
+  .responsive-table-container .cds--toolbar-content {
+    flex-wrap: wrap;
+  }
+
+  .detections-list.cds--structured-list,
+  .detections-list .cds--structured-list-thead,
+  .detections-list .cds--structured-list-tbody {
+    display: block;
+  }
+
+  .detections-list .cds--structured-list-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cds-spacing-02);
+  }
+
+  .detections-list .cds--structured-list-th,
+  .detections-list .cds--structured-list-td {
+    display: block;
+    padding: var(--cds-spacing-03);
+  }
+
+  .purchase-goal-actions {
+    flex-wrap: wrap;
+  }
+
+  .ai-review-details dd {
+    margin-inline-start: 0;
+  }
+
+  .ai-review .cds--accordion__content {
+    padding-inline-end: var(--cds-spacing-05);
+  }
 }

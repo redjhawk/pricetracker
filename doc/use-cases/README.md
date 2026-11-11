@@ -8,6 +8,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-TI-02 — Search tracked items](tracked-items/UC-TI-02-search-tracked-items.md)
 - [UC-TI-03 — Refresh all prices](tracked-items/UC-TI-03-refresh-all-prices.md)
 - [UC-TI-04 — Open a source listing](tracked-items/UC-TI-04-open-source-listing.md)
+- [UC-TI-05 — Review tracked items at tablet width](tracked-items/UC-TI-05-review-tracked-items-at-tablet-width.md)
 
 ## Item details
 
