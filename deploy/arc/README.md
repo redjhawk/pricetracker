@@ -15,7 +15,9 @@ The controller (`arc` in `arc-systems`) is shared and kept across updates.
 No root access on `malaga` is needed: the image goes through a private GitHub Container Registry package and k3s
 pulls it with a Kubernetes secret.
 
-- On the machine that builds the image: Docker, logged in to ghcr.io with a classic token that has `write:packages`:
+- Two classic GitHub tokens (Settings → Developer settings → Personal access tokens → Tokens (classic)): one
+  with `write:packages` to push the image, and one with only `read:packages` that the cluster keeps to pull it.
+- On the machine that builds the image: Docker, logged in to ghcr.io with the `write:packages` token:
   `echo "$TOKEN" | docker login ghcr.io -u redjhawk --password-stdin`.
 - Where `helm` and `kubectl` reach the cluster: this repository checked out. The first run of `install.sh` also needs
   the variables for the secrets that do not exist yet:
@@ -43,8 +45,10 @@ pulls it with a Kubernetes secret.
    kubectl get pods -n arc-systems                       # controller + one listener per scale set
    kubectl get secret ghcr-pull -n arc-dev
    ```
-   Then start `fabrica` by hand from the Actions tab and watch `kubectl get pods -n arc-dev -w`: the runner pod
-   must reach `Running`.
+   Then start `fabrica` by hand from the Actions tab (GitHub offers a manual run only for workflows on `master`)
+   with a small test issue, and watch `kubectl get pods -n arc-dev -w`: the runner pod must reach `Running`, and the
+   job's first step checks that the image has every tool. `arc-build` is tested by the next merge to `master`:
+   `release.yml` must run on it and publish the release.
 
 ## Changing the runner image
 
