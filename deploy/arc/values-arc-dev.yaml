@@ -1,16 +1,12 @@
 # Helm values for the arc-dev runner scale set (agent factory). Apply with:
-#   helm upgrade arc-dev --namespace arc-dev --version 0.15.1 \
-#     --set githubConfigUrl=https://github.com/redjhawk/pricetracker --set githubConfigSecret=github-app \
-#     -f deploy/arc/values-arc-dev.yaml \
-#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+#   deploy/arc/install.sh   (see README.md)
 minRunners: 0
 # Parallel factory runs (one per issue). Each runner requests 2 CPU and 4 GiB.
 maxRunners: 3
 template:
   spec:
     # The image is imported into each k3s node's containerd (no registry):
-    #   docker build -f deploy/arc/Dockerfile.dev -t arc-runner-dev:1 deploy/arc
-    #   docker save arc-runner-dev:1 | ssh <k3s node> sudo k3s ctr images import -
+    #   deploy/arc/build-image.sh 1 <k3s node>   (build here, import over SSH; see README.md)
     containers:
       - name: runner
         image: docker.io/library/arc-runner-dev:1
