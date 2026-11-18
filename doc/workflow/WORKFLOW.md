@@ -36,11 +36,13 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 - Agents run with `GH_TOKEN`/`GITHUB_TOKEN` removed from their environment and with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so the commands they run do not see the Claude credentials. Tests, build and Playwright run with every credential removed. Only `factory.sh` itself uses `DEV_TOKEN`, to push, comment, open and merge.
 - Tools are per profile: `docs` edits only `doc/**` and `API_SPECIFICATION.md`; `code` edits only `cmd/`, `internal/`, `src/`, `tests/`, `web/` and the change folder, and runs only `go test|vet|build`, `gofmt`, `npm run build`, `npx playwright test` and `node --test`.
 - Gates see committed, modified and untracked files, because they run before the stage checkpoint.
-- `tests.lock` is read from the TDD red commit; it covers the changed tests plus `playwright.config.ts` and `scripts/*.test.mjs`. A missing or empty lock, or a changed lock, fails the green gate.
+- `tests.lock` is read from the TDD red commit; it covers the changed tests plus `playwright.config.ts` and `scripts/*.test.mjs`. A missing or empty lock, or a changed lock, fails the green gate, and so does any test file (new or pre-existing, matching `_test.go`, `.spec.ts`, `.test.mjs`) that differs from the red commit.
+- The red gate fails if a changed Playwright spec is not listed by `npx playwright test --list` (`testMatch` in `playwright.config.ts` is explicit and only a human may change it).
+- `round` counts every review round and never resets, so review ids and `review-rN.json`/`triage-rN.json`/todo files stay unique; `series_start` marks where the current series of `FACTORY_MAX_ROUNDS` rounds began.
 - Triage fails closed: exactly one decision per review id (`R<round>-<n>`), boolean `blocking`, and `title`/`todo` for non-blocking ones.
 - Never merged by the factory: `.github/`, `.claude/`, `.agents/`, `project-skills/`, `AGENTS.md`, `CLAUDE.md`, `scripts/`, `deploy/`, dependencies, `vite.config.ts` and `playwright.config.ts`.
 - Every factory comment starts with `<!-- agent-factory -->`, and `fabrica.yml` ignores comments that contain it, so the factory cannot restart itself.
-- [`pruebas.yml`](../../.github/workflows/pruebas.yml) runs go vet, go test, the script tests and the frontend build on every PR into `master`, without secrets, so PRs written by hand also have CI. The ARC runner files (`deploy/arc/`) stay in this PR because `fabrica.yml` cannot run without the `arc-dev` image; the split was judged not worth an unrunnable intermediate state.
+- [`pruebas.yml`](../../.github/workflows/pruebas.yml) runs go vet, go test, the script tests and the frontend build on every PR into `master`, without secrets, so PRs written by hand also have CI. `actions/checkout` in `fabrica.yml` uses `persist-credentials: false`; pushes authenticate through `gh auth setup-git`, which reads `GH_TOKEN` only from `factory.sh`'s environment. The ARC runner files (`deploy/arc/`) stay in this PR because `fabrica.yml` cannot run without the `arc-dev` image; the split was judged not worth an unrunnable intermediate state.
 
 ## Running it
 

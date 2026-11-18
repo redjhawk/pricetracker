@@ -64,6 +64,13 @@ gate_red() {
     grep -q "$id" $files || { echo "test case $id is not referenced by any changed test"; missing=1; }
   done
   [ $missing = 0 ] || return 1
+  # A Playwright spec that playwright.config.ts (explicit testMatch) does not list would never run.
+  local listed f
+  listed=$(npx playwright test --list 2>/dev/null || true)
+  for f in $(grep -E '\.spec\.ts$' <<<"$files" || true); do
+    grep -qF "$(basename "$f")" <<<"$listed" || { echo "$f is not run by Playwright: add it to testMatch in playwright.config.ts (a sensitive file, changed by hand in its own PR)"; missing=1; }
+  done
+  [ $missing = 0 ] || return 1
   if run_all_tests; then echo "the tests pass before implementing: they do not test the new behaviour"; return 1; fi
   lock_files | xargs sha256sum >"$CHANGE_DIR/tests.lock"
   echo "red confirmed; tests locked in tests.lock"
@@ -81,6 +88,10 @@ gate_green() {
   elif ! git cat-file -e "$commit:$CHANGE_DIR/no-tests.md" 2>/dev/null; then
     echo "tests.lock missing or empty in the TDD red commit $commit"; return 1
   fi
+  # Any test file (new or pre-existing) changed after the red commit fails: tests cannot be weakened.
+  local touched
+  touched=$({ git diff --name-only "$commit" --; git ls-files -o --exclude-standard; } | grep -E "$TEST_FILE_PATTERN" | sort -u || true)
+  [ -z "$touched" ] || { echo "test files changed after the TDD red commit:"; echo "$touched"; return 1; }
   run_all_tests
 }
 

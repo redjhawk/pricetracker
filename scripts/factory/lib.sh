@@ -81,7 +81,7 @@ run_agent() {
     code)   tools="Read,Glob,Grep,Edit(cmd/**),Write(cmd/**),Edit(internal/**),Write(internal/**),Edit(src/**),Write(src/**),Edit(tests/**),Write(tests/**),Edit(web/**),Write(web/**),Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**)"
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
-    review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
+    review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
     *) die "unknown tool profile $profile" ;;
   esac
   prompt="$(cat "$FACTORY_DIR/prompts/common.md" "$FACTORY_DIR/prompts/$name.md")

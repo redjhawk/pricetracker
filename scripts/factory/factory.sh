@@ -64,7 +64,7 @@ if [ -z "$CHANGE_DIR" ]; then
     tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | cut -c1-40 | sed 's/^-//;s/-$//')
   CHANGE_DIR="doc/changes/$(date -u +%Y-%m-%d-%H%M)-issue-$ISSUE-$slug"
   mkdir -p "$CHANGE_DIR"
-  jq -n --argjson i "$ISSUE" '{issue: $i, stage: "spec", round: 0, pr: ""}' >"$CHANGE_DIR/state.json"
+  jq -n --argjson i "$ISSUE" '{issue: $i, stage: "spec", round: 0, series_start: 0, pr: ""}' >"$CHANGE_DIR/state.json"
 fi
 STATE="$CHANGE_DIR/state.json"
 export ISSUE CHANGE_DIR BASE_BRANCH LOG_DIR
@@ -225,7 +225,7 @@ post_review() { # one inline GitHub review; falls back to a plain comment when a
 }
 
 stage_triage() {
-  local pr round review triage
+  local pr round review triage series_start
   pr=$(state_get pr); round=$(state_get round)
   review="$CHANGE_DIR/review-r$round.json"; triage="$CHANGE_DIR/triage-r$round.json"
   if [ "$(jq length "$review")" -eq 0 ]; then
@@ -244,11 +244,14 @@ stage_triage() {
     jq -r --slurpfile r "$review" '"# Blocking review comments (round '"$round"')\n" +
       ([.[] | select(.blocking) | .id as $id | ($r[0][] | select(.id == $id)) as $c |
         "\n## \($id) `\($c.file):\($c.line)`\n\n\($c.body)\n\nTriage: \(.reason)\n"] | join(""))' "$triage" >"$CHANGE_DIR/blocking.md"
-    if [ "$round" -ge "$MAX_ROUNDS" ]; then
+    # `round` counts every review and never resets (review ids R<round>-NN and file names stay unique);
+    # `series_start` is the round at which the current series of MAX_ROUNDS rounds began.
+    series_start=$(state_get series_start); local series=$(( round - ${series_start:-0} ))
+    if [ "$series" -ge "$MAX_ROUNDS" ]; then
       # The user's answer resumes a new series of rounds: implementation with blocking.md and their comment.
-      state_set round 0
+      state_set series_start "$round"
       state_set stage implement
-      stop_for_user needs-input "After $round review rounds, PR #$pr still has blocking comments:
+      stop_for_user needs-input "After $series review rounds, PR #$pr still has blocking comments:
 
 $(cat "$CHANGE_DIR/blocking.md")
 
