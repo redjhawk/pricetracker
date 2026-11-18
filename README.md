@@ -54,7 +54,7 @@ The suite starts its own Vite frontend at `http://127.0.0.1:4173`; that port mus
 
 ## Build and release
 
-Every merge to `master` builds a static Linux amd64 executable with the frontend embedded and publishes it as a GitHub release. Building by hand, releases and the administrator account are described in [DEPLOYMENT.md](DEPLOYMENT.md).
+Every merge to `master` builds a static Linux amd64 executable with the frontend embedded and publishes it as a GitHub release. Building by hand, releases and the administrator account are described in [deploy/README.md](deploy/README.md), together with the self-hosted CI runners.
 
 For LeBoncoin verification challenges, follow [LeBoncoin verification: capture a session and paste it in Settings](doc/leboncoin-session.md).
 

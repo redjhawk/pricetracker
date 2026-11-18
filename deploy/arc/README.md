@@ -1,6 +1,6 @@
 # ARC runners (k3s)
 
-Self-hosted GitHub Actions runners for this repository, on the single-node k3s cluster `malaga`, with
+Self-hosted GitHub Actions runners for this repository (application deployment: [../README.md](../README.md)), on the single-node k3s cluster `malaga`, with
 [Actions Runner Controller](https://github.com/actions/actions-runner-controller) 0.15.1 and Helm 4.
 
 | Scale set | Used by | Image | Max runners |

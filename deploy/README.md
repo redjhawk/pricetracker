@@ -1,6 +1,6 @@
 # Build and release
 
-The production backend is Go. The release build embeds the React `dist/` files in the Go executable, so a server needs only one application file; the SQLite database stays in a separate data directory (`PRICEFOLLOWER_DATA_DIR`).
+Everything about building, releasing and running PriceFollower in production. The production backend is Go. The release build embeds the React `dist/` files in the Go executable, so a server needs only one application file; the SQLite database stays in a separate data directory (`PRICEFOLLOWER_DATA_DIR`).
 
 ## Build a release
 
@@ -39,3 +39,9 @@ PRICEFOLLOWER_DATA_DIR=<data directory> ./pricefollower admin-password
 The command prints `Username: admin` and a new random password; keep it safe. The password stays in the terminal scrollback, so do not run the command where the output is logged, such as CI jobs or shared terminals. Run the same command again to reset a forgotten administrator password: the old password stops working and the administrator's open sessions end. It cannot be run from the browser and it does not change other users' passwords.
 
 Then open the application, choose "Log in", and log in as `admin` to add users. Creating the first user turns on login for everyone and gives that user the existing items and settings.
+
+## CI runners
+
+The GitHub Actions workflows run on self-hosted runners in a k3s cluster: `arc-dev` for the agent factory
+(`fabrica.yml`) and `arc-build` for `release.yml`. Their image, Helm values, install scripts and troubleshooting are
+in [arc/README.md](arc/README.md).

@@ -6,6 +6,6 @@
 - [Deprecated functionality](deprecated/README.md) records removed features and their replacements.
 
 - [Development workflow](workflow/WORKFLOW.md) describes the agent factory: stages, gates, state and how to run it.
-- [ARC runners](../deploy/arc/README.md) set up the self-hosted k3s runners used by the factory and the release.
+- [Deployment](../deploy/README.md): build, releases, administrator account and CI runners ([ARC runners](../deploy/arc/README.md)).
 - [Workflow templates](workflow/templates/) provide subject specifications, review decisions, and QA execution records.
 - [Architecture and TDD readiness](architecture/TDD_READINESS.md) assesses current testability, minimal prerequisites and the limits of weekly token estimates.
