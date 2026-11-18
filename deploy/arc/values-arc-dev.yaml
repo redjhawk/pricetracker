@@ -7,11 +7,13 @@ minRunners: 0
 maxRunners: 1
 template:
   spec:
-    # Only needed while the image package is private:
-    # imagePullSecrets: [{name: ghcr-pull}]
+    # The image is imported into each k3s node's containerd (no registry):
+    #   docker build -f deploy/arc/Dockerfile.dev -t arc-runner-dev:1 deploy/arc
+    #   docker save arc-runner-dev:1 | ssh <k3s node> sudo k3s ctr images import -
     containers:
       - name: runner
-        image: ghcr.io/redjhawk/arc-runner-dev:1
+        image: docker.io/library/arc-runner-dev:1
+        imagePullPolicy: Never
         command: ["/home/runner/run.sh"]
         resources:
           requests: {cpu: "2", memory: 4Gi}

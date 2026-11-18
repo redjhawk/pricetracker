@@ -1,6 +1,6 @@
 # Runner image for the arc-dev scale set: everything the agent factory (scripts/factory/) needs,
 # so fabrica.yml installs nothing at run time.
-#   docker build -f deploy/arc/Dockerfile.dev -t ghcr.io/redjhawk/arc-runner-dev:1 deploy/arc
+#   docker build -f deploy/arc/Dockerfile.dev -t arc-runner-dev:1 deploy/arc  (import: see values-arc-dev.yaml)
 ARG RUNNER_VERSION=latest
 FROM ghcr.io/actions/actions-runner:${RUNNER_VERSION}
 
