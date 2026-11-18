@@ -1,0 +1,75 @@
+# Agent factory (scripts/factory/factory.sh): takes an issue labelled ai-dev from specification to a merged PR.
+# spec → use cases → test cases → tech spec → tests (TDD red) → implementation (green) → PR → review → triage
+# (blocking → back to implementation; non-blocking → issues) → merge. The push to master runs release.yml.
+# State lives on branch ai-dev/issue-<n>; a comment by the owner on the issue (answering questions) resumes it.
+# The factory scripts are copied from master before switching to the work branch, so a change cannot
+# rewrite its own pipeline, and changes under .github/ or scripts/factory/ are never merged automatically.
+name: fabrica
+run-name: "fabrica #${{ github.event.issue.number || inputs.issue }}"
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue: {description: 'Issue number', required: true}
+concurrency:
+  group: fabrica-${{ github.event.issue.number || inputs.issue }}
+  cancel-in-progress: false
+jobs:
+  fabrica:
+    if: >-
+      github.actor == github.repository_owner && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issues' && github.event.label.name == 'ai-dev') ||
+        (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+          contains(github.event.issue.labels.*.name, 'ai-dev'))
+      )
+    runs-on: arc-dev
+    environment: dev
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    env:
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      GH_TOKEN: ${{ secrets.DEV_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.DEV_TOKEN }}
+      - uses: actions/setup-go@v7
+        with: {go-version: stable}
+      - uses: actions/setup-node@v7
+        with: {node-version: 22}
+      - name: Instalar herramientas
+        run: |
+          echo "FACTORY_LOG_DIR=$RUNNER_TEMP/factory-logs" >> "$GITHUB_ENV"
+          export FACTORY_LOG_DIR="$RUNNER_TEMP/factory-logs"
+          if ! command -v gh >/dev/null 2>&1; then
+            v=2.103.3
+            case "$(uname -m)" in aarch64|arm64) arch=arm64 ;; *) arch=amd64 ;; esac
+            curl -fsSL "https://github.com/cli/cli/releases/download/v$v/gh_${v}_linux_${arch}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_${v}_linux_${arch}/bin" >> "$GITHUB_PATH"
+          fi
+          command -v jq >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq jq; }
+          npm install -g @anthropic-ai/claude-code@2.1.288
+          npm ci
+          go mod download
+          npx playwright install --with-deps chromium
+          mkdir -p "$FACTORY_LOG_DIR"
+          cp -r scripts/factory "$RUNNER_TEMP/factory"
+          git config user.name "pricefollower-factory"
+          git config user.email "pricefollower-factory@users.noreply.github.com"
+      - name: Fábrica
+        run: '"$RUNNER_TEMP/factory/factory.sh" "$ISSUE"'
+      - name: Logs de los agentes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-logs-${{ env.ISSUE }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/factory-logs
+          if-no-files-found: ignore

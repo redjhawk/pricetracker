@@ -5,7 +5,6 @@
 - The [API contract](../API_SPECIFICATION.md) documents the HTTP interface.
 - [Deprecated functionality](deprecated/README.md) records removed features and their replacements.
 
-- [Development workflow](workflow/WORKFLOW.md) defines specification, API, implementation, review, adjudication, and QA handoffs.
+- [Development workflow](workflow/WORKFLOW.md) describes the agent factory: stages, gates, state and how to run it.
 - [Workflow templates](workflow/templates/) provide subject specifications, review decisions, and QA execution records.
-- [Agent roles](../.agents/roles/) contain the reusable specialist instructions.
 - [Architecture and TDD readiness](architecture/TDD_READINESS.md) assesses current testability, minimal prerequisites and the limits of weekly token estimates.
