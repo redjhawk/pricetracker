@@ -75,6 +75,5 @@ gate_green() {
 sensitive_files() { changed_files | grep -E '^(\.github/|scripts/factory/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$)' || true; }
 
 security_scan() {
-  go run golang.org/x/vuln/cmd/govulncheck@latest ./... &&
-    go run github.com/securego/gosec/v2/cmd/gosec@latest -quiet ./...
+  govulncheck ./... && gosec -quiet ./...
 }

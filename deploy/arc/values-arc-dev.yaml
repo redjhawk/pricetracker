@@ -1,0 +1,18 @@
+# Helm values for the arc-dev runner scale set (agent factory). Apply with:
+#   helm upgrade arc-dev --namespace arc-dev --version 0.15.1 \
+#     --set githubConfigUrl=https://github.com/redjhawk/pricetracker --set githubConfigSecret=github-app \
+#     -f deploy/arc/values-arc-dev.yaml \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+minRunners: 0
+maxRunners: 1
+template:
+  spec:
+    # Only needed while the image package is private:
+    # imagePullSecrets: [{name: ghcr-pull}]
+    containers:
+      - name: runner
+        image: ghcr.io/redjhawk/arc-runner-dev:1
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests: {cpu: "2", memory: 4Gi}
+          limits: {memory: 8Gi}

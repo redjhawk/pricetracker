@@ -30,9 +30,9 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 
 ## Running it
 
-**GitHub Actions.** Add the `ai-dev` label to an issue. To resume after questions, the owner answers in a comment on the issue; any owner comment on an `ai-dev` issue restarts the factory from its saved stage. A manual run takes the issue number. The factory scripts are copied from `master` before switching to the work branch, so a change cannot alter its own pipeline. Secrets: `DEV_TOKEN` (contents, pull requests, issues; its pushes and merges trigger `release`) and `CLAUDE_CODE_OAUTH_TOKEN`.
+**GitHub Actions.** Add the `ai-dev` label to an issue. To resume after questions, the owner answers in a comment on the issue; any owner comment on an `ai-dev` issue restarts the factory from its saved stage. A manual run takes the issue number. The factory scripts are copied from `master` before switching to the work branch, so a change cannot alter its own pipeline. It runs on the `arc-dev` runner, whose image ([`deploy/arc/Dockerfile.dev`](../../deploy/arc/Dockerfile.dev), Helm values in [`values-arc-dev.yaml`](../../deploy/arc/values-arc-dev.yaml)) contains the whole toolchain: Go, Node 22, `gh`, `jq`, the Claude CLI, Playwright Chromium, `govulncheck` and `gosec`. Secrets: `DEV_TOKEN` (contents, pull requests, issues; its pushes and merges trigger `release`) and `CLAUDE_CODE_OAUTH_TOKEN`.
 
-**Locally.** From a clean working tree with `claude`, `gh` (authenticated), `jq`, Go and Node:
+**Locally.** From a clean working tree with `claude`, `gh` (authenticated), `jq`, Go, Node, and `govulncheck`/`gosec` (or `FACTORY_SECURITY=0`):
 
 ```sh
 scripts/factory/factory.sh 151                    # full run, resumes if already started
