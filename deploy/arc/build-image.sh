@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the arc-dev runner image here and imports it into the containerd of each k3s node (no registry).
 #   deploy/arc/build-image.sh <tag> <ssh host> [<ssh host>...]
-#   deploy/arc/build-image.sh 1 usuario@k3s
+#   deploy/arc/build-image.sh 1 redjhawk@malaga
 # Use the same tag in values-arc-dev.yaml; bump it whenever Dockerfile.dev changes.
 set -euo pipefail
 [ $# -ge 2 ] || { sed -n '3,4p' "$0"; exit 2; }
