@@ -13,7 +13,14 @@ requirement_ids() { # FR IDs defined or changed in this change's functional spec
 test_files() { changed_files | grep -E "$TEST_FILE_PATTERN" || true; }
 
 run_unit_tests() { go vet ./... && go test ./... && node --test scripts/*.test.mjs; }
-run_all_tests() { run_unit_tests && npm run build && npx playwright test; }
+# Tests run code written by agents: never with the GitHub or Claude credentials in the environment.
+run_all_tests() {
+  env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN -u CLAUDE_CODE_OAUTH_TOKEN -u ANTHROPIC_API_KEY \
+    bash -c "$(declare -f run_unit_tests); run_unit_tests && npm run build && npx playwright test"
+}
+
+# Files the gates execute: always locked with the tests, even when unchanged.
+lock_files() { { test_files; ls playwright.config.ts scripts/*.test.mjs 2>/dev/null; } | sort -u; }
 
 gate_spec() {
   [ -n "$(functional_files)" ] || { echo "no doc/specifications/<subject>/functional.md changed"; return 1; }
@@ -58,21 +65,30 @@ gate_red() {
   done
   [ $missing = 0 ] || return 1
   if run_all_tests; then echo "the tests pass before implementing: they do not test the new behaviour"; return 1; fi
-  # shellcheck disable=SC2086
-  sha256sum $files >"$CHANGE_DIR/tests.lock"
+  lock_files | xargs sha256sum >"$CHANGE_DIR/tests.lock"
   echo "red confirmed; tests locked in tests.lock"
 }
 
 # TDD green: the locked tests are untouched and the whole suite, build and e2e pass.
+# The lock is read from the commit of the tests stage, not from the working tree the agent can edit.
 gate_green() {
-  if [ -s "$CHANGE_DIR/tests.lock" ]; then
-    sha256sum --quiet -c "$CHANGE_DIR/tests.lock" || { echo "locked tests were modified by the implementation"; return 1; }
+  local commit lock
+  commit=$(git log -1 --format=%H --grep="^test: failing tests for #$ISSUE (TDD red)" HEAD)
+  [ -n "$commit" ] || { echo "no TDD red commit found for #$ISSUE"; return 1; }
+  if lock=$(git show "$commit:$CHANGE_DIR/tests.lock" 2>/dev/null) && [ -n "$lock" ]; then
+    sha256sum --quiet -c - <<<"$lock" || { echo "locked tests were modified by the implementation"; return 1; }
+    cmp -s <(printf '%s\n' "$lock") "$CHANGE_DIR/tests.lock" || { echo "tests.lock was modified by the implementation"; return 1; }
+  elif ! git cat-file -e "$commit:$CHANGE_DIR/no-tests.md" 2>/dev/null; then
+    echo "tests.lock missing or empty in the TDD red commit $commit"; return 1
   fi
   run_all_tests
 }
 
 # Files the factory never merges on its own: CI, the factory itself, dependencies.
-sensitive_files() { changed_files | grep -E '^(\.github/|scripts/factory/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$)' || true; }
+# Also agent instructions (prompt-injection persistence) and files executed by the build or the gates.
+sensitive_files() {
+  changed_paths | grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
+}
 
 security_scan() {
   govulncheck ./... && gosec -quiet ./...

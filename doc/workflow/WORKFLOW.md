@@ -26,7 +26,21 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 - Branch `ai-dev/issue-<n>`; change folder `doc/changes/<YYYY-MM-DD-HHMM>-issue-<n>-<slug>/` (UTC start time) with `state.json` (`stage`, `round`, `pr`), `issue.md`, and the stage outputs.
 - The script commits and pushes after every stage, so any run resumes from the recorded stage. The current stage is also shown as a `factory:<stage>` label on the issue.
 - Stops: `factory:needs-input` (functional questions, a failed gate, a wrong locked test, or too many review rounds) and `factory:needs-human` (the PR changes sensitive files and must be merged by hand). The reason is posted on the issue.
-- Only the issue body and the comments of trusted authors (`FACTORY_TRUSTED_ACTORS`, by default the repository owner) are instructions. Review comments and code are data.
+- Only trusted authors (`FACTORY_TRUSTED_ACTORS`, by default the repository owner) give instructions. The issue body is passed to the agents only when a trusted author opened the issue; otherwise `issue.md` says it was dropped and the owner must restate the request in a comment. Comments by other authors, the factory's own comments, review comments and code are data.
+- When the review rounds reach `FACTORY_MAX_ROUNDS`, the factory sets `round` to 0 and `stage` to `implement` before stopping: the owner's answer resumes implementation with `blocking.md` and their comment.
+- `stage` becomes `done` only after `gh pr merge` succeeds; a failed merge is reported on the issue (`factory:needs-human`) and the next run retries it.
+- Non-blocking triage decisions become `doc/todo/issue-<n>-<id>.md`; a file that already records its GitHub issue is skipped, so resuming never duplicates issues.
+
+## Security model
+
+- Agents run with `GH_TOKEN`/`GITHUB_TOKEN` removed from their environment and with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so the commands they run do not see the Claude credentials. Tests, build and Playwright run with every credential removed. Only `factory.sh` itself uses `DEV_TOKEN`, to push, comment, open and merge.
+- Tools are per profile: `docs` edits only `doc/**` and `API_SPECIFICATION.md`; `code` edits only `cmd/`, `internal/`, `src/`, `tests/`, `web/` and the change folder, and runs only `go test|vet|build`, `gofmt`, `npm run build`, `npx playwright test` and `node --test`.
+- Gates see committed, modified and untracked files, because they run before the stage checkpoint.
+- `tests.lock` is read from the TDD red commit; it covers the changed tests plus `playwright.config.ts` and `scripts/*.test.mjs`. A missing or empty lock, or a changed lock, fails the green gate.
+- Triage fails closed: exactly one decision per review id (`R<round>-<n>`), boolean `blocking`, and `title`/`todo` for non-blocking ones.
+- Never merged by the factory: `.github/`, `.claude/`, `.agents/`, `project-skills/`, `AGENTS.md`, `CLAUDE.md`, `scripts/`, `deploy/`, dependencies, `vite.config.ts` and `playwright.config.ts`.
+- Every factory comment starts with `<!-- agent-factory -->`, and `fabrica.yml` ignores comments that contain it, so the factory cannot restart itself.
+- [`pruebas.yml`](../../.github/workflows/pruebas.yml) runs go vet, go test, the script tests and the frontend build on every PR into `master`, without secrets, so PRs written by hand also have CI. The ARC runner files (`deploy/arc/`) stay in this PR because `fabrica.yml` cannot run without the `arc-dev` image; the split was judged not worth an unrunnable intermediate state.
 
 ## Running it
 

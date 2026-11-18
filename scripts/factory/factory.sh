@@ -136,7 +136,7 @@ stage_tests() {
 
 stage_implement() {
   local attempt feedback="" out
-  [ -s "$CHANGE_DIR/blocking.md" ] && feedback="Fix the blocking review comments in $CHANGE_DIR/blocking.md."
+  [ ! -s "$CHANGE_DIR/blocking.md" ] || feedback="Fix the blocking review comments in $CHANGE_DIR/blocking.md."
   for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
     run_agent implement code "- Attempt $attempt of $MAX_ATTEMPTS
 $feedback"
@@ -160,7 +160,10 @@ The next run rewrites the tests (stage \`tests\`)."
 \`\`\`
 $(cat "$LOG_DIR/green-gate.txt")
 \`\`\`
-$( [ -s "$CHANGE_DIR/blocking.md" ] && echo "Also fix the blocking review comments in $CHANGE_DIR/blocking.md.")"
+"
+    if [ -s "$CHANGE_DIR/blocking.md" ]; then
+      feedback+="Also fix the blocking review comments in $CHANGE_DIR/blocking.md."
+    fi
   done
   stop_for_user needs-input "The implementation did not pass the tests after $MAX_ATTEMPTS attempts. Last gate output:
 \`\`\`
@@ -231,7 +234,7 @@ stage_triage() {
     run_agent triage review "- Pull request: #$pr
 - Review to triage: $review
 - Write your decisions to $triage"
-    jq -e 'type == "array"' "$triage" >/dev/null 2>&1 || die "triage did not write a JSON array to $triage"
+    validate_triage "$review" "$triage" || die "invalid triage in $triage (see above)"
   fi
   create_todos "$pr" "$triage"
   jq -r '"Triage of review round '"$round"':\n" + ([.[] | "- **\(.id)** \(if .blocking then "🚫 blocking" else "todo" end): \(.reason)"] | join("\n"))' "$triage" |
@@ -242,9 +245,14 @@ stage_triage() {
       ([.[] | select(.blocking) | .id as $id | ($r[0][] | select(.id == $id)) as $c |
         "\n## \($id) `\($c.file):\($c.line)`\n\n\($c.body)\n\nTriage: \(.reason)\n"] | join(""))' "$triage" >"$CHANGE_DIR/blocking.md"
     if [ "$round" -ge "$MAX_ROUNDS" ]; then
+      # The user's answer resumes a new series of rounds: implementation with blocking.md and their comment.
+      state_set round 0
+      state_set stage implement
       stop_for_user needs-input "After $round review rounds, PR #$pr still has blocking comments:
 
-$(cat "$CHANGE_DIR/blocking.md")"
+$(cat "$CHANGE_DIR/blocking.md")
+
+Answer with how to resolve them; the next run returns to implementation with $MAX_ROUNDS new review rounds."
     fi
     advance implement "chore(factory): blocking comments return to development (round $round)"
   else
@@ -252,12 +260,26 @@ $(cat "$CHANGE_DIR/blocking.md")"
   fi
 }
 
-create_todos() { # non-blocking comments become doc/todo files and GitHub issues
+# Fails closed: exactly one decision per review id, boolean blocking, safe ids, title/todo when not blocking.
+validate_triage() { # validate_triage <review> <triage>
+  jq -e --slurpfile r "$1" '
+    type == "array" and
+    ([.[].id] | sort) == ([$r[0][].id] | sort) and
+    ([.[].id] | length) == ([.[].id] | unique | length) and
+    all(.[]; (.id | type == "string" and test("^R[0-9]+-[0-9]+$")) and (.blocking | type == "boolean") and
+             (.reason | type == "string") and
+             (.blocking or ((.title | type == "string" and length > 0) and (.todo | type == "string" and length > 0))))' \
+    "$2" >/dev/null 2>&1 || { log "triage $2 must hold one valid decision for every id in $1"; return 1; }
+}
+
+create_todos() { # non-blocking comments become doc/todo files and GitHub issues; idempotent on resume
   local pr=$1 triage=$2 id title body file url
   for id in $(jq -r '.[] | select(.blocking | not) | .id' "$triage"); do
+    [[ "$id" =~ ^R[0-9]+-[0-9]+$ ]] || die "unsafe review id: $id"
+    file="doc/todo/issue-$ISSUE-$(tr '[:upper:]' '[:lower:]' <<<"$id").md"
+    if [ -f "$file" ] && grep -q '^Issue: ' "$file"; then continue; fi # done by an earlier run
     title=$(jq -r --arg id "$id" '.[] | select(.id == $id) | .title' "$triage")
     body=$(jq -r --arg id "$id" '.[] | select(.id == $id) | .todo' "$triage")
-    file="doc/todo/$(date -u +%Y-%m-%d)-issue-$ISSUE-$(tr '[:upper:]' '[:lower:]' <<<"$id").md"
     printf '# %s\n\nStatus: todo\nSource: PR #%s, %s\n\n%s\n' "$title" "$pr" "$id" "$body" >"$file"
     if url=$(gh issue create --title "$title" --body "$body
 
@@ -284,10 +306,23 @@ Review and merge it by hand."
   if [ "${FACTORY_SECURITY:-1}" = 1 ]; then
     security_scan || stop_for_user needs-input "The security scan (govulncheck, gosec) failed on PR #$pr. Log in the run output."
   fi
-  state_set stage done
-  checkpoint "chore(factory): merge #$pr"
   [ "${FACTORY_PUSH:-1}" = 1 ] || { log "--no-push: not merging"; exit 0; }
-  gh pr merge "$pr" --squash --delete-branch --match-head-commit "$(git rev-parse HEAD)"
+  checkpoint "chore(factory): ready to merge #$pr"
+  if [ "$(gh pr view "$pr" --json state -q .state)" != MERGED ]; then
+    local out
+    if ! out=$(gh pr merge "$pr" --squash --match-head-commit "$(git rev-parse HEAD)" 2>&1); then
+      # stage stays `merge`: the next run retries. Typical causes: branch protection, conflict with master.
+      stop_for_user needs-human "Merging PR #$pr failed:
+\`\`\`
+$out
+\`\`\`
+Fix the cause (for example update the branch from \`$BASE_BRANCH\`) and run the factory again, or merge it by hand."
+    fi
+  fi
+  # Merged: the branch is kept only until done is recorded on it, then removed.
+  state_set stage done
+  git add "$STATE"; git commit -q -m "chore(factory): #$pr merged" -m "Refs: #$ISSUE"
+  git push -q origin --delete "$BRANCH" >/dev/null 2>&1 || true
   set_stage_label done
   echo "PR #$pr merged into \`$BASE_BRANCH\`. The \`release\` workflow builds it and publishes the tagged GitHub release." | issue_comment
 }

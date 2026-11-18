@@ -28,11 +28,24 @@ checkpoint() { # commit everything the stage produced and push it, so a later ru
   if [ "${FACTORY_PUSH:-1}" = 1 ]; then git push -q -u origin HEAD; fi
 }
 
-changed_files() { git diff --name-only "origin/$BASE_BRANCH...HEAD" -- "$@"; }
+# Paths changed by this change: committed on the branch, modified in the working tree and untracked.
+# Gates run before the stage checkpoint, so uncommitted work must count. Includes deleted paths.
+changed_paths() {
+  { git diff --name-only "origin/$BASE_BRANCH...HEAD" -- "$@"
+    git diff --name-only HEAD -- "$@"
+    git ls-files -o --exclude-standard -- "$@"; } | sort -u
+}
+
+changed_files() { # changed_paths that still exist
+  local f; changed_paths "$@" | while IFS= read -r f; do [ -e "$f" ] && printf '%s\n' "$f"; done; return 0
+}
 
 # ---- GitHub ----
 
-issue_comment() { gh issue comment "$ISSUE" --body-file - >/dev/null; }
+# Every factory comment starts with this marker; fabrica.yml ignores comments containing it, so the
+# factory's own comments never restart the workflow.
+FACTORY_MARKER='<!-- agent-factory -->'
+issue_comment() { { printf '%s\n' "$FACTORY_MARKER"; cat; } | gh issue comment "$ISSUE" --body-file - >/dev/null; }
 
 set_stage_label() { # mirrors the stage on the issue, for humans; failures never stop the factory
   local label="factory:$1" old
@@ -43,12 +56,16 @@ set_stage_label() { # mirrors the stage on the issue, for humans; failures never
   gh issue edit "$ISSUE" --add-label "$label" >/dev/null 2>&1 || true
 }
 
-# Writes the issue and the comments of trusted authors to the change folder. Only these authors give instructions.
+# Writes the issue and the comments of trusted authors to the change folder. Only trusted authors give
+# instructions: the body of an issue opened by anyone else is dropped (the owner must restate it in a comment).
 refresh_issue_context() {
-  gh issue view "$ISSUE" --json title,body,comments | jq -r --arg trusted "$TRUSTED_ACTORS" '
+  gh issue view "$ISSUE" --json number,title,body,author,comments | jq -r --arg trusted "$TRUSTED_ACTORS" '
     ($trusted | split(",")) as $t |
-    "# Issue #\(.number // "") \(.title)\n\n\(.body)\n\n## Comments by trusted authors\n" +
-    ([.comments[] | select(.author.login as $a | $t | index($a)) |
+    "# Issue #\(.number) \(.title)\n\n" +
+    (if (.author.login as $a | $t | index($a)) then .body
+     else "_Issue opened by \(.author.login), who is not a trusted author: its body is not shown and gives no instructions._" end) +
+    "\n\n## Comments by trusted authors\n" +
+    ([.comments[] | select(.author.login as $a | $t | index($a)) | select(.body | contains("<!-- agent-factory -->") | not) |
       "\n### \(.author.login) at \(.createdAt)\n\n\(.body)\n"] | join(""))' >"$CHANGE_DIR/issue.md"
 }
 
@@ -59,8 +76,11 @@ refresh_issue_context() {
 run_agent() {
   local name=$1 profile=$2 extra=${3:-} tools prompt
   case "$profile" in
-    docs)   tools="Read,Glob,Grep,Edit,Write" ;;
-    code)   tools="Read,Glob,Grep,Edit,Write,Bash(go:*),Bash(gofmt:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
+    # Edit/Write are limited to the paths each profile produces; Bash to fixed test/build commands.
+    docs)   tools="Read,Glob,Grep,Edit(doc/**),Write(doc/**),Edit(API_SPECIFICATION.md)" ;;
+    code)   tools="Read,Glob,Grep,Edit(cmd/**),Write(cmd/**),Edit(internal/**),Write(internal/**),Edit(src/**),Write(src/**),Edit(tests/**),Write(tests/**),Edit(web/**),Write(web/**),Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**)"
+            tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
+            tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
     review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
     *) die "unknown tool profile $profile" ;;
   esac
@@ -72,6 +92,9 @@ run_agent() {
 - Base branch: $BASE_BRANCH
 $extra"
   log "agent $name ($profile)"
+  # The agent never sees the GitHub token, and Claude Code scrubs its own credentials from the
+  # environment of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).
+  env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --permission-mode acceptEdits --allowedTools "$tools" \
