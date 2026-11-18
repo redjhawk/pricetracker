@@ -56,6 +56,56 @@ Edit `Dockerfile.dev`, build with a new tag (`build-image.sh 2`), set that tag i
 job starts with the new image. Never reuse a tag: with `imagePullPolicy: IfNotPresent` the node keeps the image it
 already pulled under that tag.
 
+## Alternative: import the image without a registry (restricted sudo)
+
+The default setup above needs no root access on `malaga`. If the image must not leave the local network, it can
+instead be piped over SSH into the node's containerd, which requires root. Do not grant `sudo k3s ctr *`: `ctr` can
+start privileged containers, which equals full root. Grant one fixed script that only imports an image.
+
+**Once, as root on `malaga`** (`su -`, or ask the administrator; without root nobody can grant sudo):
+
+1. Create the import script (check the k3s path with `which k3s` and adjust it if it is not `/usr/local/bin/k3s`):
+   ```sh
+   cat > /usr/local/sbin/k3s-import-image <<'EOF'
+   #!/bin/sh
+   # Imports one image tarball from stdin into k3s containerd, then lists arc-runner images.
+   # Takes no arguments: the only thing sudo allows the deploy user to do.
+   set -eu
+   [ $# -eq 0 ] || { echo "usage: sudo k3s-import-image < image.tar" >&2; exit 2; }
+   /usr/local/bin/k3s ctr images import -
+   /usr/local/bin/k3s ctr images ls -q | grep arc-runner || true
+   EOF
+   chown root:root /usr/local/sbin/k3s-import-image
+   chmod 755 /usr/local/sbin/k3s-import-image
+   ```
+2. Allow `redjhawk` to run only that script, without a password and without arguments (the trailing `""`):
+   ```sh
+   echo 'redjhawk ALL=(root) NOPASSWD: /usr/local/sbin/k3s-import-image ""' > /etc/sudoers.d/k3s-import-image
+   chmod 440 /etc/sudoers.d/k3s-import-image
+   visudo -cf /etc/sudoers.d/k3s-import-image
+   ```
+   If `visudo -c` reports an error, delete the file: a broken sudoers file can lock everyone out of `sudo`.
+
+**Check, as `redjhawk`:**
+```sh
+sudo -n /usr/local/sbin/k3s-import-image < /dev/null   # runs without a password prompt
+sudo -n k3s ctr version                                 # must be refused
+```
+
+**Use it** instead of steps 1–2 of the setup:
+```sh
+docker build --platform linux/amd64 -f deploy/arc/Dockerfile.dev -t arc-runner-dev:1 deploy/arc
+docker save arc-runner-dev:1 | ssh redjhawk@malaga sudo -n /usr/local/sbin/k3s-import-image
+```
+and in [`values-arc-dev.yaml`](values-arc-dev.yaml) remove `imagePullSecrets` and set:
+```yaml
+image: docker.io/library/arc-runner-dev:1
+imagePullPolicy: Never
+```
+A pod on a node without that tag then fails with `ErrImageNeverPull`: import it on every node. `install.sh` still
+creates the `ghcr-pull` secret, which is harmless; skip it by creating an empty one
+(`kubectl create secret generic ghcr-pull -n arc-dev`).
+
 ## Troubleshooting
 
 - **`UPGRADE FAILED: "arc-dev" has no deployed releases`**: a previous install failed or was left half-removed.
