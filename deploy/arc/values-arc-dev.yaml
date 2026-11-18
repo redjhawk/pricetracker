@@ -6,7 +6,7 @@ maxRunners: 3
 template:
   spec:
     # The image is imported into each k3s node's containerd (no registry):
-    #   deploy/arc/build-image.sh 1 <k3s node>   (build here, import over SSH; see README.md)
+    #   deploy/arc/build-image.sh 1 redjhawk@malaga   (build here, import over SSH; see README.md)
     containers:
       - name: runner
         image: docker.io/library/arc-runner-dev:1
