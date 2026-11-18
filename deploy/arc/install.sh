@@ -2,7 +2,6 @@
 # Installs or updates ARC for this repository. Run where kubectl and helm point at the k3s cluster.
 # Idempotent: keeps the controller, namespaces and secrets that already exist.
 #   deploy/arc/install.sh                  # controller (if missing), arc-dev and arc-build
-#   deploy/arc/install.sh --remove-old     # also uninstalls arc-test and arc-review (no longer used)
 # Secrets are created only if missing: github-app from GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and
 # GITHUB_APP_KEY_FILE; ghcr-pull (arc-dev image) from GHCR_USER and GHCR_TOKEN (read:packages).
 set -euo pipefail
@@ -38,12 +37,5 @@ for set in arc-dev arc-build; do
     -f "$dir/values-$set.yaml" \
     "$charts/gha-runner-scale-set"
 done
-
-if [ "${1:-}" = --remove-old ]; then
-  for old in arc-test arc-review; do
-    helm uninstall "$old" --namespace "$old" 2>/dev/null || true
-    kubectl delete namespace "$old" --ignore-not-found
-  done
-fi
 
 kubectl get pods -n arc-systems

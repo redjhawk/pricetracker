@@ -8,8 +8,7 @@ Self-hosted GitHub Actions runners for this repository (application deployment: 
 | `arc-dev` | `fabrica.yml` (agent factory) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
 | `arc-build` | `release.yml` (build, tag and GitHub release) | default ARC runner image | 1 |
 
-The controller (`arc` in `arc-systems`) is shared and kept across updates. `arc-test` and `arc-review` belonged to
-the previous pipeline and are no longer used.
+The controller (`arc` in `arc-systems`) is shared and kept across updates.
 
 ## Requirements
 
@@ -34,10 +33,10 @@ pulls it with a Kubernetes secret.
    ```sh
    GHCR_USER=redjhawk GHCR_TOKEN=... \
    GITHUB_APP_ID=... GITHUB_APP_INSTALLATION_ID=... GITHUB_APP_KEY_FILE=clave.pem \
-     deploy/arc/install.sh --remove-old
+     deploy/arc/install.sh
    ```
    It installs the controller only if missing, creates the namespaces and secrets only if missing, installs or
-   upgrades `arc-dev` and `arc-build`, and with `--remove-old` uninstalls `arc-test` and `arc-review`.
+   upgrades `arc-dev` and `arc-build`.
 3. **Check:**
    ```sh
    kubectl get secrets -A -l owner=helm -L name,status   # arc, arc-dev, arc-build: deployed
@@ -46,8 +45,6 @@ pulls it with a Kubernetes secret.
    ```
    Then start `fabrica` by hand from the Actions tab and watch `kubectl get pods -n arc-dev -w`: the runner pod
    must reach `Running`.
-4. **Merge PR #143 by hand** before labelling issues `ai-dev`: until then, `master` still runs the previous
-   pipeline (`desarrollo`, `revision-pr`, ...), which also uses `arc-dev`.
 
 ## Changing the runner image
 
