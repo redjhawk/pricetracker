@@ -4,7 +4,8 @@
 #     -f deploy/arc/values-arc-dev.yaml \
 #     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 minRunners: 0
-maxRunners: 1
+# Parallel factory runs (one per issue). Each runner requests 2 CPU and 4 GiB.
+maxRunners: 3
 template:
   spec:
     # The image is imported into each k3s node's containerd (no registry):
