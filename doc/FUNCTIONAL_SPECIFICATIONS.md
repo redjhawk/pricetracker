@@ -322,7 +322,6 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Claude token settings | [claude-token-settings](specifications/claude-token-settings/functional.md) | implemented; FR-CLT-SET-013 specified (issue #111) |
 | LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
-| Remote ARMv6 deployment | [armv6-remote-deployment](specifications/armv6-remote-deployment/functional.md) | implemented (operations) |
 | Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned |
 | LeBoncoin old price | [leboncoin-old-price](specifications/leboncoin-old-price/functional.md) | implemented |
 | Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | superseded (issue #111) |

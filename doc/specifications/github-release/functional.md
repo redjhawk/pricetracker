@@ -41,5 +41,5 @@ None blocking. Interpretation recorded (from "create a GitHub release"): the rel
 
 ## Traceability
 
-- Existing behavior: [Remote ARMv6 deployment](../armv6-remote-deployment/functional.md) (`scripts/build-release.sh`).
+- Existing behavior: `scripts/build-release.sh`.
 - Technical specification: [technical.md](technical.md).

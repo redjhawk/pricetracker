@@ -1,6 +1,6 @@
 # PriceFollower
 
-PriceFollower is a self-hosted price tracker for European Amazon and French LeBoncoin listings. Add a listing URL and the server checks its price twice a day, stores dated observations, and shows the latest price and recent history in a web interface. It can run on a Raspberry Pi with a single Go executable and a SQLite database.
+PriceFollower is a self-hosted price tracker for European Amazon and French LeBoncoin listings. Add a listing URL and the server checks its price twice a day, stores dated observations, and shows the latest price and recent history in a web interface. It runs as a single Go executable with a SQLite database.
 
 ## Features
 
@@ -16,7 +16,7 @@ PriceFollower is a self-hosted price tracker for European Amazon and French LeBo
 - Delete tracked products and their stored price history.
 - Use one shared collection without login, or add local users: each user logs in and has their own items, Claude token and LeBoncoin session; an `admin` account only manages users.
 - Run the backend and React frontend in development mode with sample data.
-- Build a self-contained Linux ARM executable with the frontend embedded for Raspberry Pi deployment.
+- Build a self-contained Linux amd64 executable with the frontend embedded, published as a GitHub release on every merge.
 
 Prices are shown in euros and represent the item price. Shipping, taxes, alerts, trend charts, and marketplaces other than European Amazon and LeBoncoin France are outside the current v1 scope.
 
@@ -52,47 +52,9 @@ npm run test:platform-tabs
 
 The suite starts its own Vite frontend at `http://127.0.0.1:4173`; that port must be free. It intercepts API requests with in-memory fixtures and blocks external requests, so it needs no Go server or database. To use an existing Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path. Failed tests retain traces in `test-results/`.
 
-## Raspberry Pi deployment
+## Build and release
 
-Build on a machine with Node.js 22+, Go 1.25+, and SSH/rsync access to the Pi. Choose ARMv7 or ARMv6 for the target processor:
-
-```bash
-npm ci
-go mod download
-./scripts/build-release.sh 7
-```
-
-Use `./scripts/build-release.sh 6` for ARMv6. Upload the executable and installer to the Pi:
-
-```bash
-./scripts/copy-dist.sh pi@raspberry-pi:/tmp/
-```
-
-On the Pi, install and start the systemd service:
-
-```bash
-sudo /tmp/install-pricefollower.sh /tmp/pricefollower
-```
-
-The installer creates the `pricefollower` service user and group, installs the app in `/opt/pricefollower`, and stores the SQLite database in `/var/lib/pricefollower`. The web interface and API are served from port `3001`. See [DEPLOYMENT.md](DEPLOYMENT.md) for details and updates.
-
-### x86 64-bit (amd64) build
-
-To run the app on a Linux x86 64-bit PC or server instead of a Pi, build with the `amd64` target:
-
-```bash
-npm ci
-go mod download
-./scripts/build-release.sh amd64
-```
-
-Like the ARM targets, this writes a static binary (`CGO_ENABLED=0`) with the frontend embedded to `release/pricefollower` (it overwrites any earlier ARM build). Check it with `file release/pricefollower` (it should report `x86-64`). Run it directly, or install it as a service with the same `copy-dist.sh` and `install-pricefollower.sh` steps above, using the x86 machine as the target. `deploy-armv6.sh` always builds for ARMv6, so do not use it for x86 hosts.
-
-To add users, create the administrator account on the Pi; the command prints a generated password, and running it again resets it:
-
-```bash
-sudo -u pricefollower PRICEFOLLOWER_DATA_DIR=/var/lib/pricefollower /opt/pricefollower/pricefollower admin-password
-```
+Every merge to `master` builds a static Linux amd64 executable with the frontend embedded and publishes it as a GitHub release. Building by hand, releases and the administrator account are described in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 For LeBoncoin verification challenges, follow [LeBoncoin verification: capture a session and paste it in Settings](doc/leboncoin-session.md).
 
@@ -102,4 +64,4 @@ This is an early, single-instance application intended for a small shared collec
 
 ## Similar projects and search terms
 
-Self-hosted Amazon and LeBoncoin price tracker · Raspberry Pi price monitoring · European price history · Go and SQLite price tracking · React Carbon price tracker
+Self-hosted Amazon and LeBoncoin price tracker · European price history · Go and SQLite price tracking · React Carbon price tracker
