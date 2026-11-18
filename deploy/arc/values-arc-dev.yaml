@@ -5,12 +5,13 @@ minRunners: 0
 maxRunners: 3
 template:
   spec:
-    # The image is imported into each k3s node's containerd (no registry):
-    #   deploy/arc/build-image.sh 1 redjhawk@malaga   (build here, import over SSH; see README.md)
+    # Private package ghcr.io/redjhawk/arc-runner-dev, pushed by deploy/arc/build-image.sh <tag>;
+    # pulled with the ghcr-pull secret that install.sh creates.
+    imagePullSecrets: [{name: ghcr-pull}]
     containers:
       - name: runner
-        image: docker.io/library/arc-runner-dev:1
-        imagePullPolicy: Never
+        image: ghcr.io/redjhawk/arc-runner-dev:1
+        imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         resources:
           requests: {cpu: "2", memory: 4Gi}

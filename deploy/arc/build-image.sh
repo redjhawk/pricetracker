@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# Builds the arc-dev runner image here and imports it into the containerd of each k3s node (no registry).
-#   deploy/arc/build-image.sh <tag> <ssh host> [<ssh host>...]
-#   deploy/arc/build-image.sh 1 redjhawk@malaga
-# Use the same tag in values-arc-dev.yaml; bump it whenever Dockerfile.dev changes.
+# Builds the arc-dev runner image and pushes it to the private GitHub Container Registry package
+# ghcr.io/redjhawk/arc-runner-dev. k3s pulls it with the ghcr-pull secret created by install.sh.
+#   deploy/arc/build-image.sh <tag>        e.g. deploy/arc/build-image.sh 1
+# Needs `docker login ghcr.io` with a token that has write:packages. Use the same tag in values-arc-dev.yaml.
 set -euo pipefail
-[ $# -ge 2 ] || { sed -n '3,4p' "$0"; exit 2; }
-tag=$1; shift
+[ $# -eq 1 ] || { sed -n '4p' "$0"; exit 2; }
 dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-image="arc-runner-dev:$tag"
+image="ghcr.io/redjhawk/arc-runner-dev:$1"
 
-docker build -f "$dir/Dockerfile.dev" -t "$image" "$dir"
-for host in "$@"; do
-  arch=$(ssh "$host" uname -m)
-  [ "$arch" = x86_64 ] || { echo "$host is $arch; Dockerfile.dev builds amd64 only" >&2; exit 1; }
-  echo "Importing $image into $host"
-  docker save "$image" | ssh "$host" sudo k3s ctr images import -
-  ssh "$host" sudo k3s ctr images ls -q | grep -F "docker.io/library/$image"
-done
+if docker manifest inspect "$image" >/dev/null 2>&1; then
+  echo "$image already exists; use a new tag" >&2; exit 1
+fi
+docker build --platform linux/amd64 -f "$dir/Dockerfile.dev" -t "$image" "$dir"
+docker push "$image"
+echo "Pushed $image. Set it in deploy/arc/values-arc-dev.yaml and run deploy/arc/install.sh."

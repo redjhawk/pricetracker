@@ -3,8 +3,8 @@
 # Idempotent: keeps the controller, namespaces and secrets that already exist.
 #   deploy/arc/install.sh                  # controller (if missing), arc-dev and arc-build
 #   deploy/arc/install.sh --remove-old     # also uninstalls arc-test and arc-review (no longer used)
-# The github-app secret is created only if missing, from GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID
-# and GITHUB_APP_KEY_FILE.
+# Secrets are created only if missing: github-app from GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and
+# GITHUB_APP_KEY_FILE; ghcr-pull (arc-dev image) from GHCR_USER and GHCR_TOKEN (read:packages).
 set -euo pipefail
 dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 version=0.15.1
@@ -26,6 +26,12 @@ for set in arc-dev arc-build; do
       --from-literal=github_app_id="$GITHUB_APP_ID" \
       --from-literal=github_app_installation_id="$GITHUB_APP_INSTALLATION_ID" \
       --from-file=github_app_private_key="$GITHUB_APP_KEY_FILE"
+  fi
+  if [ "$set" = arc-dev ] && ! kubectl get secret ghcr-pull --namespace arc-dev >/dev/null 2>&1; then
+    : "${GHCR_USER:?secret ghcr-pull missing in arc-dev: set GHCR_USER}"
+    : "${GHCR_TOKEN:?set GHCR_TOKEN (a token with read:packages)}"
+    kubectl create secret docker-registry ghcr-pull --namespace arc-dev \
+      --docker-server=ghcr.io --docker-username="$GHCR_USER" --docker-password="$GHCR_TOKEN"
   fi
   helm upgrade --install "$set" --namespace "$set" --version "$version" \
     --set githubConfigUrl="$repo_url" --set githubConfigSecret=github-app \
