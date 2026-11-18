@@ -35,7 +35,7 @@ done
 
 if [ "${1:-}" = --remove-old ]; then
   for old in arc-test arc-review; do
-    helm uninstall "$old" --namespace "$old" --wait 2>/dev/null || true
+    helm uninstall "$old" --namespace "$old" 2>/dev/null || true
     kubectl delete namespace "$old" --ignore-not-found
   done
 fi
