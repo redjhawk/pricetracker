@@ -10,6 +10,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-TI-04 — Open a source listing](tracked-items/UC-TI-04-open-source-listing.md)
 - [UC-TI-05 — Review tracked items at tablet width](tracked-items/UC-TI-05-review-tracked-items-at-tablet-width.md)
 - [UC-TI-06 — Review tracked items full width on a phone](tracked-items/UC-TI-06-review-tracked-items-full-width-on-phone.md)
+- [UC-TI-07 — Review tracked items edge to edge below desktop width](tracked-items/UC-TI-07-review-tracked-items-edge-to-edge-below-desktop.md)
 
 ## Item details
 
@@ -20,6 +21,11 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 
 - [UC-IM-01 — Add a listing](item-management/UC-IM-01-add-listing.md)
 - [UC-IM-02 — Delete a tracked item](item-management/UC-IM-02-delete-tracked-item.md)
+
+## Responsive layout
+
+- [UC-RL-01 — Use the full screen width on every page below desktop width](responsive-layout/UC-RL-01-use-full-width-on-every-page-below-desktop.md)
+- [UC-RL-02 — Review the users list edge to edge below desktop width](responsive-layout/UC-RL-02-review-users-list-edge-to-edge-below-desktop.md)
 
 ## Price collection
 

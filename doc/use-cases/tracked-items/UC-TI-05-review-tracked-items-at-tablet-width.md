@@ -11,12 +11,12 @@
 ## Main flow
 
 1. The user opens the list on the Amazon or LeBoncoin tab.
-2. Each item is shown as a stacked card with its title, listing ID, and the labelled values "Prices", "Amazon second-hand offer" (Amazon tab) and "Status", followed by the row actions.
+2. Each item is shown as a stacked card with its title, listing ID, and the labelled values "Prices", "Amazon second-hand offer" (Amazon tab) and "Status", followed by the row actions. Since issue #165 the cards run edge to edge and place values side by side where they fit (UC-TI-07).
 3. The user reads every value and opens the row actions without any sideways scrolling, either of the page or inside the table.
 
 ## Alternatives and errors
 
-- In the administrator's users list, each user's username and last login are stacked the same way.
+- In the administrator's users list, each user's username and last login are shown as cards the same way (UC-RL-02).
 - At 1056 px or more, the regular table with column headers is shown, unchanged.
 
 ## Postconditions

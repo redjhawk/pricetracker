@@ -17,11 +17,11 @@
 
 ## Alternatives and errors
 
-- The header, page title, tabs, Amazon-stop warning, search field and empty states keep their current margins.
-- At 672 px or more, and on every other screen, the layout is unchanged.
+- The page title, item count, actions, tabs, Amazon-stop warning, search field and empty states are at most 16 px from each screen edge and do not touch it (issue #165 replaced "keep their current margins"; FR-RESPONSIVE-022).
+- Between 672 px and 1055 px the cards are also edge to edge (UC-TI-07). At 1056 px or more the layout is unchanged.
 
 ## Postconditions
 
-- The cards run edge to edge, their text stays inset, and the page does not scroll sideways (FR-RESPONSIVE-014 to 017).
+- The cards run edge to edge, their text stays inset, and the page does not scroll sideways (FR-RESPONSIVE-014 to 017, FR-RESPONSIVE-022).
 
 Regression test: `320px tracked-items list spans the full width` and `360px tracked-items list spans the full width` in `tests/responsive-layout.spec.ts`.
