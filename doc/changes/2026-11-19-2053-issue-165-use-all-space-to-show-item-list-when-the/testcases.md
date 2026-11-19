@@ -169,17 +169,18 @@ The change is presentation only: no API, store or handler behaviour changes. Go 
 
 ### TC-013 — Header and modals unchanged below desktop width
 
-- **Covers:** FR-RESPONSIVE-017, FR-RESPONSIVE-008, FR-RESPONSIVE-009; UC-RL-01 (modal or application header alternative).
+- **Covers:** FR-RESPONSIVE-017, FR-RESPONSIVE-008, FR-RESPONSIVE-009, FR-APP-INFO-013 (kept); UC-RL-01 (modal or application header alternative).
 - **Level:** e2e.
-- **Given** the tracked items page with items, and the administrator page.
-- **When** the following are shown at 360 and 775 px:
+- **Given** the tracked items page with items, and the administrator page; for the Information modal, a logged-in user with an 80-character username.
+- **When** the following are shown at 360 and 775 px, and the Information modal also at 400 px:
   - the header and its open menu;
   - the Add tracked item, Delete tracked item, Settings, Information and Add user modals.
 - **Then:**
   - The header items' boxes and each modal container's box equal the baseline.
   - Each modal's footer buttons are in the viewport, and Escape closes the modal.
+  - In the Information modal, the long username and the version wrap inside the modal without overlapping.
   - There is no horizontal scroll.
-- **Corner cases:** opening and closing modals repeatedly; Escape key.
+- **Corner cases:** opening and closing modals repeatedly; Escape key; long username in the Information modal at 400 px.
 
 ## Existing tests to update
 
@@ -202,6 +203,7 @@ The change is presentation only: no API, store or handler behaviour changes. Go 
 | FR-RESPONSIVE-023 | TC-010 |
 | FR-RESPONSIVE-024 | TC-005, TC-006, TC-010 |
 | Kept: FR-RESPONSIVE-001 to 013 | TC-001 to TC-013 (no horizontal scroll, information, actions, accessibility, resize) |
+| Kept: FR-APP-INFO-013 (referenced by the specification) | TC-013 |
 | UC-TI-05 | TC-001, TC-005 |
 | UC-TI-06 | TC-001, TC-002, TC-006, TC-007 |
 | UC-TI-07 | TC-001 to TC-008 |
