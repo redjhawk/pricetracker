@@ -217,7 +217,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-33 | After 5 consecutive Amazon failures each tracked Amazon item is stopped, skipped by scheduled and all-item refresh, warned in the Amazon tab, and restarted individually by a successful Refresh price ([FR-AMZ-STOP-*](specifications/amazon-request-stop/functional.md)). | Must |
 | FR-34 | Superseded by FR-32 (issue #111). | — |
 | FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
-| FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; at every width where the tracked-items list is shown as cards (below 1056 px, phone and tablet) the cards span the full screen width without lateral margins (issue #165); desktop layout unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
+| FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; below 1056 px (phone and tablet) every page drops its lateral margins (at most 16 px between screen edge and content), lists shown as cards (tracked items, administrator users) span the full screen width, and each card places its values side by side as far as they fit (issue #165); desktop layout and modals unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -330,4 +330,4 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
-| Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140); FR-RESPONSIVE-018 to 021 specified (issue #165) |
+| Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140); FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165) |

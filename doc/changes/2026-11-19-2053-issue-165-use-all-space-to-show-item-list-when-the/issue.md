@@ -16,3 +16,10 @@ In smaller screens, those paddings must dissapear
 padding must dissapear as soon sa the inside card layout change
 
 
+### redjhawk at 2026-11-19T21:08:22Z
+
+1) C. Both A and B.> parent components of the cards use margin. That margin must be removed
+2) B
+3) C
+4) D: all screen should use available space
+
