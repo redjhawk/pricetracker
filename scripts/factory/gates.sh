@@ -6,8 +6,19 @@ TEST_FILE_PATTERN='(_test\.go|\.spec\.ts|\.test\.mjs)$|^playwright\.config\.ts$'
 
 functional_files() { changed_files 'doc/specifications/*/functional.md'; }
 
-requirement_ids() { # FR IDs defined or changed in this change's functional specs
-  local f; for f in $(functional_files); do grep -oE 'FR-[A-Z0-9-]+-[0-9]{3}' "$f"; done | sort -u
+# A line defines a requirement when an FR ID is its first token: a table row "| FR-X-001 |", a list
+# item "- FR-X-001" / "- **FR-X-001**", or a heading "### FR-X-001". IDs cited elsewhere in a line
+# (cross-references such as "see FR-OTHER-013") are not definitions.
+FR_DEFINITION='^[[:space:]]*(\|[[:space:]]*|[-*][[:space:]]+(\*\*)?|#+[[:space:]]+)FR-[A-Z0-9-]+-[0-9]{3}'
+
+requirement_ids() { # FR IDs this change defines or modifies: definition lines added since the base branch
+  local base untracked
+  base=$(git merge-base "origin/$BASE_BRANCH" HEAD)
+  untracked=$(git ls-files -o --exclude-standard -- 'doc/specifications/*/functional.md')
+  { git diff -U0 "$base" -- 'doc/specifications/*/functional.md' | sed -n 's/^+//p'
+    # shellcheck disable=SC2086
+    [ -z "$untracked" ] || cat $untracked
+  } | grep -E "$FR_DEFINITION" | grep -oE 'FR-[A-Z0-9-]+-[0-9]{3}' | sort -u
 }
 
 test_files() { changed_files | grep -E "$TEST_FILE_PATTERN" || true; }
