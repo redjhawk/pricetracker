@@ -7,3 +7,12 @@ It should be nice that the page is fully used when the view size is reduced.
 
 ## Comments by trusted authors
 
+### redjhawk at 2026-11-19T21:02:30Z
+
+Below 672 px the cards already span the full screen width> no, it doesnt.  app-content" keeps a padding at right and at left.  Then, cds--tab-content applies more padding. 
+These two paddings make 48 px at each side ! in a big screen, it is nice. However, in little screens, this is a huge lost.
+In smaller screens, those paddings must dissapear 
+
+padding must dissapear as soon sa the inside card layout change
+
+
