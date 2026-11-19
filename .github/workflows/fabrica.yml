@@ -1,0 +1,66 @@
+# Agent factory (scripts/factory/factory.sh): takes an issue labelled ai-dev from specification to a merged PR.
+# spec → use cases → test cases → tech spec → tests (TDD red) → implementation (green) → PR → review → triage
+# (blocking → back to implementation; non-blocking → issues) → merge. The push to master runs release.yml.
+# State lives on branch ai-dev/issue-<n>; a comment by the owner on the issue (answering questions) resumes it.
+# The factory scripts are copied from master before switching to the work branch, so a change cannot
+# rewrite its own pipeline, and changes under .github/ or scripts/factory/ are never merged automatically.
+name: fabrica
+run-name: "fabrica #${{ github.event.issue.number || inputs.issue }}"
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue: {description: 'Issue number', required: true}
+concurrency:
+  group: fabrica-${{ github.event.issue.number || inputs.issue }}
+  cancel-in-progress: false
+jobs:
+  fabrica:
+    if: >-
+      github.actor == github.repository_owner && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issues' && github.event.label.name == 'ai-dev') ||
+        (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+          contains(github.event.issue.labels.*.name, 'ai-dev') &&
+          !contains(github.event.comment.body, '<!-- agent-factory -->'))
+      )
+    runs-on: arc-dev
+    environment: dev
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    env:
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      GH_TOKEN: ${{ secrets.DEV_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.DEV_TOKEN }}
+      # Toolchain preinstalled in the arc-dev image (deploy/arc/Dockerfile.dev); nothing is installed here.
+      - name: Preparar
+        run: |
+          for t in git jq gh go node npm claude govulncheck gosec; do
+            command -v "$t" >/dev/null || { echo "::error::$t missing from the arc-dev image (deploy/arc/Dockerfile.dev)"; exit 1; }
+          done
+          echo "FACTORY_LOG_DIR=$RUNNER_TEMP/factory-logs" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/factory-logs"
+          npm ci
+          go mod download
+          cp -r scripts/factory "$RUNNER_TEMP/factory"
+          git config user.name "pricefollower-factory"
+          git config user.email "pricefollower-factory@users.noreply.github.com"
+      - name: Fábrica
+        run: '"$RUNNER_TEMP/factory/factory.sh" "$ISSUE"'
+      - name: Logs de los agentes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: factory-logs-${{ env.ISSUE }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/factory-logs
+          if-no-files-found: ignore

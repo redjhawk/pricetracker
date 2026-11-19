@@ -1,0 +1,33 @@
+# Runner image for the arc-dev scale set: everything the agent factory (scripts/factory/) needs,
+# so fabrica.yml installs nothing at run time.
+#   docker build -f deploy/arc/Dockerfile.dev -t arc-runner-dev:1 deploy/arc  (import: see values-arc-dev.yaml)
+ARG RUNNER_VERSION=latest
+FROM ghcr.io/actions/actions-runner:${RUNNER_VERSION}
+
+ARG GO_VERSION=1.25.4
+ARG NODE_MAJOR=22
+ARG GH_VERSION=2.103.3
+ARG CLAUDE_CODE_VERSION=2.1.288
+ARG PLAYWRIGHT_VERSION=1.63.0
+ARG GOVULNCHECK_VERSION=v1.1.4
+ARG GOSEC_VERSION=v2.22.10
+
+USER root
+ENV PATH=/usr/local/go/bin:$PATH \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git jq unzip xz-utils \
+ && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local \
+ && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+    | tar -xz -C /tmp && mv "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" /usr/local/bin/gh \
+ && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && npx -y "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium \
+ && chmod -R a+rx /ms-playwright \
+ && GOBIN=/usr/local/bin go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" \
+ && GOBIN=/usr/local/bin go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}" \
+ && rm -rf /root/go /root/.cache /root/.npm /var/lib/apt/lists/* /tmp/*
+
+USER runner

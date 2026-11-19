@@ -1,0 +1,4 @@
+# Helm values for the arc-build runner scale set (release.yml). Default runner image: the workflow
+# installs Go, Node and gh itself.
+minRunners: 0
+maxRunners: 1

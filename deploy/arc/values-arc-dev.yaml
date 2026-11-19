@@ -1,0 +1,18 @@
+# Helm values for the arc-dev runner scale set (agent factory). Apply with:
+#   deploy/arc/install.sh   (see README.md)
+minRunners: 0
+# Parallel factory runs (one per issue). Each runner requests 2 CPU and 4 GiB.
+maxRunners: 3
+template:
+  spec:
+    # Private package ghcr.io/redjhawk/arc-runner-dev, pushed by deploy/arc/build-image.sh <tag>;
+    # pulled with the ghcr-pull secret that install.sh creates.
+    imagePullSecrets: [{name: ghcr-pull}]
+    containers:
+      - name: runner
+        image: ghcr.io/redjhawk/arc-runner-dev:1
+        imagePullPolicy: IfNotPresent
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests: {cpu: "2", memory: 4Gi}
+          limits: {memory: 8Gi}
