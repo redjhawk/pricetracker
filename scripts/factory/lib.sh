@@ -92,9 +92,15 @@ run_agent() {
 - Base branch: $BASE_BRANCH
 $extra"
   log "agent $name ($profile)"
-  # The agent never sees the GitHub token, and Claude Code scrubs its own credentials from the
-  # environment of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).
-  env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
+  # The agent never sees the GitHub token. With bubblewrap installed, Claude Code also scrubs its own
+  # credentials from the environment of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB);
+  # without it that scrub cannot run, so it is turned off with a warning instead of failing.
+  local scrub=1
+  if ! command -v bwrap >/dev/null 2>&1; then
+    scrub=0
+    log "WARNING: bubblewrap (bwrap) not found: agent commands can read the Claude credentials"
+  fi
+  env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=$scrub \
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --permission-mode acceptEdits --allowedTools "$tools" \

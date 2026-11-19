@@ -17,7 +17,7 @@ ENV PATH=/usr/local/go/bin:$PATH \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git jq unzip xz-utils \
+RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap ca-certificates curl git jq unzip xz-utils \
  && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local \
