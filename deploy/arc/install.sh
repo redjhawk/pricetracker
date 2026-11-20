@@ -25,7 +25,7 @@ if [ $# -eq 1 ]; then
     echo 'export GITHUB_APP_KEY_FILE="$PWD/github-app.pem"' >>"$bundle/env"
   fi
   remote='set -e; d="$(mktemp -d)"; trap "rm -rf \"$d\"" EXIT; tar -xzf - -C "$d"; cd "$d"; . ./env; bash ./install.sh'
-  tar -czf - -C "$bundle" . | ssh "$1""bash -lc $(printf %q "$remote")"
+  tar -czf - -C "$bundle" . | ssh "$1" "bash -lc $(printf %q "$remote")"
   exit
 fi
 version=0.15.1
