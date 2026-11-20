@@ -387,6 +387,29 @@ input {
 }
 
 @media (max-width: 1055.98px) {
+  /* TS-RESPONSIVE-023: @carbon/styles' CSS defines the spacing scale only inside .cds--guidebanner, so
+     every var(--cds-spacing-*) here is otherwise unset. Below desktop the page content defines it;
+     desktop keeps its current layout, which has no spacing tokens. */
+  .page-shell,
+  .login-page {
+    --cds-spacing-01: 0.125rem;
+    --cds-spacing-02: 0.25rem;
+    --cds-spacing-03: 0.5rem;
+    --cds-spacing-04: 0.75rem;
+    --cds-spacing-05: 1rem;
+    --cds-spacing-06: 1.5rem;
+    --cds-spacing-07: 2rem;
+    --cds-spacing-08: 2.5rem;
+    --cds-spacing-09: 3rem;
+    --cds-spacing-10: 4rem;
+  }
+
+  /* Modals keep their current look (FR-RESPONSIVE-017); the admin Add user modal renders inside .page-shell. */
+  .page-shell .cds--modal {
+    --cds-spacing-05: initial;
+    --cds-spacing-06: initial;
+  }
+
   /* TS-RESPONSIVE-015: below desktop the page content sits at the .page-shell gutter (spacing-05). */
   .app-content {
     padding-inline: 0;
@@ -414,6 +437,12 @@ input {
   .tracked-page .cds--tabs .cds--tabs__nav-item {
     min-width: 0;
     flex: 1 1 auto;
+  }
+
+  /* Carbon's placeholder for the close button of non-dismissable tabs takes 1px after each tab,
+     so the last tab stopped 1px short of the gutter. */
+  .tracked-page .cds--tabs .cds--tabs__nav-item--close--hidden {
+    display: none;
   }
 
   .page-feedback .cds--inline-notification,
@@ -549,6 +578,17 @@ img {
   overflow-wrap: anywhere;
 }
 
+/* The current breadcrumb item repeats the item title; a long title wraps at every width. */
+.detail-breadcrumb .cds--breadcrumb-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detail-breadcrumb .cds--link {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 @media (max-width: 671.98px) {
   .cds--header__name {
     min-width: 0;
@@ -559,16 +599,6 @@ img {
     min-width: 0;
     font-size: 0.875rem;
     line-height: 1.1;
-    white-space: normal;
-  }
-
-  .detail-breadcrumb .cds--breadcrumb-item {
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .detail-breadcrumb .cds--link {
-    overflow-wrap: anywhere;
     white-space: normal;
   }
 

@@ -1,70 +1,46 @@
-# Test problem: desktop baseline constants in `tests/responsive-layout.spec.ts` are wrong
+# Test problem — issue #165, developer stage (attempt 3)
 
-Stage: developer (TDD green), attempt 2. The locked spec cannot pass unless the desktop layout changes, and FR-RESPONSIVE-011 and FR-RESPONSIVE-017 forbid that.
+## Summary
 
-## The problem
+The issue #165 implementation (`src/index.css`, working tree) passes every case in the locked `tests/responsive-layout.spec.ts`. The last green gate run reported 98 passed and 7 failed, and none of the 7 failures is in that file.
 
-`tests/responsive-layout.spec.ts` lines 353–357:
+The 7 failures are in test files that this change did not modify. They contradict the current application on `master`, independently of #165. The green gate rejects any test file that differs from the red commit (doc/workflow/WORKFLOW.md), and the developer must not invent functionality. So the developer stage cannot make the full Playwright suite pass. The tests need a separate fix.
 
-```ts
-// Baseline from master before issue #165, derived from its CSS: ...
-const DESKTOP_PAGE_OFFSET = 64;
-const DESKTOP_TABLE_OFFSET = 80;
-```
+## Failing tests and cause (static analysis)
 
-The test cases say the baseline must be "Positions measured on `master` before this change" (testcases.md, Shared definitions, **Baseline**). These constants were derived from the CSS source instead, and that derivation is wrong. On master, at 1056 px and 1440 px:
+| Test | Cause |
+| --- | --- |
+| `tests/platform-tabs.spec.ts:141` "both tabs remain available…" | Line 151 expects `getByRole("tab")` to have count 3. Issue #111 removed the "Amazon searches" tab, so only the Amazon and LeBoncoin tabs remain (`TrackedItemsPage.tsx:118-121`). The #111 QA did not run Playwright (`libnspr4.so` missing, see its `qa.md`), so this stale assertion was not caught. The count should be 2. |
+| `tests/leboncoin-session-settings.spec.ts:125` "header menu…" | Lines 142-143 expect exactly one menu item, "Settings", in open mode. Since the Information entry (FR-APP-INFO), open mode shows "Information" and "Settings" (`App.tsx:315-320`, `AppMenu.tsx`). `app-information.spec.ts` "open mode shows only the version" requires that entry, so the two specs contradict each other. |
+| `tests/leboncoin-session-settings.spec.ts:415` "QA-SET-F01…" | Lines 431-432 press Enter on the menu trigger and then Enter on the first item, expecting the Settings dialog. The first item is now "Information", so "Could not load settings" never appears. |
+| `tests/app-information.spec.ts:102` "Close button, close icon and Escape…" | `page.locator(".cds--modal-close")` matches the close icon of every Carbon modal in the DOM (Add item, Delete, Settings and Information are always rendered), so `.click()` fails with a strict-mode violation. It should be scoped to the Information dialog. |
+| `tests/app-information.spec.ts:133` "at 400 px a long username wraps…" | `page.locator(".cds--modal-container").boundingBox()` matches every rendered modal container (strict-mode violation). It should be scoped to the Information dialog. |
+| `tests/app-information.spec.ts:71` "REV-002…" and `:89` "failure shows an error and reopening retries" | These depend on the number and order of `/api/v1/auth/session` calls and on the auth-required flow (`InformationModal.tsx`, `api/client.ts`). No CSS is involved, and #165 changes neither area. The exact assertion was cut from the gate log, and the shell was unavailable in this run, so this could not be confirmed. |
 
-- `#main-content` is **32 px** from each edge, not 64 px.
-- `.tracked-table-container` is **48 px** from each edge, not 80 px.
+## Requested action
 
-The failed green run measured this directly: `1056px #main-content left offset 32`. The desktop rules of `src/index.css` are the same as on master.
+Fix these specs in a separate change, or exclude them from this change's green gate:
 
-## Why master is at 32 px
+- set the tab count to 2;
+- update the expected menu items and the keyboard path to Settings for the Information entry;
+- scope the modal locators to the Information dialog;
+- recheck the two session-call tests.
 
-The app's CSS uses Carbon spacing tokens such as `var(--cds-spacing-07)` and `var(--cds-spacing-05)`. In `@carbon/styles` 1.116.0, `css/styles.css` defines these custom properties only inside the `.cds--guidebanner` block (line 22672, tokens at lines 22908–22914). They are not defined at `:root`, so every `var(--cds-spacing-*)` in `src/index.css` is invalid at computed-value time. Each such declaration falls back to `unset`.
+None of them concerns issue #165.
 
-As a result, `.page-shell { width: min(100% - 2 * var(--cds-spacing-07), 96rem) }` resolves to `width: auto`, and the page-shell inset is 0. The only desktop gaps are:
+## Technical specification note
 
-- Carbon's `.cds--content` padding: 2rem = 32 px (`#main-content`, `.detail-summary`, admin `.responsive-table-container`).
-- The tab panel `.cds--tab-content` padding: 1rem, which is defined, so the tracked table sits at 32 + 16 = 48 px.
+`doc/specifications/responsive-layout/technical.md` must also describe the CSS that the implementation adds beyond TS-RESPONSIVE-015 to 022 (comment "TS-RESPONSIVE-023" in `src/index.css`):
 
-This matches the issue author's comment: `app-content` padding plus `cds--tab-content` padding "make 48 px at each side". There is no 16 px page-shell inset in that sum.
+- the Carbon spacing scale defined on `.page-shell` and `.login-page` below 1056 px, because `@carbon/styles` defines `--cds-spacing-*` only inside `.cds--guidebanner`;
+- the `.page-shell .cds--modal` spacing reset;
+- hiding the 1 px close-button placeholder after each tab (`.cds--tabs__nav-item--close--hidden`);
+- `td:has(> .item-cell) { flex: 1 1 14rem }`, the actions cell `margin-inline-start: auto` and `.item-cell { min-width: 0 }`;
+- the two-column `.detail-summary` from 672 to 1055 px;
+- `.page-shell` `padding-block-start: spacing-05`.
 
-## Affected assertions
+This run could not write that file, because the write permission was denied.
 
-- `TC-012 desktop tracked items layout unchanged` (lines 1044–1048): expects 64 and 80; master gives 32 and 48.
-- `TC-012 desktop item details layout unchanged` (lines 1069–1070): expects 64; master gives 32.
-- `TC-012 desktop administrator page layout unchanged` (lines 1087–1088): expects 64; master gives 32.
-- `TC-003 card layout and full width switch together at 1056px` (lines 652–653): expects 80 at 1056 px; master gives 48.
+## Environment limits of this run
 
-To pass these, desktop margins would have to grow from 32/48 px to 64/80 px, for example by defining the spacing tokens at `:root`. That would also turn on every other `--cds-spacing-*` margin, gap and padding in `src/index.css` at desktop width. FR-RESPONSIVE-011 says "Layout and behavior are unchanged from the current release", and FR-RESPONSIVE-017 says "every screen keeps its current margins and layout". So that would be working around a wrong test.
-
-## Requested fix (test stage)
-
-Use the baseline measured on master:
-
-```ts
-// Baseline measured on master before issue #165: Carbon's .cds--content padding (2rem) is the only
-// page inset (the --cds-spacing-* tokens are not defined globally, so the .page-shell inset resolves to 0);
-// the tracked-items tab panel adds 1rem.
-const DESKTOP_PAGE_OFFSET = 32;
-const DESKTOP_TABLE_OFFSET = 48;
-```
-
-Every other use of these constants still holds with these values. `TC-003`'s `gaps.left > 16` holds with 48, and the table still lines up with the search row because both sit in the tab panel.
-
-## Note for the next development attempt (not a test change)
-
-Below 1056 px, the implementation must not rely on the undefined tokens. With the current working tree, the rules for the page gutter (`.page-shell`), card cell padding (`.responsive-table tbody tr td`), the negative list margins, the login padding and others resolve to 0. That causes the inset, gutter and "touches an edge" failures in TC-002, TC-004, TC-006 to TC-011 and in the 320/360 px full-width tests. Fix this inside `@media (max-width: 1055.98px)` only, for example by defining the needed `--cds-spacing-*` values on `:root` there, so desktop stays exactly as on master.
-
-## Other failures in the same run (not locked, outside this change)
-
-These specs failed in the previous run too. They look outdated compared with the current UI, not affected by this CSS change:
-
-- `tests/platform-tabs.spec.ts:141` expects 3 tabs; the page renders 2 (Amazon, LeBoncoin).
-- `tests/leboncoin-session-settings.spec.ts:125` expects the open-mode menu to have exactly one entry, "Settings"; the menu also has "Information".
-- `tests/app-information.spec.ts` (REV-002, failure/retry, Close/Escape focus, 400 px username) and `tests/leboncoin-session-settings.spec.ts:415`.
-
-If they also fail on master, the green gate cannot pass because of them. They need their own triage.
-
-I could not run the suite in this attempt because the shell sandbox would not start (`socat` not installed). The analysis above comes from reading the Carbon CSS, `src/index.css`, the locked spec and the previous run's output.
+The Bash tool could not start: "Sandbox dependencies not available: socat not installed". So `gofmt`, `go vet`, `go test`, `npm run build` and `npx playwright test` were not run in this attempt. `src/index.css` is the previous attempt's implementation, unchanged.
