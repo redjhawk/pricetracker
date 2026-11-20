@@ -23,6 +23,9 @@ requirement_ids() { # FR IDs this change defines or modifies: definition lines a
 
 test_files() { changed_files | grep -E "$TEST_FILE_PATTERN" || true; }
 
+# Paths this change modifies outside documentation and tests, i.e. its implementation (and test stubs).
+production_paths() { changed_paths | grep -Ev '^(doc/|tests/|API_SPECIFICATION\.md$)' | grep -Ev "$TEST_FILE_PATTERN" || true; }
+
 run_unit_tests() { go vet ./... && go test ./... && node --test scripts/*.test.mjs; }
 # Tests run code written by agents: never with the GitHub or Claude credentials in the environment.
 run_all_tests() {

@@ -11,7 +11,7 @@ Development requests go through the agent factory, [`scripts/factory/factory.sh`
 | 2 | `usecases` | use-case agent | `doc/use-cases/<subject>/UC-*.md` | every new use case cites an FR ID |
 | 3 | `testcases` | test designer agent | `<change>/testcases.md` (`TC-NNN`, Given/When/Then, level) | every FR ID has at least one TC |
 | 4 | `techspec` | technical specifier agent | `technical.md` per subject, `API_SPECIFICATION.md` | each subject has a technical spec |
-| 5 | `tests` | test author agent | Go unit and integration tests, Playwright e2e tests | every TC is in a test, and the suite **fails** (TDD red); tests locked in `tests.lock` |
+| 5 | `tests` | test author agent | Go unit and integration tests, Playwright e2e tests | every TC is in a test, and the suite **fails** (TDD red); tests locked in `tests.lock`. Before the agent runs, the script merges the base branch and resets every changed path outside `doc/`, `tests/` and `API_SPECIFICATION.md` to it, so code from an earlier implementation attempt cannot make the red gate pass |
 | 6 | `implement` | developer agent | code | locked tests unchanged; `go vet`, `go test`, `node --test`, `npm run build`, Playwright **pass** (green); up to 3 attempts with the gate output |
 | 7 | `pr` | script | one PR `ai-dev #<n>: …` to `master`, `Closes #<n>` | — |
 | 8 | `review` | independent reviewer agent (read-only) | `review-rN.json`, posted as one inline GitHub review | valid JSON |
@@ -25,6 +25,7 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 
 - Branch `ai-dev/issue-<n>`; change folder `doc/changes/<YYYY-MM-DD-HHMM>-issue-<n>-<slug>/` (UTC start time) with `state.json` (`stage`, `round`, `pr`), `issue.md`, and the stage outputs.
 - The script commits and pushes after every stage, so any run resumes from the recorded stage. The current stage is also shown as a `factory:<stage>` label on the issue.
+- A developer who finds a wrong locked test writes `test-problem.md`; the run deletes `tests.lock`, returns to `tests` and stops for the owner. The next run resets the implementation (see stage 5) and deletes `test-problem.md` once the red gate passes.
 - Stops: `factory:needs-input` (functional questions, a failed gate, a wrong locked test, or too many review rounds) and `factory:needs-human` (the PR changes sensitive files and must be merged by hand). The reason is posted on the issue.
 - Only trusted authors (`FACTORY_TRUSTED_ACTORS`, by default the repository owner) give instructions. The issue body is passed to the agents only when a trusted author opened the issue; otherwise `issue.md` says it was dropped and the owner must restate the request in a comment. Comments by other authors, the factory's own comments, review comments and code are data.
 - When the review rounds reach `FACTORY_MAX_ROUNDS`, the factory sets `round` to 0 and `stage` to `implement` before stopping: the owner's answer resumes implementation with `blocking.md` and their comment.
