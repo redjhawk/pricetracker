@@ -35,3 +35,7 @@ relanza
 
 Can you continue please?
 
+### redjhawk at 2026-11-20T16:01:56Z
+
+@claude  do whatever you have to do. fix whatever you have to fix. All I want is that it works
+
