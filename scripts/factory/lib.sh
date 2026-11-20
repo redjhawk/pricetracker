@@ -78,7 +78,7 @@ run_agent() {
   case "$profile" in
     # Edit/Write are limited to the paths each profile produces; Bash to fixed test/build commands.
     docs)   tools="Read,Glob,Grep,Edit(doc/**),Write(doc/**),Edit(API_SPECIFICATION.md)" ;;
-    code)   tools="Read,Glob,Grep,Edit(cmd/**),Write(cmd/**),Edit(internal/**),Write(internal/**),Edit(src/**),Write(src/**),Edit(tests/**),Write(tests/**),Edit(web/**),Write(web/**),Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**)"
+    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Write(doc/specifications/**),Edit(cmd/**),Write(cmd/**),Edit(internal/**),Write(internal/**),Edit(src/**),Write(src/**),Edit(tests/**),Write(tests/**),Edit(web/**),Write(web/**),Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**)"
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
     review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
@@ -92,14 +92,17 @@ run_agent() {
 - Base branch: $BASE_BRANCH
 $extra"
   log "agent $name ($profile)"
-  # The agent never sees the GitHub token. With bubblewrap installed, Claude Code also scrubs its own
-  # credentials from the environment of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB);
-  # without it that scrub cannot run, so it is turned off with a warning instead of failing.
-  local scrub=1
-  if ! command -v bwrap >/dev/null 2>&1; then
-    scrub=0
-    log "WARNING: bubblewrap (bwrap) not found: agent commands can read the Claude credentials"
-  fi
+  # The agent never sees the GitHub token. With the sandbox dependencies installed (bubblewrap and socat),
+  # Claude Code also scrubs its own credentials from the environment of the commands it runs
+  # (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB); without them that scrub cannot run, and Bash would not start at
+  # all, so it is turned off with a warning instead of failing.
+  local scrub=1 dep
+  for dep in bwrap socat; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+      scrub=0
+      log "WARNING: $dep not found: the Bash sandbox is off and agent commands can read the Claude credentials"
+    fi
+  done
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=$scrub \
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
