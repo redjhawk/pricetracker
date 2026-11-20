@@ -18,7 +18,7 @@ requirement_ids() { # FR IDs this change defines or modifies: definition lines a
   { git diff -U0 "$base" -- 'doc/specifications/*/functional.md' | sed -n 's/^+//p'
     # shellcheck disable=SC2086
     [ -z "$untracked" ] || cat $untracked
-  } | grep -E "$FR_DEFINITION" | grep -oE 'FR-[A-Z0-9-]+-[0-9]{3}' | sort -u
+  } | grep -oE "$FR_DEFINITION" | grep -oE 'FR-[A-Z0-9-]+-[0-9]{3}$' | sort -u # the defined ID only, not cross-references
 }
 
 test_files() { changed_files | grep -E "$TEST_FILE_PATTERN" || true; }
