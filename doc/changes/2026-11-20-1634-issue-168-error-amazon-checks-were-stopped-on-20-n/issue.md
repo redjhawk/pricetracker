@@ -8,3 +8,26 @@ Moreover, you also always request the same hour each day. You must random a bit 
 
 ## Comments by trusted authors
 
+### redjhawk at 2026-11-20T17:10:39Z
+
+1. between 6 et 9 et 19-23h
+2. no. amazon only. leboncoin is running fine now
+3. c
+4. b
+
+### redjhawk at 2026-11-20T17:30:09Z
+
+can you continue ? 
+
+### redjhawk at 2026-11-20T17:45:06Z
+
+continue 
+
+### redjhawk at 2026-11-20T17:47:17Z
+
+@claude  en la rama principal hay una corrección para el error que estás teniendo al desarrollar. Haz primero un rebase de main y sigue después desarrollando
+
+### redjhawk at 2026-11-20T18:36:16Z
+
+@claude  continue please
+
