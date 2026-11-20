@@ -53,3 +53,7 @@ What don't you develop something?
 
 ignore the test case and continue!!!
 
+### redjhawk at 2026-11-20T22:01:25Z
+
+testcases gate fixed by hand: the 4 requirements whose definition lines this change modifies (FR-AMZ-STOP-001/004/008, FR-AMZ-SRCH-DEL-006) are now mapped to existing test cases (22d09df). Stage advanced to `techspec`.
+

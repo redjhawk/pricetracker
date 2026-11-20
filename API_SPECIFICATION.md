@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115); Amazon human-like checks behaviour defined 2026-11-20 (agent-defined, issue #168, no shape change).
 
 ## Conventions
 
@@ -678,3 +678,13 @@ Agent-defined per AGENTS.md. Technical sources: [Amazon request stop](doc/specif
 - `POST /api/v1/items/{id}/refresh` on a stopped Amazon item → `202` as usual; the check is sent despite the stop. An Amazon answer (success, price not found, unavailable) sets only that item's `amazonStoppedAt` to `null`; a failure leaves it set. Clients poll `GET /api/v1/items` as for any refresh.
 - `POST /api/v1/items/refresh`: response unchanged (`itemsQueued` counts every tracked item); stopped Amazon items are skipped without a request or a new attempt. Scheduled checks skip them too.
 - `POST /api/v1/items` adds a new Amazon item with `amazonStoppedAt: null`, even while other items are stopped.
+
+## Amazon human-like checks (issue #168)
+
+Agent-defined per AGENTS.md. Technical source: [Amazon human-like checks](doc/specifications/amazon-human-checks/technical.md). No new endpoint, field or error code; request and response shapes are unchanged. Only the meaning of existing values for Amazon items changes:
+
+- `nextCheckAt` of an Amazon item is a random time (second resolution) inside the next Europe/Paris window, 06:00–09:00 or 19:00–23:00 (the configured timezone's windows if another is set), drawn separately for each item and anew after each scheduled check. `PRICEFOLLOWER_CHECK_TIMES` applies to LeBoncoin items only. `nextCheckAt` may be `null` for a moment at start-up after the upgrade, as already allowed.
+- `POST /api/v1/items` (Amazon): the first check starts immediately as before; `nextCheckAt` is in the first window that starts after the add.
+- `POST /api/v1/items/{id}/refresh` and `POST /api/v1/items/refresh`: responses unchanged; they no longer change `nextCheckAt` of Amazon items (LeBoncoin unchanged).
+- Upgrade: Amazon items stopped before this version are restarted once (`amazonStoppedAt: null`) with a `nextCheckAt` in the next window; stops occurring later follow "Amazon per-item stop (issue #111)".
+- A failed browser check of an Amazon item is reported as before (`lastAttempt.result: "request_error"`, message "Amazon could not be reached for a price check.").
