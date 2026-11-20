@@ -148,7 +148,7 @@ test("both tabs remain available for empty platform and collection", async ({ pa
   api.items = [];
   await page.reload();
   await expect(page.getByRole("heading", { name: "No items tracked yet" })).toBeVisible();
-  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab")).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Refresh all prices" })).toBeDisabled();
   await page.getByRole("tab", { name: "LeBoncoin" }).click();
   await expect(page.getByRole("button", { name: "Add your first item" })).toBeVisible();
