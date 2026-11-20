@@ -1,5 +1,7 @@
 # Test problem — issue #165, developer stage (attempt 3)
 
+> **Resolved by the test stage (2026-11-20).** The specs below are fixed. React StrictMode in the dev server loads the session twice and consumed the queued replies, which caused REV-002 and "failure shows an error". The technical specification now has TS-RESPONSIVE-023. This file should be deleted, but the test stage could not run a shell to remove it.
+
 ## Summary
 
 The issue #165 implementation (`src/index.css`, working tree) passes every case in the locked `tests/responsive-layout.spec.ts`. The last green gate run reported 98 passed and 7 failed, and none of the 7 failures is in that file.

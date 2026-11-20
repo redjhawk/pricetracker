@@ -130,6 +130,13 @@ CSS only, in `src/index.css`. There are no component, markup, state or dependenc
   - Modals are Carbon fixed-position containers. Ancestor padding does not affect them, including the admin Add user `Modal` rendered inside `.page-shell`. The new notification selectors never match them.
   - FR-APP-INFO-013 is kept.
 - **TS-RESPONSIVE-022 Resize.** CSS only, with no remount. The tab, search text and modal inputs survive resizing across 1056 px (FR-RESPONSIVE-013).
+- **TS-RESPONSIVE-023 Supporting rules found during development.** All are in the 1055.98 px query:
+  - **Spacing scale.** `@carbon/styles` defines `--cds-spacing-*` only inside `.cds--guidebanner`, so the tokens used by TS-RESPONSIVE-015 to 018 are otherwise unset. `.page-shell, .login-page` define `--cds-spacing-01` to `--cds-spacing-10` with the Carbon values (0.125 rem to 4 rem). Desktop keeps its current layout, which uses none of them.
+  - **Modals.** `.page-shell .cds--modal { --cds-spacing-05: initial; --cds-spacing-06: initial }` keeps the admin Add user modal, rendered inside `.page-shell`, as before (FR-RESPONSIVE-017).
+  - **Tab bar.** `.tracked-page .cds--tabs .cds--tabs__nav-item--close--hidden { display: none }`. Carbon's 1 px close-button placeholder after each tab otherwise stops the last tab 1 px short of the gutter.
+  - **Card cells.** `.responsive-table tbody tr td:has(> .item-cell) { flex: 1 1 14rem }` lets the item cell take the space the values leave on its line, and `td:has(> .row-actions) { margin-inline-start: auto }` ends the line with the actions, so the flipped Options menu opens on screen. `.item-cell { min-width: 0 }` lets a long title wrap inside the card.
+  - **Item details.** `.detail-summary` uses two columns from 672 to 1055 px; the phone query keeps one column.
+  - **Page top.** `.page-shell` gets `padding-block-start: var(--cds-spacing-05)` instead of `spacing-07`, so the top gap matches the 16 px side gutter.
 
 Accessibility: no markup change. The table semantics, visible `data-label` captions, focus styles and Carbon target sizes are as in TS-RESPONSIVE-008. The stretched tabs keep their full labels and the Carbon tab keyboard behaviour.
 
@@ -143,7 +150,7 @@ Not affected. No endpoint, field, status or error changes. `API_SPECIFICATION.md
 
 #### Files to change
 
-- `src/index.css`: TS-RESPONSIVE-015 to 020. Remove the TS-RESPONSIVE-011 calc rule.
+- `src/index.css`: TS-RESPONSIVE-015 to 020 and 023. Remove the TS-RESPONSIVE-011 calc rule.
 - `tests/responsive-layout.spec.ts`: the new cases below. Remove `700px tracked-items list keeps its page margins`, whose behaviour FR-RESPONSIVE-018 replaces.
 
 `playwright.config.ts` already lists the spec. No `.tsx`, Go or API file changes.

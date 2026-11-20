@@ -3,14 +3,17 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 // FR-APP-INFO-001..013. Synthetic session data only.
 type SessionReply = { status: number; json: unknown; delayMs?: number };
 
+// Session replies are consumed in order and the last one repeats. The dev server runs React
+// StrictMode, so the app may load the session more than once: tests set the replies for the
+// Information modal only after the page has loaded.
 async function mockApi(context: BrowserContext, replies: SessionReply[]) {
-  const state = { sessionCalls: 0 };
+  const state = { sessionCalls: 0, replies: [...replies] };
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== "http://127.0.0.1:4173") return route.abort();
     if (!url.pathname.startsWith("/api/")) return route.continue();
     if (url.pathname === "/api/v1/auth/session") {
-      const reply = replies[Math.min(state.sessionCalls, replies.length - 1)];
+      const reply = state.replies.length > 1 ? state.replies.shift()! : state.replies[0];
       state.sessionCalls += 1;
       if (reply.delayMs) await new Promise((resolve) => setTimeout(resolve, reply.delayMs));
       return route.fulfill({ status: reply.status, json: reply.json });
@@ -28,6 +31,11 @@ const openSession = { status: 200, json: { mode: "open", user: null, version } }
 const userSession = { status: 200, json: { mode: "protected", user: { username: "alice", role: "user" }, version } };
 const adminSession = { status: 200, json: { mode: "protected", user: { username: "admin", role: "admin" }, version } };
 const failure = { status: 500, json: { error: { code: "INTERNAL", message: "boom" } } };
+
+async function waitForApp(page: Page) {
+  await expect(page.getByRole("button", { name: "Application menu", exact: true })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+}
 
 async function openInformation(page: Page) {
   await page.getByRole("button", { name: "Application menu", exact: true }).click();
@@ -70,8 +78,10 @@ test("open mode shows only the version", async ({ page, context }) => {
 
 test("REV-002: ended session shows no stale username and returns to the login page", async ({ page, context }) => {
   const ended = { status: 200, json: { mode: "protected", user: null, version } };
-  await mockApi(context, [userSession, ended]);
+  const api = await mockApi(context, [userSession]);
   await page.goto("/");
+  await waitForApp(page);
+  api.replies = [ended];
   await page.getByRole("button", { name: "Application menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Information", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Log in to Price follower" })).toBeVisible();
@@ -79,16 +89,21 @@ test("REV-002: ended session shows no stale username and returns to the login pa
 });
 
 test("loading indicator while the version is pending", async ({ page, context }) => {
-  await mockApi(context, [openSession, { ...openSession, delayMs: 1500 }]);
+  const api = await mockApi(context, [openSession]);
   await page.goto("/");
+  await waitForApp(page);
+  api.replies = [{ ...openSession, delayMs: 1500 }];
   const dialog = await openInformation(page);
   await expect(dialog.getByText("Loading version")).toBeVisible();
   await expect(dialog).toContainText(version);
 });
 
 test("failure shows an error and reopening retries", async ({ page, context }) => {
-  const api = await mockApi(context, [openSession, failure, openSession]);
+  const api = await mockApi(context, [openSession]);
   await page.goto("/");
+  await waitForApp(page);
+  const callsBefore = api.sessionCalls;
+  api.replies = [failure, openSession];
   const dialog = await openInformation(page);
   await expect(dialog.getByText("The version could not be loaded.")).toBeVisible();
   await expect(dialog).not.toContainText(version);
@@ -96,15 +111,16 @@ test("failure shows an error and reopening retries", async ({ page, context }) =
   await expect(dialog).toBeHidden();
   const reopened = await openInformation(page);
   await expect(reopened).toContainText(version);
-  expect(api.sessionCalls).toBe(3);
+  expect(api.sessionCalls - callsBefore).toBe(2);
 });
 
 test("Close button, close icon and Escape close the modal and return focus to the menu", async ({ page, context }) => {
   await mockApi(context, [openSession]);
   await page.goto("/");
   const menu = page.getByRole("button", { name: "Application menu", exact: true });
-  const footerClose = page.locator(".cds--modal-footer").getByRole("button", { name: "Close" });
-  const iconClose = page.locator(".cds--modal-close");
+  const information = page.getByRole("dialog", { name: "Information" });
+  const footerClose = information.locator(".cds--modal-footer").getByRole("button", { name: "Close" });
+  const iconClose = information.locator(".cds--modal-close");
   for (const close of [() => footerClose.click(), () => iconClose.click(), () => page.keyboard.press("Escape")]) {
     const dialog = await openInformation(page);
     await expect(dialog).toContainText(version);
@@ -138,6 +154,6 @@ test("at 400 px a long username wraps without horizontal scrolling", async ({ pa
   const dialog = await openInformation(page);
   await expect(dialog).toContainText(longName);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  const box = await page.locator(".cds--modal-container").boundingBox();
+  const box = await dialog.boundingBox();
   expect(box && box.x >= 0 && box.x + box.width <= 400).toBe(true);
 });

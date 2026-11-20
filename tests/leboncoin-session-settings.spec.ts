@@ -122,7 +122,7 @@ function saveButton(page: Page) {
   return page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: /^Sav(e|ing…)$/ });
 }
 
-test("header menu: visible on every page, one Settings entry, keyboard and dismissal", async ({ page, context }) => {
+test("header menu: visible on every page, Information and Settings entries, keyboard and dismissal", async ({ page, context }) => {
   const api = await mockApi(context);
   let release!: () => void;
   api.listGate = new Promise<void>((resolve) => { release = resolve; });
@@ -139,8 +139,7 @@ test("header menu: visible on every page, one Settings entry, keyboard and dismi
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByRole("menuitem")).toHaveCount(1);
-  await expect(page.getByRole("menuitem")).toHaveText("Settings");
+  await expect(page.getByRole("menuitem")).toHaveText(["Information", "Settings"]);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menuitem")).toHaveCount(0);
   await expect(trigger).toBeFocused();
@@ -162,6 +161,9 @@ test("header menu: visible on every page, one Settings entry, keyboard and dismi
   await expect(menuTrigger(page)).toBeVisible();
   await menuTrigger(page).focus();
   await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "Information", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Settings", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "LeBoncoin bicycle" })).toBeAttached();
@@ -429,6 +431,9 @@ test("QA-SET-F01: focus enters and stays in the dialog while loading, loaded and
   await expect(menuTrigger(page)).toBeFocused();
   api.getError = true;
   await menuTrigger(page).press("Enter");
+  await expect(page.getByRole("menuitem", { name: "Information", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Settings", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Could not load settings")).toBeVisible();
   await expectFocusInDialog(page);
