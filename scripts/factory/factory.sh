@@ -122,7 +122,8 @@ stage_usecases() {
 }
 
 stage_testcases() {
-  run_agent testcases docs
+  # The exact list gate_testcases checks: new requirements and existing ones whose definition line changed.
+  run_agent testcases docs "- Requirements to cover (each must appear in testcases.md): $(requirement_ids | tr '\n' ' ')"
   gate_or_die gate_testcases
   advance techspec "docs(test-cases): test cases for #$ISSUE"
 }
