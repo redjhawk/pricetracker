@@ -2,10 +2,32 @@
 # Installs or updates ARC for this repository. Run where kubectl and helm point at the k3s cluster.
 # Idempotent: keeps the controller, namespaces and secrets that already exist.
 #   deploy/arc/install.sh                  # controller (if missing), arc-dev and arc-build
+#   deploy/arc/install.sh redjhawk@malaga  # same, run on that ssh host
 # Secrets are created only if missing: github-app from GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and
 # GITHUB_APP_KEY_FILE; ghcr-pull (arc-dev image) from GHCR_USER and GHCR_TOKEN (read:packages).
+# With a host, this script, the values files, those variables and the key file are copied to a temporary
+# directory on the host (removed afterwards) and the script runs there in a login shell, so helm and kubectl
+# must work there; the repository does not need to be checked out on the host.
 set -euo pipefail
 dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+[ $# -le 1 ] || { sed -n '4,5p' "$0"; exit 2; }
+if [ $# -eq 1 ]; then
+  bundle="$(mktemp -d)"
+  trap 'rm -rf "$bundle"' EXIT
+  cp "$dir/install.sh" "$dir"/values-*.yaml "$bundle/"
+  : >"$bundle/env"
+  for var in GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID GHCR_USER GHCR_TOKEN; do
+    if [ -n "${!var:-}" ]; then printf 'export %s=%q\n' "$var" "${!var}" >>"$bundle/env"; fi
+  done
+  if [ -n "${GITHUB_APP_KEY_FILE:-}" ]; then
+    cp "$GITHUB_APP_KEY_FILE" "$bundle/github-app.pem"
+    echo 'export GITHUB_APP_KEY_FILE="$PWD/github-app.pem"' >>"$bundle/env"
+  fi
+  remote='set -e; d="$(mktemp -d)"; trap "rm -rf \"$d\"" EXIT; tar -xzf - -C "$d"; cd "$d"; . ./env; bash ./install.sh'
+  tar -czf - -C "$bundle" . | ssh "$1""bash -lc $(printf %q "$remote")"
+  exit
+fi
 version=0.15.1
 charts=oci://ghcr.io/actions/actions-runner-controller-charts
 repo_url=https://github.com/redjhawk/pricetracker
