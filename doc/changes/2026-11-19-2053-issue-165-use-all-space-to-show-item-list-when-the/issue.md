@@ -57,3 +57,7 @@ continue
 @claude 
 continue
 
+### redjhawk at 2026-11-20T20:17:00Z
+
+Ignore les test et créé la pr @claude 
+
