@@ -25,6 +25,10 @@ Conventions:
 | FR-AMZ-HCHK-008 | TC-021, TC-022 |
 | FR-AMZ-HCHK-009 | TC-023, TC-024 |
 | FR-AMZ-HCHK-010 | TC-025, TC-026, TC-027, TC-028, TC-029, TC-030 |
+| FR-AMZ-STOP-001 | TC-006, TC-008 |
+| FR-AMZ-STOP-004 | TC-019, TC-021, TC-022 |
+| FR-AMZ-STOP-008 | TC-018, TC-025 |
+| FR-AMZ-SRCH-DEL-006 | TC-009, TC-011 |
 
 | Use case | Test cases |
 | --- | --- |
@@ -82,7 +86,7 @@ Conventions:
 
 ### TC-006 — Non-success response and challenge page are failures
 
-- Covers: FR-AMZ-HCHK-003
+- Covers: FR-AMZ-HCHK-003, FR-AMZ-STOP-001
 - Level: integration (browser test)
 - Given a fixture server answering, in separate sub-tests, HTTP 503, HTTP 404 for the product page, and HTTP 200 with an Amazon robot-check (captcha) page
 - When the browser collector checks the page
@@ -100,7 +104,7 @@ Conventions:
 
 ### TC-008 — Browser failures keep the last price and stop after 5
 
-- Covers: FR-AMZ-HCHK-003; UC-AMZ-HCHK-001, UC-AMZ-HCHK-003
+- Covers: FR-AMZ-HCHK-003, FR-AMZ-STOP-001; UC-AMZ-HCHK-001, UC-AMZ-HCHK-003
 - Level: integration (SQLite + HTTP)
 - Given two Amazon items with a stored price and a browser collector that always fails
 - When 5 checks fail in a row (mix of scheduled checks and Refresh price)
@@ -111,7 +115,7 @@ Conventions:
 
 ### TC-009 — Two checks per day, one in each window
 
-- Covers: FR-AMZ-HCHK-004; UC-AMZ-HCHK-001
+- Covers: FR-AMZ-HCHK-004, FR-AMZ-SRCH-DEL-006; UC-AMZ-HCHK-001
 - Level: unit
 - Given the schedule function for Amazon items with a seeded random source, starting at 00:00 on a given day
 - When the next check time is computed repeatedly from each previous check time over 7 days
@@ -129,7 +133,7 @@ Conventions:
 
 ### TC-011 — Configured check times no longer apply to Amazon
 
-- Covers: FR-AMZ-HCHK-004
+- Covers: FR-AMZ-HCHK-004, FR-AMZ-SRCH-DEL-006
 - Level: unit
 - Given `PRICEFOLLOWER_CHECK_TIMES` set to `12:00,15:00` and a random source that would otherwise choose 12:00 if allowed
 - When the next check of an Amazon item and of a LeBoncoin item is computed at 10:00
@@ -194,7 +198,7 @@ Conventions:
 
 ### TC-018 — Refresh price at any time does not move the schedule
 
-- Covers: FR-AMZ-HCHK-007; UC-AMZ-HCHK-003
+- Covers: FR-AMZ-HCHK-007, FR-AMZ-STOP-008; UC-AMZ-HCHK-003
 - Level: integration (SQLite + HTTP)
 - Given an Amazon item with `nextCheckAt` at 20:47, a fake clock at 14:00 and a fake collector
 - When `POST /api/v1/items/{id}/refresh` is called
@@ -203,7 +207,7 @@ Conventions:
 
 ### TC-019 — Refresh all prices: immediate, skips stopped items, schedule unchanged
 
-- Covers: FR-AMZ-HCHK-007; UC-AMZ-HCHK-003
+- Covers: FR-AMZ-HCHK-007, FR-AMZ-STOP-004; UC-AMZ-HCHK-003
 - Level: integration (SQLite + HTTP)
 - Given at 14:00 two Amazon items (one stopped) and one LeBoncoin item, each with a stored `nextCheckAt`
 - When Refresh all prices is requested
@@ -223,7 +227,7 @@ Conventions:
 
 ### TC-021 — A stop during a window prevents later scheduled checks
 
-- Covers: FR-AMZ-HCHK-003, FR-AMZ-HCHK-008; UC-AMZ-HCHK-001
+- Covers: FR-AMZ-HCHK-003, FR-AMZ-HCHK-008, FR-AMZ-STOP-004; UC-AMZ-HCHK-001
 - Level: integration (SQLite)
 - Given 7 Amazon items with next checks spread through the morning window, a collector that always fails and a fake clock
 - When the scheduler runs as each time passes
@@ -232,7 +236,7 @@ Conventions:
 
 ### TC-022 — Stopped item skipped at its scheduled time
 
-- Covers: FR-AMZ-HCHK-008; UC-AMZ-HCHK-001
+- Covers: FR-AMZ-HCHK-008, FR-AMZ-STOP-004; UC-AMZ-HCHK-001
 - Level: integration (SQLite)
 - Given one stopped and one active Amazon item, both due at 07:00
 - When the scheduler runs at 07:01
@@ -261,7 +265,7 @@ Conventions:
 
 ### TC-025 — Stopped items are restarted on first start
 
-- Covers: FR-AMZ-HCHK-010; UC-AMZ-HCHK-004
+- Covers: FR-AMZ-HCHK-010, FR-AMZ-STOP-008; UC-AMZ-HCHK-004
 - Level: integration (SQLite)
 - Given a database in the state before this change with 3 Amazon items stopped on 20 Nov 2026 07:26 UTC, a consecutive failure count of 5 and price histories, plus one LeBoncoin item
 - When the store is opened (migrations run) and the service starts
