@@ -31,3 +31,10 @@ continue
 
 @claude  continue please
 
+### redjhawk at 2026-11-20T19:48:04Z
+
+1. between 6 et 9 et 19-23h
+2. no. amazon only. leboncoin is running fine now
+3. C
+4.b 
+
