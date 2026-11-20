@@ -91,13 +91,19 @@ stop_for_user() { # stop_for_user <label> <message for the issue>
   exit 0
 }
 
-gate_or_die() { # gate_or_die <gate function>
+# Gate output for humans: the Vite dev server's own log lines (proxy errors while Playwright runs
+# without a backend) are noise that hides the result.
+gate_log() { grep -v '^\[WebServer\]' || true; }
+
+gate_or_die() { # gate_or_die <gate function>; a gate prints its reason as its last line
   local out
   if ! out=$("$1" 2>&1); then
     printf '%s\n' "$out" >&2
-    stop_for_user needs-input "The \`$1\` gate failed after the agent finished:
+    stop_for_user needs-input "The \`$1\` gate failed after the agent finished: **$(tail -1 <<<"$out")**
+
+Last lines of its output:
 \`\`\`
-$(tail -30 <<<"$out")
+$(gate_log <<<"$out" | tail -30)
 \`\`\`"
   fi
 }
@@ -135,9 +141,35 @@ stage_techspec() {
 }
 
 stage_tests() {
+  prepare_tests
   run_agent tests code
   gate_or_die gate_red
+  rm -f "$CHANGE_DIR/test-problem.md" # answered by this stage
   advance implement "test: failing tests for #$ISSUE (TDD red)"
+}
+
+# The red gate needs the code without this change. Bring in the base branch, so the tests are written
+# against current code (including test fixes made there), and drop any implementation left on the branch:
+# a test problem sends the change back here after the developer has written code, and with that code
+# the new tests would pass and the red gate could never succeed. The tests stage writes its stubs anew.
+prepare_tests() {
+  local out p
+  if ! out=$(git merge --no-edit "origin/$BASE_BRANCH" 2>&1); then
+    git merge --abort >/dev/null 2>&1 || true
+    stop_for_user needs-human "Merging \`$BASE_BRANCH\` into \`$BRANCH\` before writing the tests failed:
+\`\`\`
+$(tail -30 <<<"$out")
+\`\`\`
+Resolve it on the branch and run the factory again."
+  fi
+  for p in $(production_paths); do
+    if git cat-file -e "origin/$BASE_BRANCH:$p" 2>/dev/null; then
+      git checkout -q "origin/$BASE_BRANCH" -- "$p"
+    else
+      git rm -q -f --ignore-unmatch -- "$p"; rm -f -- "$p"
+    fi
+    log "tests stage: $p reset to $BASE_BRANCH"
+  done
 }
 
 stage_implement() {
@@ -171,7 +203,7 @@ The next run rewrites the tests (stage \`tests\`)."
       advance pr "feat: implement #$ISSUE (round $(state_get round))"
       return
     fi
-    printf '%s\n' "$out" | tail -60 >"$LOG_DIR/green-gate.txt"
+    gate_log <<<"$out" | tail -60 >"$LOG_DIR/green-gate.txt"
     feedback="The previous attempt failed the green gate (locked tests unchanged + go vet, go test, npm run build, playwright). Its output:
 \`\`\`
 $(cat "$LOG_DIR/green-gate.txt")
