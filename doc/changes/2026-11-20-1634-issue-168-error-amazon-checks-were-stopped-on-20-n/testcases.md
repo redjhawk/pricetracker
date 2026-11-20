@@ -17,7 +17,7 @@ Conventions:
 | --- | --- |
 | FR-AMZ-HCHK-001 | TC-001, TC-002, TC-003, TC-020 |
 | FR-AMZ-HCHK-002 | TC-004, TC-005, TC-020 |
-| FR-AMZ-HCHK-003 | TC-006, TC-007, TC-008, TC-021 |
+| FR-AMZ-HCHK-003 | TC-006, TC-007, TC-008, TC-017, TC-021 |
 | FR-AMZ-HCHK-004 | TC-009, TC-010, TC-011, TC-012, TC-013, TC-020 |
 | FR-AMZ-HCHK-005 | TC-014, TC-015 |
 | FR-AMZ-HCHK-006 | TC-016, TC-017 |
@@ -30,7 +30,7 @@ Conventions:
 | --- | --- |
 | UC-AMZ-HCHK-001 | TC-001–TC-015, TC-020–TC-024, TC-031, TC-032 |
 | UC-AMZ-HCHK-002 | TC-001, TC-004, TC-016, TC-017 |
-| UC-AMZ-HCHK-003 | TC-001, TC-004, TC-018, TC-019 |
+| UC-AMZ-HCHK-003 | TC-001, TC-004, TC-008, TC-018, TC-019 |
 | UC-AMZ-HCHK-004 | TC-025–TC-030 |
 
 ## Real browser requests
@@ -92,19 +92,19 @@ Conventions:
 ### TC-007 — Network error, timeout and browser start failure are failures
 
 - Covers: FR-AMZ-HCHK-003
-- Level: unit
-- Given a browser collector whose page load fails with: connection refused (closed port), a page that never finishes loading (short test timeout), and a browser engine that cannot start (stub launcher returns an error)
+- Level: integration (browser test)
+- Given a browser collector whose page load fails with: connection refused (closed port), a fixture page that never finishes loading (short test timeout), and a browser engine that cannot start (stub launcher returns an error)
 - When an Amazon item is checked
 - Then each case returns a failure result without panicking, the check ends (no goroutine or browser process left running after the test), and the in-flight marker of the item is released
 - Corner cases: a context cancelled during the page load ends the check promptly.
 
 ### TC-008 — Browser failures keep the last price and stop after 5
 
-- Covers: FR-AMZ-HCHK-003
+- Covers: FR-AMZ-HCHK-003; UC-AMZ-HCHK-001, UC-AMZ-HCHK-003
 - Level: integration (SQLite + HTTP)
 - Given two Amazon items with a stored price and a browser collector that always fails
 - When 5 checks fail in a row (mix of scheduled checks and Refresh price)
-- Then after failures 1–4 the items are not stopped and keep their last successful price; after the 5th failure both items have a non-null `amazonStoppedAt` in `GET /api/v1/items` and each failure was logged
+- Then after failures 1–4 the items are not stopped and keep their last successful price, and a failed Refresh price is reported as failed by the item's refresh status; after the 5th failure both items have a non-null `amazonStoppedAt` in `GET /api/v1/items` and each failure was logged
 - Corner cases: a success after 4 failures resets the count, so 4 more failures do not stop the items.
 
 ## Random schedule
@@ -122,9 +122,9 @@ Conventions:
 
 - Covers: FR-AMZ-HCHK-004
 - Level: unit
-- Given the same item and the real (non-constant) random source
+- Given one Amazon item and a seeded random source
 - When the morning and evening times are drawn for 7 consecutive days
-- Then the 7 morning times are not all equal and the 7 evening times are not all equal (the test uses a seed for determinism and a second assertion with a constant-returning source proves the time is taken from the random source, not from a fixed slot)
+- Then the 7 morning times are not all equal and the 7 evening times are not all equal; with a stub source returning a different value each day, the drawn time moves with the returned value (the time comes from the random source, not from a fixed slot)
 - Corner cases: times have minute (or finer) resolution, not only whole hours.
 
 ### TC-011 — Configured check times no longer apply to Amazon
@@ -185,7 +185,7 @@ Conventions:
 
 ### TC-017 — Failed first check keeps the schedule
 
-- Covers: FR-AMZ-HCHK-006; UC-AMZ-HCHK-002
+- Covers: FR-AMZ-HCHK-003, FR-AMZ-HCHK-006; UC-AMZ-HCHK-002
 - Level: integration (SQLite + HTTP)
 - Given a fake clock at 14:00 and a collector that fails
 - When an Amazon item is added
@@ -199,7 +199,7 @@ Conventions:
 - Given an Amazon item with `nextCheckAt` at 20:47, a fake clock at 14:00 and a fake collector
 - When `POST /api/v1/items/{id}/refresh` is called
 - Then the response is `202`, the collector is called at once, the item shows the refresh in progress while it runs, and after it finishes `nextCheckAt` is still 20:47
-- Corner cases: a second refresh while the first is running starts nothing and makes no second collector call; Refresh price on a stopped Amazon item still checks it (existing FR-AMZ-STOP-006 behaviour) and keeps its `nextCheckAt`.
+- Corner cases: a second refresh while the first is running starts nothing and makes no second collector call; Refresh price on a stopped Amazon item still checks it, restarts it on an Amazon answer (existing FR-AMZ-STOP-006 behaviour) and keeps its `nextCheckAt`.
 
 ### TC-019 — Refresh all prices: immediate, skips stopped items, schedule unchanged
 
