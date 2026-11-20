@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
 
 // FR-RESPONSIVE-001..013 (issue #140) and 014..024 (issue #165). Synthetic data only.
 const timestamp = "2026-11-10T08:00:00Z";
@@ -66,6 +66,11 @@ const itemDetails = {
   [leboncoin.id]: { ...leboncoin, aiReview: { ...aiReview, history: [review, olderReview] } },
 };
 
+// Requests held by "hold" replies. Unrouting resumes paused requests to the network, which
+// the dev server would proxy to a backend that is not running, so abort them first.
+const heldRoutes: Route[] = [];
+test.afterEach(() => abortHeldRoutes());
+
 type MockOptions = {
   session?: unknown;
   items?: unknown[];
@@ -74,6 +79,14 @@ type MockOptions = {
   itemReply?: "hold";
   users?: unknown[];
 };
+
+function hold(route: Route) {
+  heldRoutes.push(route);
+}
+
+async function abortHeldRoutes() {
+  await Promise.all(heldRoutes.splice(0).map((route) => route.abort().catch(() => {})));
+}
 
 async function mockApi(context: BrowserContext, options: MockOptions = {}) {
   await context.addInitScript(layoutProbe);
@@ -88,14 +101,14 @@ async function mockApi(context: BrowserContext, options: MockOptions = {}) {
     }
     if (path === "/api/v1/items") {
       // "hold" never answers, so the page stays in its loading state.
-      if (options.itemsReply === "hold") return new Promise<void>(() => {});
+      if (options.itemsReply === "hold") return hold(route);
       if (options.itemsReply === "error") {
         return route.fulfill({ status: 500, json: { error: { code: "INTERNAL", message: "The tracked items could not be loaded." } } });
       }
       return route.fulfill({ json: { items: options.items ?? [amazon, leboncoin] } });
     }
     if (path.startsWith("/api/v1/items/")) {
-      if (options.itemReply === "hold") return new Promise<void>(() => {});
+      if (options.itemReply === "hold") return hold(route);
       const detail = options.itemDetails?.[decodeURIComponent(path.slice("/api/v1/items/".length))];
       if (detail) return route.fulfill({ json: detail });
     }
@@ -858,6 +871,7 @@ for (const state of [
       await scanPage(page);
       await expectNoHorizontalScroll(page);
     }
+    await abortHeldRoutes();
     await context.unrouteAll({ behavior: "ignoreErrors" });
   });
 }
@@ -924,6 +938,7 @@ test("TC-009 item details loading state uses the full width", async ({ page, con
   expect((await boxGaps(loading.locator(".cds--inline-loading__animation"))).left, "loading spinner left gap").toBeLessThanOrEqual(GUTTER);
   await scanPage(page);
   await expectNoHorizontalScroll(page);
+  await abortHeldRoutes();
   await context.unrouteAll({ behavior: "ignoreErrors" });
 });
 
