@@ -34,6 +34,11 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$ISSUE" ] || usage
 for cmd in claude gh git jq go npm; do command -v "$cmd" >/dev/null || die "$cmd is required"; done
+# On Linux the Bash tool of the agents runs in Claude Code's sandbox, which needs bubblewrap and socat;
+# without them no agent can run a test or a build, so the run stops before changing any stage.
+if [ "$(uname -s)" = Linux ]; then
+  for cmd in bwrap socat; do command -v "$cmd" >/dev/null || die "$cmd is required by the Claude Code sandbox (runner image: deploy/arc/Dockerfile.dev)"; done
+fi
 
 MODEL=${FACTORY_MODEL:-claude-opus-5-5}
 EFFORT=${FACTORY_EFFORT:-high}
@@ -140,6 +145,16 @@ stage_implement() {
   for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
     run_agent implement code "- Attempt $attempt of $MAX_ATTEMPTS
 $feedback"
+    if [ -s "$CHANGE_DIR/blocked.md" ]; then
+      # Not a test of this change: the environment or the base branch. Stay at implement.
+      local blocked; blocked=$(cat "$CHANGE_DIR/blocked.md")
+      rm -f "$CHANGE_DIR/blocked.md"
+      stop_for_user blocked "The developer cannot finish for a reason outside this change:
+
+$blocked
+
+Fix it (on the runner or on \`$BASE_BRANCH\`) and run the factory again: it resumes at \`implement\` with the same tests."
+    fi
     if [ -s "$CHANGE_DIR/test-problem.md" ]; then
       # A locked test is wrong: back to the test stage once the user has answered
       rm -f "$CHANGE_DIR/tests.lock"
