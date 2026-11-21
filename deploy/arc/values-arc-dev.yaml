@@ -10,7 +10,7 @@ template:
     imagePullSecrets: [{name: ghcr-pull}]
     containers:
       - name: runner
-        image: ghcr.io/redjhawk/arc-runner-dev:3
+        image: ghcr.io/redjhawk/arc-runner-dev:4
         imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         resources:
