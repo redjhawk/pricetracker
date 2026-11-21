@@ -23,7 +23,7 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-009 | HCHK-009 | `next_check_at` stays durable and is advanced before the check (existing). A due Amazon item found outside its window (+15 min grace), or already being checked, is redrawn for the next window without a request | `internal/service/service.go`, `internal/service/amazon_schedule.go` |
 | TS-AMZ-HCHK-010 | HCHK-010 | One-time store migration guarded by `amazon_request_state.human_checks_restarted`: clears every Amazon stop, resets the count when it restarted items, sets their `next_check_at = NULL`; `service.New` draws a window time for Amazon items with a `NULL` next check | `internal/store/amazon_requests.go`, `internal/store/store.go`, `internal/service/service.go` |
 | TS-AMZ-HCHK-011 | all (testability) | `service.NewWithOptions` (collector, clock, random source, scheduler pause) and `s.now()` in the scheduling/recording paths of `service.go` | `internal/service/service.go` |
-| TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement | `internal/amazon/browser.go`, `internal/service/service.go`, `README.md` |
+| TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
 ## Backend
 
@@ -132,7 +132,7 @@ Tests simulate a pre-change database by opening the store, inserting and stoppin
 ## Configuration and documentation (TS-AMZ-HCHK-012)
 
 - `PRICEFOLLOWER_BROWSER_PATH` (optional) is read by `amazon.FindBrowser`, the same lookup the test helper `amazontest.Browser` starts with; `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true` (default false) is read where the service builds the default collector. `config.Config` is not changed. The path is not checked at start-up (a missing browser must not stop the application; only a log line is written).
-- `README.md`: Amazon checks need Chromium or Google Chrome on the server (for example `apt install chromium`), the two variables, the profile directory `<data dir>/amazon-browser`, the Amazon windows (twice a day at random times, 06:00–09:00 and 19:00–23:00) while LeBoncoin keeps `PRICEFOLLOWER_CHECK_TIMES`, and that browser tests need a Chromium (`npx playwright install chromium` is found automatically). `deploy/README.md` is not changed (sensitive path).
+- `README.md`: Amazon checks need Chromium or Google Chrome on the server (for example `apt install chromium`), the two variables, the profile directory `<data dir>/amazon-browser`, the Amazon windows (twice a day at random times, 06:00–09:00 and 19:00–23:00) while LeBoncoin keeps `PRICEFOLLOWER_CHECK_TIMES`, and that browser tests need a Chromium (`npx playwright install chromium` is found automatically). Deferred to a separate PR (decision by redjhawk on 2026-11-21, issue #168); not part of this change. `deploy/README.md` is not changed (sensitive path).
 
 ## Frontend
 

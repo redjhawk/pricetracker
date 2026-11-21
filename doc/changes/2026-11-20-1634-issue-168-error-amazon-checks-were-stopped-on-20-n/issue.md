@@ -73,3 +73,13 @@ There is a fix on master @claude
 
 @claude try again 
 
+### redjhawk at 2026-11-21T22:02:13Z
+
+@claude Fixed on master (#178) and merged into `ai-dev/issue-168` (615b295):
+
+- The responsive-layout 320px/360px tests failed because the Carbon spacing tokens were not declared on `:root`. They are now; `npx playwright test` passes 84/84 on this branch.
+- `internal/service/settings.go` is gofmt-ed. The only remaining `gofmt -l .` entry is the locked test `internal/amazon/browser_test.go`; leave it as is, it is not a blocker for this stage.
+- The README text from TS-AMZ-HCHK-012 can be added later in a separate PR; it is not a blocker.
+
+Continue the implement stage.
+
