@@ -15,7 +15,7 @@ dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [ $# -eq 1 ]; then
   bundle="$(mktemp -d)"
   trap 'rm -rf "$bundle"' EXIT
-  cp "$dir/install.sh" "$dir"/values-*.yaml "$dir/claude-settings.json" "$bundle/"
+  cp "$dir/install.sh" "$dir"/values-*.yaml "$bundle/"
   : >"$bundle/env"
   for var in GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID GHCR_USER GHCR_TOKEN; do
     if [ -n "${!var:-}" ]; then printf 'export %s=%q\n' "$var" "${!var}" >>"$bundle/env"; fi
@@ -54,14 +54,15 @@ for set in arc-dev arc-build; do
     kubectl create secret docker-registry ghcr-pull --namespace arc-dev \
       --docker-server=ghcr.io --docker-username="$GHCR_USER" --docker-password="$GHCR_TOKEN"
   fi
-  if [ "$set" = arc-dev ]; then
-    kubectl create configmap claude-code-settings --namespace arc-dev \
-      --from-file=settings.json="$dir/claude-settings.json" --dry-run=client -o yaml | kubectl apply -f -
-  fi
   helm upgrade --install "$set" --namespace "$set" --version "$version" \
     --set githubConfigUrl="$repo_url" --set githubConfigSecret=github-app \
     -f "$dir/values-$set.yaml" \
     "$charts/gha-runner-scale-set"
+  # Left by an earlier version that set sandbox.enableWeakerNestedSandbox, which Claude Code ignores under
+  # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB; deleted after the upgrade so no runner pod still mounts it.
+  if [ "$set" = arc-dev ]; then
+    kubectl delete configmap claude-code-settings --namespace arc-dev --ignore-not-found
+  fi
 done
 
 kubectl get pods -n arc-systems

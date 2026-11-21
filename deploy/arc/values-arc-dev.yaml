@@ -8,23 +8,18 @@ template:
     # Private package ghcr.io/redjhawk/arc-runner-dev, pushed by deploy/arc/build-image.sh <tag>;
     # pulled with the ghcr-pull secret that install.sh creates.
     imagePullSecrets: [{name: ghcr-pull}]
+    # Own user namespace, so the container can mount an unmasked /proc: bubblewrap (Claude Code's Bash
+    # sandbox) mounts a fresh procfs for each command. Root in the pod is an unprivileged user on the host.
+    hostUsers: false
     containers:
       - name: runner
         image: ghcr.io/redjhawk/arc-runner-dev:4
         imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         securityContext:
+          procMount: Unmasked # only allowed with hostUsers: false
           appArmorProfile:
-            type: Unconfined
-        volumeMounts:
-          - name: claude-settings
-            mountPath: /home/runner/.claude/settings.json
-            subPath: settings.json
-            readOnly: true
+            type: Unconfined # the runtime's default profile denies the mounts bubblewrap makes
         resources:
           requests: {cpu: "2", memory: 4Gi}
           limits: {memory: 8Gi}
-    volumes:
-      - name: claude-settings
-        configMap:
-          name: claude-code-settings
