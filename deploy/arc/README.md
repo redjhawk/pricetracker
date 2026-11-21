@@ -19,8 +19,10 @@ pulls it with a Kubernetes secret.
   with `write:packages` to push the image, and one with only `read:packages` that the cluster keeps to pull it.
 - On the machine that builds the image: Docker, logged in to ghcr.io with the `write:packages` token:
   `echo "$TOKEN" | docker login ghcr.io -u redjhawk --password-stdin`.
-- Where `helm` and `kubectl` reach the cluster: this repository checked out. The first run of `install.sh` also needs
-  the variables for the secrets that do not exist yet:
+- `helm` and `kubectl` reaching the cluster, either on this machine or on a host you can `ssh` into (`malaga`):
+  with the host as argument (`install.sh redjhawk@malaga`), it copies itself, the values files and the secrets there and runs in a
+  login shell (`bash -l`, so `PATH` and `KUBECONFIG` must be set in `~/.profile` or `~/.bash_profile`). The first run
+  of `install.sh` also needs the variables for the secrets that do not exist yet:
   - `ghcr-pull` (arc-dev): `GHCR_USER=redjhawk` and `GHCR_TOKEN`, a classic token with only `read:packages`.
   - `github-app` (each scale set): `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_KEY_FILE`.
 
@@ -31,12 +33,14 @@ pulls it with a Kubernetes secret.
    deploy/arc/build-image.sh 1
    ```
    The package stays private. The script refuses a tag that already exists.
-2. **Install or update the scale sets** (where `helm` reaches the cluster):
+2. **Install or update the scale sets** (from this machine, run on `malaga` over ssh; drop the host to run where
+   you are):
    ```sh
    GHCR_USER=redjhawk GHCR_TOKEN=... \
    GITHUB_APP_ID=... GITHUB_APP_INSTALLATION_ID=... GITHUB_APP_KEY_FILE=clave.pem \
-     deploy/arc/install.sh
+     deploy/arc/install.sh redjhawk@malaga
    ```
+   Once the secrets exist, later updates need only `deploy/arc/install.sh redjhawk@malaga`.
    It installs the controller only if missing, creates the namespaces and secrets only if missing, installs or
    upgrades `arc-dev` and `arc-build`.
 3. **Check:**
@@ -53,7 +57,7 @@ pulls it with a Kubernetes secret.
 ## Changing the runner image
 
 Edit `Dockerfile.dev`, build with a new tag (`build-image.sh 2`), set that tag in
-[`values-arc-dev.yaml`](values-arc-dev.yaml) and run `install.sh` again. Idle runners scale to zero, so the next
+[`values-arc-dev.yaml`](values-arc-dev.yaml) and run `deploy/arc/install.sh redjhawk@malaga` again. Idle runners scale to zero, so the next
 job starts with the new image. Never reuse a tag: with `imagePullPolicy: IfNotPresent` the node keeps the image it
 already pulled under that tag.
 

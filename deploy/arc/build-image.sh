@@ -13,4 +13,4 @@ if docker manifest inspect "$image" >/dev/null 2>&1; then
 fi
 docker build --platform linux/amd64 -f "$dir/Dockerfile.dev" -t "$image" "$dir"
 docker push "$image"
-echo "Pushed $image. Set it in deploy/arc/values-arc-dev.yaml and run deploy/arc/install.sh."
+echo "Pushed $image. Set it in deploy/arc/values-arc-dev.yaml and run deploy/arc/install.sh redjhawk@malaga."
