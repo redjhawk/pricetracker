@@ -18,7 +18,8 @@ template:
             type: Unconfined
         volumeMounts:
           - name: claude-settings
-            mountPath: /home/runner/.claude
+            mountPath: /home/runner/.claude/settings.json
+            subPath: settings.json
             readOnly: true
         resources:
           requests: {cpu: "2", memory: 4Gi}
