@@ -287,7 +287,7 @@ Conventions:
 - Level: integration (SQLite)
 - Given a database with no stopped Amazon item (and one with no item at all)
 - When the store is opened for the first time after the change
-- Then nothing is changed, and after a later stop and a reopen the stopped item stays stopped (the restart is recorded as done)
+- Then opening the store changes nothing (the Amazon items' pre-change next checks are redrawn once by the service start), and after a later stop and a reopen the stopped item stays stopped (the restart is recorded as done)
 - Corner cases: a fresh empty database created after the change never restarts later stops.
 
 ### TC-028 — Protected mode restarts every owner's items

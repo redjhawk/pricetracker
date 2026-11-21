@@ -28,14 +28,16 @@ func nextAmazonCheckAt(after time.Time, location *time.Location, random func(int
 	return after.Add(24 * time.Hour).UTC() // not reached: a window starts every day
 }
 
-// inAmazonWindow reports whether t is inside an Amazon window of its day, grace included.
-func inAmazonWindow(t time.Time, location *time.Location) bool {
-	local := t.In(location)
+// inDueAmazonWindow reports whether now is inside the Amazon window that a check due at dueAt (not
+// after now) was due in: the window of now's day containing now, grace included, started at or
+// before dueAt.
+func inDueAmazonWindow(dueAt, now time.Time, location *time.Location) bool {
+	local := now.In(location)
 	for _, window := range amazonWindows {
 		start := atLocalMinute(local, 0, window.start, location)
 		end := atLocalMinute(local, 0, window.end, location).Add(amazonWindowGrace)
-		if !t.Before(start) && !t.After(end) {
-			return true
+		if !now.Before(start) && !now.After(end) {
+			return !dueAt.Before(start)
 		}
 	}
 	return false

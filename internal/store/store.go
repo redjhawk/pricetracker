@@ -781,20 +781,41 @@ func (s *Store) ItemRefs(ctx context.Context, ownerID int64) ([]ItemRef, error) 
 }
 
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE tracked = 1 AND amazon_stopped_at IS NULL AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
+	checks, err := s.DueChecks(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(checks))
+	for _, check := range checks {
+		ids = append(ids, check.ID)
+	}
+	return ids, nil
+}
+
+// DueCheck is a due scheduled check: the item and the time it was due at.
+type DueCheck struct {
+	ID    string
+	DueAt time.Time
+}
+
+// DueChecks returns the due checks of the tracked items that are not stopped, oldest first.
+func (s *Store) DueChecks(ctx context.Context, now time.Time) ([]DueCheck, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, next_check_at FROM items WHERE tracked = 1 AND amazon_stopped_at IS NULL AND next_check_at IS NOT NULL AND next_check_at <= ? ORDER BY next_check_at ASC", now.UTC().Format(timestampLayout))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	ids := make([]string, 0)
+	checks := make([]DueCheck, 0)
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var check DueCheck
+		var dueAt string
+		if err := rows.Scan(&check.ID, &dueAt); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		check.DueAt = parseTimestamp(dueAt)
+		checks = append(checks, check)
 	}
-	return ids, rows.Err()
+	return checks, rows.Err()
 }
 
 func (s *Store) Listing(ctx context.Context, id string) (model.Listing, error) {

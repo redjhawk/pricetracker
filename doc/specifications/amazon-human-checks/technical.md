@@ -20,8 +20,8 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-006 | HCHK-006 | `Add` stores `nextAmazonCheckAt(now)` for an Amazon item; the immediate first check is unchanged | `internal/service/service.go` |
 | TS-AMZ-HCHK-007 | HCHK-007, STOP-008 | `RefreshItem` and `RefreshAll` no longer write `next_check_at` of Amazon items (LeBoncoin unchanged); stopped items still skipped by Refresh all | `internal/service/service.go` |
 | TS-AMZ-HCHK-008 | HCHK-008, STOP-004 | Unchanged mechanism kept: `DueIDs` excludes stopped items and the gate re-reads the stop under its lock before each request, so a stop in a window prevents the remaining checks | `internal/store/store.go` |
-| TS-AMZ-HCHK-009 | HCHK-009 | `next_check_at` stays durable and is advanced before the check (existing). A due Amazon item found outside its window (+15 min grace), or already being checked, is redrawn for the next window without a request | `internal/service/service.go`, `internal/service/amazon_schedule.go` |
-| TS-AMZ-HCHK-010 | HCHK-010 | One-time store migration guarded by `amazon_request_state.human_checks_restarted`: clears every Amazon stop, resets the count when it restarted items, sets their `next_check_at = NULL`; `service.New` draws a window time for Amazon items with a `NULL` next check | `internal/store/amazon_requests.go`, `internal/store/store.go`, `internal/service/service.go` |
+| TS-AMZ-HCHK-009 | HCHK-009 | `next_check_at` stays durable and is advanced before the check (existing). A due Amazon item found outside the window it was due in (+15 min grace), or already being checked, is redrawn for the next window without a request | `internal/service/service.go`, `internal/service/amazon_schedule.go`, `internal/store/store.go` |
+| TS-AMZ-HCHK-010 | HCHK-010 | One-time store migration guarded by `amazon_request_state.human_checks_restarted`: clears every Amazon stop, resets the count when it restarted items, sets their `next_check_at = NULL` and marks the other Amazon items' pre-change check times for one redraw (`human_checks_redraw`); `service.New` draws a window time for Amazon items with a `NULL` next check and, once, for every marked item | `internal/store/amazon_requests.go`, `internal/store/store.go`, `internal/service/service.go` |
 | TS-AMZ-HCHK-011 | all (testability) | `service.NewWithOptions` (collector, clock, random source, scheduler pause) and `s.now()` in the scheduling/recording paths of `service.go` | `internal/service/service.go` |
 | TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
@@ -95,7 +95,7 @@ Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`,
 var amazonWindows = []struct{ start, end int }{{6 * 60, 9 * 60}, {19 * 60, 23 * 60}} // local minutes
 const amazonWindowGrace = 15 * time.Minute
 func nextAmazonCheckAt(after time.Time, location *time.Location, random func(int64) int64) time.Time
-func inAmazonWindow(t time.Time, location *time.Location) bool // [start, end + grace]
+func inDueAmazonWindow(dueAt, now time.Time, location *time.Location) bool // now in [start, end + grace] of a window with start <= dueAt
 func (s *Service) nextCheckAt(platform string, after time.Time) time.Time // amazon → nextAmazonCheckAt, else NextCheckAt
 ```
 
@@ -104,10 +104,10 @@ func (s *Service) nextCheckAt(platform string, after time.Time) time.Time // ama
 - `NextCheckAt` (fixed `CheckTimes`) is kept for LeBoncoin and the development seed.
 - `Add`: `Insert(..., s.nextCheckAt(platform, s.now()))`.
 - `RefreshItem`: `SetNextCheck` only for non-Amazon items (the platform comes from the `ownedListing` it already loads). `RefreshAll`: `SetNextChecks` with the non-Amazon IDs only; the platform and stop come from `store.ItemRefs(ctx, owner) ([]store.ItemRef{ID, Platform, Stopped}, error)`, which replaces `IDs` and the per-item `AmazonStopped` queries (same order and filter). Response and queueing unchanged.
-- `collectDue` keeps `store.DueIDs` (unchanged filter and order: tracked, not stopped, `next_check_at <= now`) and reads each due item's platform with `store.Listing` (a deleted item is skipped). The in-flight and window rules below are in `skipScheduledCheck`. Per item, in order:
+- `collectDue` uses `store.DueChecks(ctx, now) ([]store.DueCheck{ID, DueAt}, error)` (the `DueIDs` filter and order: tracked, not stopped, `next_check_at <= now`, plus the due time; `DueIDs` now wraps it) and reads each due item's platform with `store.Listing` (a deleted item is skipped). The in-flight and window rules below are in `skipScheduledCheck(ctx, item, dueAt)`. Per item, in order:
   - LeBoncoin: unchanged (skip if in flight; pause between checks; `SetNextCheck(NextCheckAt(now))`; `Collect`).
   - Amazon in flight (refresh or first check running): `SetNextCheck(nextAmazonCheckAt(now))`, no request — the running check covers this window (TC-032).
-  - Amazon with `!inAmazonWindow(now)` (missed while the application was down or delayed past the window end + 15 min): `SetNextCheck(nextAmazonCheckAt(now))`, log `scheduled Amazon check of item <id> missed its window; next check <time>`, no request. Grace reason: 30 s ticker, 5–60 s pauses and gate queueing must not drop a check due at 08:59.
+  - Amazon with `!inDueAmazonWindow(dueAt, now)`: `now` is outside every window (+ 15 min grace), or inside a window that started after `dueAt` (the check was due in an earlier window, missed while the application was down, e.g. due 08:30 and started at 19:05, or due days ago). `SetNextCheck(nextAmazonCheckAt(now))`, log `scheduled Amazon check of item <id> missed its window; next check <time>`, no request. So a start-up pass never sends the overdue checks of earlier windows back to back. Grace reason: 30 s ticker, 5–60 s pauses and gate queueing must not drop a check due at 08:59.
   - Otherwise: pause if a check already ran in this pass (`SchedulePause`), `SetNextCheck(nextAmazonCheckAt(now))` before the request (restart-safe, FR-HCHK-009), then `Collect` (non-manual; the gate skips an item stopped meanwhile).
 - Restart (FR-HCHK-009): nothing is redrawn at start for items that have a time; a stored future time is kept, a check already made has already moved the time to the next window.
 
@@ -115,16 +115,16 @@ func (s *Service) nextCheckAt(platform string, after time.Time) time.Time // ama
 
 Store, at the end of `createAmazonRequestSchema` (after `convertGlobalAmazonStop`, so a pre-#111 global stop is converted then restarted):
 
-1. `ensureColumn(amazon_request_state, human_checks_restarted, "INTEGER NOT NULL DEFAULT 0")`.
-2. `restartAmazonItemsOnce`: one transaction; if `human_checks_restarted = 1` return; `UPDATE items SET amazon_stopped_at = NULL, next_check_at = NULL WHERE platform = 'amazon' AND amazon_stopped_at IS NOT NULL` (all owners); if rows were affected, `consecutive_failures = 0`; set `human_checks_restarted = 1`; log `restarted <n> stopped Amazon items once (issue #168)` when n > 0. Price observations, attempts and second-hand data are not touched.
+1. `ensureColumn(amazon_request_state, human_checks_restarted, "INTEGER NOT NULL DEFAULT 0")` and `ensureColumn(amazon_request_state, human_checks_redraw, "INTEGER NOT NULL DEFAULT 0")`.
+2. `restartAmazonItemsOnce`: one transaction; if `human_checks_restarted = 1` return; `UPDATE items SET amazon_stopped_at = NULL, next_check_at = NULL WHERE platform = 'amazon' AND amazon_stopped_at IS NOT NULL` (all owners); if rows were affected, `consecutive_failures = 0`; set `human_checks_redraw = 1` if an Amazon item still has a `next_check_at` (the not-stopped items keep the configured check time written before the change, the same instant for all of them); set `human_checks_restarted = 1`; log `restarted <n> stopped Amazon items once (issue #168)` when n > 0. Price observations, attempts and second-hand data are not touched, and opening the store changes no `next_check_at` of a not-stopped item (TC-027).
 
-A fresh database gets the marker at its first open, so later stops are never cleared by a restart. Service: `New` calls `store.UnscheduledAmazonIDs(ctx)` (Amazon, `next_check_at IS NULL`) and sets `nextAmazonCheckAt(now)` for each (errors logged). The restarted items are therefore checked at their next window time, not at start-up.
+A fresh database gets the marker at its first open (with no item, so no redraw mark), so later stops are never cleared by a restart. Service: `New` calls `store.AmazonIDsToSchedule(ctx)` (Amazon items with `next_check_at IS NULL`, or every Amazon item while `human_checks_redraw = 1`), sets its own `nextAmazonCheckAt(now)` for each, then `store.ClearAmazonRedraw(ctx)`; on a save error it logs and keeps the mark, so the next start redraws again. Every Amazon item therefore gets its own draw at the first start after the upgrade, and the restarted items are checked at their next window time, not at start-up.
 
 Tests simulate a pre-change database by opening the store, inserting and stopping items, closing it, running `ALTER TABLE amazon_request_state DROP COLUMN human_checks_restarted` on the file, and reopening.
 
 ### Concurrency and persistence summary
 
-- No new table; one new column (`amazon_request_state.human_checks_restarted`). No transaction is held during a browser check.
+- No new table; two new columns (`amazon_request_state.human_checks_restarted`, `amazon_request_state.human_checks_redraw`). No transaction is held during a browser check.
 - Amazon traffic stays serialized by the gate; `BrowserCollector.mu` additionally guarantees one Chromium per profile directory.
 - `Options.Random` must be goroutine-safe (Add, Refresh and the scheduler can draw concurrently); tests wrap a seeded `rand.Rand` in a mutex.
 - Shutdown cancels `workerContext`/scheduler context, which ends the CDP calls and kills the browser process group.
@@ -158,7 +158,7 @@ Browser tests use a Chromium found by `internal/amazon/amazontest.Browser(t)` (`
 | TC-026, TC-027, TC-028 | `internal/store/amazon_human_checks_test.go` (TC-028 window part in `internal/service/amazon_human_checks_test.go`) |
 | TC-030 | `tests/platform-tabs.spec.ts` |
 
-Existing tests keep compiling and passing: `internal/amazon/collector_test.go` tests `productPrice`, which stays; no existing test uses `store.IDs`, `amazon.NewCollector` or Refresh moving Amazon `next_check_at`; `store.DueIDs` (used by `internal/store/amazon_requests_test.go`) is unchanged.
+Existing tests keep compiling and passing: `internal/amazon/collector_test.go` tests `productPrice`, which stays; no existing test uses `store.IDs`, `amazon.NewCollector` or Refresh moving Amazon `next_check_at`; `store.DueIDs` (used by `internal/store/amazon_requests_test.go`) keeps its signature and result.
 
 ## Scope and refactoring
 

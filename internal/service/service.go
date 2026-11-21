@@ -84,7 +84,7 @@ type Options struct {
 }
 
 // NewWithOptions is New with replaced dependencies. Amazon items without a next check (restarted
-// once by the store, issue #168) get a time in the next Amazon window.
+// once by the store, issue #168) or with a pre-#168 check time get a time in the next Amazon window.
 func NewWithOptions(cfg config.Config, database *store.Store, options Options) *Service {
 	if options.Amazon == nil {
 		options.Amazon = newBrowserCollector(cfg)
@@ -124,10 +124,11 @@ func newBrowserCollector(cfg config.Config) *amazon.BrowserCollector {
 	})
 }
 
-// scheduleUnscheduledAmazonItems gives the Amazon items without a next check a time in the next window.
+// scheduleUnscheduledAmazonItems gives each Amazon item without a next check, or marked for a redraw
+// by the upgrade, its own time in the next window. The redraw mark is kept if a time is not saved.
 func (s *Service) scheduleUnscheduledAmazonItems() {
 	ctx := context.Background()
-	ids, err := s.store.UnscheduledAmazonIDs(ctx)
+	ids, err := s.store.AmazonIDsToSchedule(ctx)
 	if err != nil {
 		log.Printf("load unscheduled Amazon items: %v", err)
 		return
@@ -135,7 +136,11 @@ func (s *Service) scheduleUnscheduledAmazonItems() {
 	for _, id := range ids {
 		if err := s.store.SetNextCheck(ctx, id, s.nextCheckAt("amazon", s.now())); err != nil {
 			log.Printf("schedule next check for item %s: %v", id, err)
+			return
 		}
+	}
+	if err := s.store.ClearAmazonRedraw(ctx); err != nil {
+		log.Printf("record the Amazon check times redraw: %v", err)
 	}
 }
 
@@ -500,7 +505,7 @@ func (s *Service) RunScheduler(ctx context.Context) {
 }
 
 func (s *Service) collectDue(ctx context.Context) {
-	ids, err := s.store.DueIDs(ctx, s.now())
+	checks, err := s.store.DueChecks(ctx, s.now())
 	if err != nil {
 		if ctx.Err() == nil {
 			log.Printf("load due listings: %v", err)
@@ -508,10 +513,11 @@ func (s *Service) collectDue(ctx context.Context) {
 		return
 	}
 	collected := false
-	for _, id := range ids {
+	for _, check := range checks {
 		if ctx.Err() != nil {
 			return
 		}
+		id := check.ID
 		item, err := s.store.Listing(ctx, id)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -520,7 +526,7 @@ func (s *Service) collectDue(ctx context.Context) {
 			log.Printf("load listing %s for its scheduled check: %v", id, err)
 			continue
 		}
-		if s.skipScheduledCheck(ctx, item) {
+		if s.skipScheduledCheck(ctx, item, check.DueAt) {
 			continue
 		}
 		if collected && !s.schedulePause(ctx) {
@@ -536,15 +542,15 @@ func (s *Service) collectDue(ctx context.Context) {
 	}
 }
 
-// skipScheduledCheck reports whether the due item must not be checked now: a check of the item is
-// running, or (Amazon) its window has passed while the application was down or busy. A skipped
-// Amazon item gets a time in the next window, so it is checked once per window.
-func (s *Service) skipScheduledCheck(ctx context.Context, item model.Listing) bool {
+// skipScheduledCheck reports whether the item due at dueAt must not be checked now: a check of the
+// item is running, or (Amazon) the window it was due in has passed while the application was down or
+// busy. A skipped Amazon item gets a time in the next window, so it is checked once per window.
+func (s *Service) skipScheduledCheck(ctx context.Context, item model.Listing, dueAt time.Time) bool {
 	s.mu.Lock()
 	_, active := s.inFlight[item.ID]
 	s.mu.Unlock()
 	now := s.now()
-	if item.Platform != "amazon" || (!active && inAmazonWindow(now, s.config.Location)) {
+	if item.Platform != "amazon" || (!active && inDueAmazonWindow(dueAt, now, s.config.Location)) {
 		return active
 	}
 	next := s.nextCheckAt(item.Platform, now)
