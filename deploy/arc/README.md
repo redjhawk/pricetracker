@@ -8,6 +8,11 @@ Self-hosted GitHub Actions runners for this repository (application deployment: 
 | `arc-dev` | `fabrica.yml` (agent factory) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
 | `arc-build` | `release.yml` (build, tag and GitHub release) | default ARC runner image | 1 |
 
+`arc-dev` uses Claude Code's nested sandbox setting to bind the container's existing `/proc` and
+sets AppArmor to `Unconfined` for the runner container so bubblewrap can create its mount namespace.
+The pod keeps the runtime's default seccomp profile and capabilities; do not add `SYS_ADMIN` or
+disable seccomp. The setting is delivered through the `claude-code-settings` ConfigMap by `install.sh`.
+
 The controller (`arc` in `arc-systems`) is shared and kept across updates.
 
 ## Requirements

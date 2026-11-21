@@ -97,7 +97,6 @@ $extra"
   # The scrub forces the default permission mode, so the agent only gets what --allowedTools grants.
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
   claude -p "$prompt" \
-    --settings '{"sandbox":{"enabled":false}}' \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
     --output-format text >"$LOG_DIR/$name.log" 2>&1 \

@@ -15,7 +15,7 @@ dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [ $# -eq 1 ]; then
   bundle="$(mktemp -d)"
   trap 'rm -rf "$bundle"' EXIT
-  cp "$dir/install.sh" "$dir"/values-*.yaml "$bundle/"
+  cp "$dir/install.sh" "$dir"/values-*.yaml "$dir/claude-settings.json" "$bundle/"
   : >"$bundle/env"
   for var in GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID GHCR_USER GHCR_TOKEN; do
     if [ -n "${!var:-}" ]; then printf 'export %s=%q\n' "$var" "${!var}" >>"$bundle/env"; fi
@@ -53,6 +53,10 @@ for set in arc-dev arc-build; do
     : "${GHCR_TOKEN:?set GHCR_TOKEN (a token with read:packages)}"
     kubectl create secret docker-registry ghcr-pull --namespace arc-dev \
       --docker-server=ghcr.io --docker-username="$GHCR_USER" --docker-password="$GHCR_TOKEN"
+  fi
+  if [ "$set" = arc-dev ]; then
+    kubectl create configmap claude-code-settings --namespace arc-dev \
+      --from-file=settings.json="$dir/claude-settings.json" --dry-run=client -o yaml | kubectl apply -f -
   fi
   helm upgrade --install "$set" --namespace "$set" --version "$version" \
     --set githubConfigUrl="$repo_url" --set githubConfigSecret=github-app \
