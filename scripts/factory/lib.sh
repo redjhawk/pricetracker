@@ -76,12 +76,12 @@ refresh_issue_context() {
 run_agent() {
   local name=$1 profile=$2 extra=${3:-} tools prompt
   case "$profile" in
-    # Edit/Write are limited to the paths each profile produces; Bash to fixed test/build commands.
-    docs)   tools="Read,Glob,Grep,Edit(doc/**),Write(doc/**),Edit(API_SPECIFICATION.md)" ;;
-    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Write(doc/specifications/**),Edit(cmd/**),Write(cmd/**),Edit(internal/**),Write(internal/**),Edit(src/**),Write(src/**),Edit(tests/**),Write(tests/**),Edit(web/**),Write(web/**),Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**)"
+    # Edit rules (which also cover Write) are limited to the paths each profile produces; Bash to fixed commands.
+    docs)   tools="Read,Glob,Grep,Edit(doc/**),Edit(API_SPECIFICATION.md)" ;;
+    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Edit(cmd/**),Edit(internal/**),Edit(src/**),Edit(tests/**),Edit(web/**),Edit($CHANGE_DIR/**)"
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
-    review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Write($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
+    review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
     *) die "unknown tool profile $profile" ;;
   esac
   prompt="$(cat "$FACTORY_DIR/prompts/common.md" "$FACTORY_DIR/prompts/$name.md")
@@ -94,10 +94,20 @@ $extra"
   log "agent $name ($profile)"
   # The agent never sees the GitHub token, and Claude Code scrubs its own credentials from the environment
   # of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB). factory.sh checks the sandbox dependencies.
+  # The scrub forces the default permission mode, so the agent only gets what --allowedTools grants.
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
-    --permission-mode acceptEdits --allowedTools "$tools" \
+    --allowedTools "$tools" \
     --output-format text >"$LOG_DIR/$name.log" 2>&1 \
-    || { tail -40 "$LOG_DIR/$name.log" >&2; die "agent $name failed (log: $LOG_DIR/$name.log)"; }
+    || agent_failed "$name"
+}
+
+# agent_failed <prompt name>: report a failed agent, telling a usage limit apart from an agent error.
+agent_failed() {
+  local name=$1 limit
+  tail -40 "$LOG_DIR/$name.log" >&2
+  limit="$(grep -m1 -iE "hit your (session|usage|weekly) limit" "$LOG_DIR/$name.log" || true)"
+  [ -z "$limit" ] || die "agent $name stopped by the Claude usage limit (${limit}); run the factory again after the reset, it resumes at the current stage"
+  die "agent $name failed (log: $LOG_DIR/$name.log)"
 }
