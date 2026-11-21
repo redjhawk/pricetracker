@@ -71,6 +71,33 @@ func New(cfg config.Config, database *store.Store) *Service {
 	}
 }
 
+// AmazonCollector checks one Amazon item page.
+type AmazonCollector interface {
+	Collect(context.Context, model.Listing) model.CollectionResult
+}
+
+// Options replaces dependencies of the service (tests); zero values keep the defaults.
+type Options struct {
+	Amazon        AmazonCollector            // nil = browser collector from the configuration
+	Now           func() time.Time           // nil = time.Now
+	Random        func(n int64) int64        // nil = math/rand/v2; value in [0, n), goroutine-safe
+	SchedulePause func(context.Context) bool // nil = 5–60 s pause between scheduled checks; false = cancelled
+}
+
+// NewWithOptions is New with replaced dependencies (issue #168).
+// TDD red stub: only the Amazon collector and the clock are applied.
+func NewWithOptions(cfg config.Config, database *store.Store, options Options) *Service {
+	s := New(cfg, database)
+	if options.Amazon != nil {
+		s.collectors["amazon"] = options.Amazon
+	}
+	if options.Now != nil {
+		s.now = options.Now
+		s.amazonGate.now = options.Now
+	}
+	return s
+}
+
 func (s *Service) Close() {
 	s.stopWorkers()
 	s.workers.Wait()
