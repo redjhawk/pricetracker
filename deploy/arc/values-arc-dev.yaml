@@ -13,6 +13,17 @@ template:
         image: ghcr.io/redjhawk/arc-runner-dev:4
         imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
+        securityContext:
+          appArmorProfile:
+            type: Unconfined
+        volumeMounts:
+          - name: claude-settings
+            mountPath: /home/runner/.claude
+            readOnly: true
         resources:
           requests: {cpu: "2", memory: 4Gi}
           limits: {memory: 8Gi}
+    volumes:
+      - name: claude-settings
+        configMap:
+          name: claude-code-settings
