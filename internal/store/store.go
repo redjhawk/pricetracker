@@ -527,11 +527,17 @@ func (s *Store) GetWithHistory(ctx context.Context, id string) (model.Item, erro
 	return s.get(ctx, id, true)
 }
 
+// get reads the item in one read transaction, so a collection recorded meanwhile is seen whole or not at all.
 func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.Item, error) {
 	var item model.Item
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return item, err
+	}
+	defer tx.Rollback()
 	var asin, title, thumbnail, next, stopped sql.NullString
 	var added string
-	err := s.db.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, amazon_stopped_at FROM items WHERE id = ?`, id).
+	err = tx.QueryRowContext(ctx, `SELECT id, title, platform, listing_id, asin, marketplace, url, thumbnail_url, next_check_at, added_at, purchase_goal, amazon_stopped_at FROM items WHERE id = ?`, id).
 		Scan(&item.ID, &title, &item.Platform, &item.ListingID, &asin, &item.Marketplace, &item.URL, &thumbnail, &next, &added, &item.PurchaseGoal, &stopped)
 	if err != nil {
 		return item, err
@@ -548,7 +554,7 @@ func (s *Store) get(ctx context.Context, id string, includeHistory bool) (model.
 		item.NextCheckAt = &parsed
 	}
 	item.LastThreeDetections = make([]model.Observation, 0, 3)
-	prices, err := s.db.QueryContext(ctx, `
+	prices, err := tx.QueryContext(ctx, `
 WITH ordered_observations AS (
   SELECT id, amount_cents, currency, observed_at, is_old_price,
          LAG(amount_cents) OVER (ORDER BY observed_at, id) AS previous_amount
@@ -595,7 +601,7 @@ LIMIT 3`, id)
 	}
 	if includeHistory {
 		item.PriceHistory = make([]model.Observation, 0)
-		historyRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, observed_at, is_old_price FROM price_observations
+		historyRows, err := tx.QueryContext(ctx, `SELECT amount_cents, currency, observed_at, is_old_price FROM price_observations
 WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 		if err != nil {
 			return item, err
@@ -621,7 +627,7 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 	if item.Platform == "amazon" {
 		item.SecondHandOffer = &model.SecondHandOffer{Status: "pending", LastThreeDetections: make([]model.SecondHandObservation, 0, 3)}
 		var usedStatus, usedChecked string
-		err = s.db.QueryRowContext(ctx, "SELECT status, checked_at FROM second_hand_offer_checks WHERE item_id = ?", id).Scan(&usedStatus, &usedChecked)
+		err = tx.QueryRowContext(ctx, "SELECT status, checked_at FROM second_hand_offer_checks WHERE item_id = ?", id).Scan(&usedStatus, &usedChecked)
 		if err == nil {
 			item.SecondHandOffer.Status = usedStatus
 			checked := parseTimestamp(usedChecked)
@@ -629,7 +635,7 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return item, err
 		}
-		usedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at FROM second_hand_offer_observations
+		usedRows, err := tx.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at FROM second_hand_offer_observations
 WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
 		if err != nil {
 			return item, err
@@ -657,7 +663,7 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
 		}
 		if includeHistory {
 			item.SecondHandOffer.PriceHistory = make([]model.SecondHandObservation, 0)
-			allUsedRows, err := s.db.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at
+			allUsedRows, err := tx.QueryContext(ctx, `SELECT amount_cents, currency, condition, condition_label, observed_at
 FROM second_hand_offer_observations WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 			if err != nil {
 				return item, err
@@ -683,7 +689,7 @@ FROM second_hand_offer_observations WHERE item_id = ? ORDER BY observed_at DESC,
 	}
 	var result, attempted string
 	var message sql.NullString
-	err = s.db.QueryRowContext(ctx, `SELECT result, attempted_at, message FROM collection_attempts WHERE item_id = ? ORDER BY attempted_at DESC, id DESC LIMIT 1`, id).Scan(&result, &attempted, &message)
+	err = tx.QueryRowContext(ctx, `SELECT result, attempted_at, message FROM collection_attempts WHERE item_id = ? ORDER BY attempted_at DESC, id DESC LIMIT 1`, id).Scan(&result, &attempted, &message)
 	if err == nil {
 		attempt := &model.Attempt{Result: result, Timestamp: parseTimestamp(attempted), Message: nullString(message)}
 		item.LastAttempt = attempt
@@ -749,21 +755,29 @@ func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time)
 	return tx.Commit()
 }
 
-func (s *Store) IDs(ctx context.Context, ownerID int64) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id FROM items WHERE owner_id = ? AND tracked = 1 ORDER BY added_at DESC, id DESC", ownerID)
+// ItemRef identifies a tracked item for Refresh all prices.
+type ItemRef struct {
+	ID       string
+	Platform string
+	Stopped  bool // Amazon checks of the item are stopped
+}
+
+// ItemRefs returns the tracked items of an owner, newest first.
+func (s *Store) ItemRefs(ctx context.Context, ownerID int64) ([]ItemRef, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, platform, amazon_stopped_at IS NOT NULL FROM items WHERE owner_id = ? AND tracked = 1 ORDER BY added_at DESC, id DESC", ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	ids := make([]string, 0, 100)
+	refs := make([]ItemRef, 0, 100)
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var ref ItemRef
+		if err := rows.Scan(&ref.ID, &ref.Platform, &ref.Stopped); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		refs = append(refs, ref)
 	}
-	return ids, rows.Err()
+	return refs, rows.Err()
 }
 
 func (s *Store) DueIDs(ctx context.Context, now time.Time) ([]string, error) {

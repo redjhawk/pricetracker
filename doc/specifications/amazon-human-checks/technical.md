@@ -23,7 +23,7 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-009 | HCHK-009 | `next_check_at` stays durable and is advanced before the check (existing). A due Amazon item found outside its window (+15 min grace), or already being checked, is redrawn for the next window without a request | `internal/service/service.go`, `internal/service/amazon_schedule.go` |
 | TS-AMZ-HCHK-010 | HCHK-010 | One-time store migration guarded by `amazon_request_state.human_checks_restarted`: clears every Amazon stop, resets the count when it restarted items, sets their `next_check_at = NULL`; `service.New` draws a window time for Amazon items with a `NULL` next check | `internal/store/amazon_requests.go`, `internal/store/store.go`, `internal/service/service.go` |
 | TS-AMZ-HCHK-011 | all (testability) | `service.NewWithOptions` (collector, clock, random source, scheduler pause) and `s.now()` in the scheduling/recording paths of `service.go` | `internal/service/service.go` |
-| TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Configuration `PRICEFOLLOWER_BROWSER_PATH`, `PRICEFOLLOWER_BROWSER_NO_SANDBOX`; browser profile in the data directory; Chromium documented as a server requirement | `config/config.go`, `README.md` |
+| TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement | `internal/amazon/browser.go`, `internal/service/service.go`, `README.md` |
 
 ## Backend
 
@@ -44,26 +44,27 @@ type BrowserOptions struct {
 type BrowserCollector struct {
     options BrowserOptions
     mu      sync.Mutex                      // one browser at a time (one profile)
-    launch  func(ctx context.Context, args []string) (*cdpBrowser, error) // replaced by tests (start failure)
 }
 func NewBrowserCollector(options BrowserOptions) *BrowserCollector
 func (c *BrowserCollector) Collect(ctx context.Context, item model.Listing) model.CollectionResult
-func FindBrowser() (string, error)          // PRICEFOLLOWER_BROWSER_PATH is passed as ExecPath; else PATH: chromium, chromium-browser, google-chrome-stable, google-chrome
+func FindBrowser() (string, error)          // PRICEFOLLOWER_BROWSER_PATH; else PATH: chromium, chromium-browser, google-chrome-stable, google-chrome
 ```
 
-`cdp.go` (unexported): `cdpBrowser` starts the process with `exec.CommandContext`, `ExtraFiles` = the two pipes, `SysProcAttr{Setpgid: true}`; one reader goroutine dispatches responses by `id` and events by `method`/`sessionId`; `call(ctx, sessionID, method, params, result)`, `wait(ctx, sessionID, event)`; `close()` sends `Browser.close`, waits up to 5 s, then kills the process group and always waits for exit. gosec G204 on the configured executable is annotated (`#nosec G204`, path from configuration, arguments built by the code).
+Start failures are tested with a missing executable and one that exits at once, so no launcher hook is needed. With `ExecPath` empty, `FindBrowser` runs at each check: a browser installed later is used without a restart.
+
+`cdp.go` (unexported): `launchBrowser` starts the process with `exec.Command` (cancellation is handled by `close`), `ExtraFiles` = the two pipes (the child ends are closed in the parent, so the reader sees the browser's exit), `SysProcAttr{Setpgid: true}`; one reader goroutine dispatches responses by `id` and events to a per-session handler (`on(sessionID, handler)`, run on the reader goroutine, must not block); `call(ctx, sessionID, method, params, result)`; `close()` sends `Browser.close`, waits up to 5 s for the exit, then kills the process group (also ending children still running after the browser) and always waits for exit and for the reader. gosec G204 on the configured executable is annotated (`#nosec G204`, path from configuration, arguments built by the code).
 
 Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`, `--no-first-run`, `--no-default-browser-check`, `--disable-blink-features=AutomationControlled`, `--lang=<marketplace language>`, `--window-size=1366,768`, `--no-sandbox` only with `NoSandbox`, `about:blank`. No `--enable-automation`. The browser runs headless: no display is needed and nothing is shown.
 
 `Collect` (holds `mu`; every step honours `ctx`):
 
 1. Launch. Error → failure "browser could not start: <reason>" (status 0).
-2. `Browser.getVersion`; user agent = the browser's own, `HeadlessChrome/` replaced by `Chrome/` (so the user agent matches the engine's client hints). `AMAZON_USER_AGENT` no longer applies to Amazon (still used by LeBoncoin).
-3. `Target.createTarget(about:blank)`, `Target.attachToTarget(flatten)`; on the session: `Network.enable`, `Page.enable`, `Emulation.setUserAgentOverride{userAgent, acceptLanguage: locale(marketplace), platform: "Linux"}`.
-4. `Page.navigate(item.URL)` (with `Origin` applied in tests). `errorText` (DNS, refused, reset) → failure with the error text. Record the last `Network.responseReceived` of type `Document` for the main frame (status, MIME type, final URL after redirects). Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
+2. `Browser.getVersion`; user agent = the browser's own, `HeadlessChrome/` replaced by `Chrome/`. The client hints are overridden to match (`userAgentMetadata`: brands Chromium / Google Chrome / Not_A Brand with the engine's version, platform `Linux`, architecture of the server, not mobile), since headless Chromium otherwise announces a `HeadlessChrome` brand. `AMAZON_USER_AGENT` no longer applies to Amazon (still used by LeBoncoin).
+3. `Target.createTarget(about:blank)`, `Target.attachToTarget(flatten)`; on the session: `Network.enable`, `Page.enable`, `Emulation.setUserAgentOverride{userAgent, acceptLanguage: locale(marketplace), platform: "Linux x86_64" (or "Linux aarch64"), userAgentMetadata}` (`navigator.platform` keeps the real Linux value).
+4. `Page.navigate(item.URL)` (with `Origin` applied in tests). `errorText` (DNS, refused, reset) → failure with the error text. Record the last `Network.responseReceived` of type `Document` per frame and use the navigated frame's (status, MIME type, final URL after redirects). Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
 5. Pause (`Pause`).
 6. Final URL host not a supported Amazon host (or `Origin`) → failure "redirected to an unsupported host". Read `document.documentElement.outerHTML` (`Runtime.evaluate`, `returnByValue`, first 5 MB).
-7. Classify with the existing rules, now in `classifyPage(status, mimeType, html, kind)` used only here: 404/410 → `unavailable`; other non-2xx → failure "Amazon returned HTTP <n>"; MIME not `text/html`/`application/xhtml+xml` → failure; robot check/captcha pattern → failure "Amazon blocked the product request". Failures keep `RequestURL` (item URL), `HTTPStatus`, `ResponseExcerpt` = first 2 KB of the rendered HTML via the existing `excerpt`; the user message stays "Amazon could not be reached for a price check." and `SecondHandStatus = "check_error"`.
+7. Classify with the existing rules, now in `classifyPage(page)` used only here: 404/410 → `unavailable`; other non-2xx → failure "Amazon returned HTTP <n>"; MIME not `text/html`/`application/xhtml+xml` → failure; robot check/captcha pattern → failure "Amazon blocked the product request". Failures keep `RequestURL` (item URL), `HTTPStatus`, `ResponseExcerpt` = first 2 KB of the rendered HTML via the existing `excerpt`; the user message stays "Amazon could not be reached for a price check." and `SecondHandStatus = "check_error"`.
 8. Otherwise `parseProductPage(html)` (extracted from today's `productPage`: unavailable text, price, title, thumbnail, `price_not_found`), then `secondHandOfferFromProductPage(html)` as today. If no Amazon offer is on the page, the two used-offer URLs built as today (`usedOfferURLs(item)`) are requested from inside the page: `Runtime.evaluate` with `awaitPromise` of `fetch(url, {credentials: "include", headers: {"X-Requested-With": "XMLHttpRequest"}})` returning `{status, body}` (body ≤ 5 MB; network error → failed response). The browser sets cookies, `Referer` and fetch metadata. Results go to `parseUsedOffers(pages, failedResponses)` (extracted from today's `secondHandOffer`, same logs and results).
 9. `close()` in a `defer`: no browser process survives the check, also on error, timeout or cancellation.
 
@@ -71,7 +72,7 @@ Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`,
 
 ### Collection in the service (TS-AMZ-HCHK-001, -003, -011)
 
-- `New(cfg, db)` = `NewWithOptions(cfg, db, Options{})`:
+- `New(cfg, db)` = `NewWithOptions(cfg, db, Options{})` (the default collector is built only when `Options.Amazon` is nil):
 
   ```go
   type AmazonCollector interface { Collect(context.Context, model.Listing) model.CollectionResult }
@@ -83,7 +84,7 @@ Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`,
   }
   ```
 
-  The default collector uses `ExecPath = cfg.BrowserPath`, `ProfileDir = <DataDirectory>/amazon-browser` (created 0700 by the collector), `NoSandbox = cfg.BrowserNoSandbox`. When no browser is found, `New` logs once "Amazon browser not found; Amazon checks will fail until Chromium is installed or PRICEFOLLOWER_BROWSER_PATH is set"; each check then fails (counted, may stop items) — the application still starts and LeBoncoin keeps working. The gate gets the same `now`.
+  The default collector uses `ExecPath = ""` (so `FindBrowser`: `PRICEFOLLOWER_BROWSER_PATH`, then `PATH`), `ProfileDir = <DataDirectory>/amazon-browser` (created 0700 by the collector), `NoSandbox = PRICEFOLLOWER_BROWSER_NO_SANDBOX == "true"`. When no browser is found, `New` logs once "Amazon browser not found; Amazon checks will fail until Chromium is installed or PRICEFOLLOWER_BROWSER_PATH is set"; each check then fails (counted, may stop items) — the application still starts and LeBoncoin keeps working. The gate gets the same `now`.
 - `collectReserved`: Amazon timeout 31 s → `amazonCheckTimeout = 90 * time.Second` (browser start, page with resources, pause, used-offer fetches). The gate lock is held for the whole check, as today; Amazon checks stay strictly sequential.
 - `time.Now()` in `Add`, `RefreshAll`, `RefreshItem`, `collect`, `collectReserved` (recording timestamp) and `collectDue` becomes `s.now()`. LeBoncoin session code is untouched.
 
@@ -103,7 +104,7 @@ func (s *Service) nextCheckAt(platform string, after time.Time) time.Time // ama
 - `NextCheckAt` (fixed `CheckTimes`) is kept for LeBoncoin and the development seed.
 - `Add`: `Insert(..., s.nextCheckAt(platform, s.now()))`.
 - `RefreshItem`: `SetNextCheck` only for non-Amazon items (the platform comes from the `ownedListing` it already loads). `RefreshAll`: `SetNextChecks` with the non-Amazon IDs only; the platform and stop come from `store.ItemRefs(ctx, owner) ([]store.ItemRef{ID, Platform, Stopped}, error)`, which replaces `IDs` and the per-item `AmazonStopped` queries (same order and filter). Response and queueing unchanged.
-- `collectDue` keeps `store.DueIDs` (unchanged filter and order: tracked, not stopped, `next_check_at <= now`) and reads each due item's platform with `store.Listing` (a deleted item is skipped). Per item, in order:
+- `collectDue` keeps `store.DueIDs` (unchanged filter and order: tracked, not stopped, `next_check_at <= now`) and reads each due item's platform with `store.Listing` (a deleted item is skipped). The in-flight and window rules below are in `skipScheduledCheck`. Per item, in order:
   - LeBoncoin: unchanged (skip if in flight; pause between checks; `SetNextCheck(NextCheckAt(now))`; `Collect`).
   - Amazon in flight (refresh or first check running): `SetNextCheck(nextAmazonCheckAt(now))`, no request — the running check covers this window (TC-032).
   - Amazon with `!inAmazonWindow(now)` (missed while the application was down or delayed past the window end + 15 min): `SetNextCheck(nextAmazonCheckAt(now))`, log `scheduled Amazon check of item <id> missed its window; next check <time>`, no request. Grace reason: 30 s ticker, 5–60 s pauses and gate queueing must not drop a check due at 08:59.
@@ -130,7 +131,7 @@ Tests simulate a pre-change database by opening the store, inserting and stoppin
 
 ## Configuration and documentation (TS-AMZ-HCHK-012)
 
-- `config.Config` gains `BrowserPath` (`PRICEFOLLOWER_BROWSER_PATH`, optional) and `BrowserNoSandbox` (`PRICEFOLLOWER_BROWSER_NO_SANDBOX=true`, default false). `Load` does not check the path (a missing browser must not stop the application).
+- `PRICEFOLLOWER_BROWSER_PATH` (optional) is read by `amazon.FindBrowser`, the same lookup the test helper `amazontest.Browser` starts with; `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true` (default false) is read where the service builds the default collector. `config.Config` is not changed. The path is not checked at start-up (a missing browser must not stop the application; only a log line is written).
 - `README.md`: Amazon checks need Chromium or Google Chrome on the server (for example `apt install chromium`), the two variables, the profile directory `<data dir>/amazon-browser`, the Amazon windows (twice a day at random times, 06:00–09:00 and 19:00–23:00) while LeBoncoin keeps `PRICEFOLLOWER_CHECK_TIMES`, and that browser tests need a Chromium (`npx playwright install chromium` is found automatically). `deploy/README.md` is not changed (sensitive path).
 
 ## Frontend
@@ -166,6 +167,7 @@ Existing tests keep compiling and passing: `internal/amazon/collector_test.go` t
 | R-1 | Split `collector.go` parsing from HTTP fetching; delete the HTTP Amazon client | FR-HCHK-001 (no plain download remains) and FR-HCHK-002 (same parser on the browser HTML) | `internal/amazon/collector.go` | Parser regression: covered by TC-004 on fixtures and the existing `productPrice` test; Chrome's HTML serialization uses double-quoted attributes, which the regexes already expect |
 | R-2 | `NewWithOptions`, `s.now()` in service paths | Deterministic tests with clock, random source and fake collector through HTTP | `internal/service/service.go` | Low: defaults equal today's values |
 | R-3 | `IDs` → `ItemRefs` (id, platform, stopped) | Refresh all needs the platform; one query instead of one stop query per item | `internal/store/store.go`, `RefreshAll` | Low: same SQL filter and order |
+| R-4 | `store.get` reads an item in one read transaction | Its queries could straddle a recorded collection (new attempt with the old price history), which made TC-005 flaky | `internal/store/store.go` | Low: read-only, same queries; no caller holds a transaction |
 
 Out of scope: LeBoncoin requests and schedule, the failure count and stop rules, price parsing rules, UI, `deploy/` and `go.mod` (no change needed).
 

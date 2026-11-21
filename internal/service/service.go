@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -55,20 +57,17 @@ type Service struct {
 	refreshSlots  chan struct{}
 	loginFailures map[string]loginFailures // by lowercased username
 	now           func() time.Time         // replaced by tests
-	amazonGate    *amazonGate              // every Amazon request goes through it
+	random        func(n int64) int64      // draws the Amazon check times
+	schedulePause func(context.Context) bool
+	amazonGate    *amazonGate // every Amazon request goes through it
 }
 
+// amazonCheckTimeout bounds one Amazon check: browser start, page and resources, reading pause and
+// used-offer requests.
+const amazonCheckTimeout = 90 * time.Second
+
 func New(cfg config.Config, database *store.Store) *Service {
-	workerContext, stopWorkers := context.WithCancel(context.Background())
-	return &Service{
-		config: cfg, store: database, leboncoin: leboncoin.NewCollector(cfg.UserAgent), claude: claude.NewClient(),
-		collectors: map[string]collector{
-			"amazon": amazon.NewCollector(cfg.UserAgent),
-		},
-		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
-		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: time.Now,
-		amazonGate: newAmazonGate(database, time.Now),
-	}
+	return NewWithOptions(cfg, database, Options{})
 }
 
 // AmazonCollector checks one Amazon item page.
@@ -84,18 +83,60 @@ type Options struct {
 	SchedulePause func(context.Context) bool // nil = 5–60 s pause between scheduled checks; false = cancelled
 }
 
-// NewWithOptions is New with replaced dependencies (issue #168).
-// TDD red stub: only the Amazon collector and the clock are applied.
+// NewWithOptions is New with replaced dependencies. Amazon items without a next check (restarted
+// once by the store, issue #168) get a time in the next Amazon window.
 func NewWithOptions(cfg config.Config, database *store.Store, options Options) *Service {
-	s := New(cfg, database)
-	if options.Amazon != nil {
-		s.collectors["amazon"] = options.Amazon
+	if options.Amazon == nil {
+		options.Amazon = newBrowserCollector(cfg)
 	}
-	if options.Now != nil {
-		s.now = options.Now
-		s.amazonGate.now = options.Now
+	if options.Now == nil {
+		options.Now = time.Now
 	}
+	if options.Random == nil {
+		options.Random = mathrand.Int64N
+	}
+	if options.SchedulePause == nil {
+		options.SchedulePause = waitScheduledRequest
+	}
+	workerContext, stopWorkers := context.WithCancel(context.Background())
+	s := &Service{
+		config: cfg, store: database, leboncoin: leboncoin.NewCollector(cfg.UserAgent), claude: claude.NewClient(),
+		collectors: map[string]collector{
+			"amazon": options.Amazon,
+		},
+		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
+		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: options.Now, random: options.Random,
+		schedulePause: options.SchedulePause, amazonGate: newAmazonGate(database, options.Now),
+	}
+	s.scheduleUnscheduledAmazonItems()
 	return s
+}
+
+// newBrowserCollector returns the default Amazon collector. The browser is PRICEFOLLOWER_BROWSER_PATH
+// or found on PATH at each check; without one the application still starts and Amazon checks fail.
+func newBrowserCollector(cfg config.Config) *amazon.BrowserCollector {
+	if _, err := amazon.FindBrowser(); err != nil {
+		log.Print("Amazon browser not found; Amazon checks will fail until Chromium is installed or PRICEFOLLOWER_BROWSER_PATH is set")
+	}
+	return amazon.NewBrowserCollector(amazon.BrowserOptions{
+		ProfileDir: filepath.Join(cfg.DataDirectory, "amazon-browser"),
+		NoSandbox:  os.Getenv("PRICEFOLLOWER_BROWSER_NO_SANDBOX") == "true",
+	})
+}
+
+// scheduleUnscheduledAmazonItems gives the Amazon items without a next check a time in the next window.
+func (s *Service) scheduleUnscheduledAmazonItems() {
+	ctx := context.Background()
+	ids, err := s.store.UnscheduledAmazonIDs(ctx)
+	if err != nil {
+		log.Printf("load unscheduled Amazon items: %v", err)
+		return
+	}
+	for _, id := range ids {
+		if err := s.store.SetNextCheck(ctx, id, s.nextCheckAt("amazon", s.now())); err != nil {
+			log.Printf("schedule next check for item %s: %v", id, err)
+		}
+	}
 }
 
 func (s *Service) Close() {
@@ -187,7 +228,7 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 		return model.Item{}, err
 	}
 	itemListing.ID = id
-	if err := s.store.Insert(ctx, itemListing, canonical, s.NextCheckAt(time.Now())); err != nil {
+	if err := s.store.Insert(ctx, itemListing, canonical, s.nextCheckAt(itemListing.Platform, s.now())); err != nil {
 		if store.IsUniqueConstraint(err) {
 			return model.Item{}, &Error{Status: 409, Code: "ITEM_ALREADY_TRACKED", Message: "This listing is already being tracked."}
 		}
@@ -199,33 +240,34 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	}
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); s.collect(s.workerContext, id, true) }()
-	return s.withPending(item, time.Now().UTC()), nil
+	return s.withPending(item, s.now().UTC()), nil
 }
 
 func (s *Service) Remove(ctx context.Context, id string) (bool, error) {
 	return s.store.Delete(ctx, ownerFrom(ctx), id)
 }
 
+// RefreshAll checks every item of the owner at once. Amazon items keep their scheduled check.
 func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
-	ids, err := s.store.IDs(ctx, ownerFrom(ctx))
+	refs, err := s.store.ItemRefs(ctx, ownerFrom(ctx))
 	if err != nil {
 		return time.Time{}, 0, err
 	}
-	requestedAt := time.Now().UTC()
-	if err := s.store.SetNextChecks(ctx, ids, s.NextCheckAt(requestedAt)); err != nil {
-		return time.Time{}, 0, err
-	}
+	requestedAt := s.now().UTC()
 	// Stopped Amazon items are not reserved: the gate would skip them, and a reservation would
 	// hide a later Refresh price (manual check) of the item. They still count as queued.
-	unstopped := make([]string, 0, len(ids))
-	for _, id := range ids {
-		stopped, err := s.store.AmazonStopped(ctx, id)
-		if err != nil {
-			return time.Time{}, 0, err
+	rescheduled := make([]string, 0, len(refs))
+	unstopped := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		if ref.Platform != "amazon" {
+			rescheduled = append(rescheduled, ref.ID)
 		}
-		if !stopped {
-			unstopped = append(unstopped, id)
+		if !ref.Stopped {
+			unstopped = append(unstopped, ref.ID)
 		}
+	}
+	if err := s.store.SetNextChecks(ctx, rescheduled, s.NextCheckAt(requestedAt)); err != nil {
+		return time.Time{}, 0, err
 	}
 	queued := make([]string, 0, len(unstopped))
 	s.mu.Lock()
@@ -241,16 +283,20 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 		s.workers.Add(1)
 		go s.runQueuedCollection(id, false)
 	}
-	return requestedAt, len(ids), nil
+	return requestedAt, len(refs), nil
 }
 
+// RefreshItem checks one item at once. An Amazon item keeps its scheduled check.
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
-	if _, err := s.ownedListing(ctx, id); err != nil {
+	listing, err := s.ownedListing(ctx, id)
+	if err != nil {
 		return time.Time{}, err
 	}
-	requestedAt := time.Now().UTC()
-	if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
-		return time.Time{}, err
+	requestedAt := s.now().UTC()
+	if listing.Platform != "amazon" {
+		if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
+			return time.Time{}, err
+		}
 	}
 	s.mu.Lock()
 	_, active := s.inFlight[id]
@@ -284,7 +330,7 @@ func (s *Service) Collect(ctx context.Context, id string) {
 // collect runs one collection unless one is in flight; newItem marks the first
 // collection of a newly added item, which triggers an AI review.
 func (s *Service) collect(ctx context.Context, id string, newItem bool) {
-	started := time.Now().UTC()
+	started := s.now().UTC()
 	s.mu.Lock()
 	if _, exists := s.inFlight[id]; exists {
 		s.mu.Unlock()
@@ -316,7 +362,7 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem, manua
 		}
 		var stopped error
 		result, stopped = s.amazonGate.do(ctx, id, manual, func() model.CollectionResult {
-			requestContext, cancel := context.WithTimeout(ctx, 31*time.Second)
+			requestContext, cancel := context.WithTimeout(ctx, amazonCheckTimeout)
 			defer cancel()
 			return collector.Collect(requestContext, item)
 		})
@@ -351,7 +397,7 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem, manua
 		}
 		reserved = outcome == reviewStarted
 	}
-	timestamp := time.Now().UTC()
+	timestamp := s.now().UTC()
 	if !newItem || result.Result != "success" {
 		result.OldPriceCents, result.OldPriceAt = nil, nil
 	}
@@ -454,7 +500,7 @@ func (s *Service) RunScheduler(ctx context.Context) {
 }
 
 func (s *Service) collectDue(ctx context.Context) {
-	ids, err := s.store.DueIDs(ctx, time.Now())
+	ids, err := s.store.DueIDs(ctx, s.now())
 	if err != nil {
 		if ctx.Err() == nil {
 			log.Printf("load due listings: %v", err)
@@ -466,16 +512,22 @@ func (s *Service) collectDue(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		s.mu.Lock()
-		_, active := s.inFlight[id]
-		s.mu.Unlock()
-		if active {
+		item, err := s.store.Listing(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
-		if collected && !waitScheduledRequest(ctx) {
+		if err != nil {
+			log.Printf("load listing %s for its scheduled check: %v", id, err)
+			continue
+		}
+		if s.skipScheduledCheck(ctx, item) {
+			continue
+		}
+		if collected && !s.schedulePause(ctx) {
 			return
 		}
-		if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(time.Now())); err != nil {
+		// The next check is stored before the request, so a restart never repeats this one.
+		if err := s.store.SetNextCheck(ctx, id, s.nextCheckAt(item.Platform, s.now())); err != nil {
 			log.Printf("schedule next check for item %s: %v", id, err)
 			continue
 		}
@@ -484,8 +536,28 @@ func (s *Service) collectDue(ctx context.Context) {
 	}
 }
 
+// skipScheduledCheck reports whether the due item must not be checked now: a check of the item is
+// running, or (Amazon) its window has passed while the application was down or busy. A skipped
+// Amazon item gets a time in the next window, so it is checked once per window.
+func (s *Service) skipScheduledCheck(ctx context.Context, item model.Listing) bool {
+	s.mu.Lock()
+	_, active := s.inFlight[item.ID]
+	s.mu.Unlock()
+	now := s.now()
+	if item.Platform != "amazon" || (!active && inAmazonWindow(now, s.config.Location)) {
+		return active
+	}
+	next := s.nextCheckAt(item.Platform, now)
+	if err := s.store.SetNextCheck(ctx, item.ID, next); err != nil {
+		log.Printf("schedule next check for item %s: %v", item.ID, err)
+	} else if !active {
+		log.Printf("scheduled Amazon check of item %s missed its window; next check %s", item.ID, next.Format(time.RFC3339))
+	}
+	return true
+}
+
 func waitScheduledRequest(ctx context.Context) bool {
-	delay := time.Duration(5+mathrand.Intn(56)) * time.Second
+	delay := time.Duration(5+mathrand.IntN(56)) * time.Second
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
