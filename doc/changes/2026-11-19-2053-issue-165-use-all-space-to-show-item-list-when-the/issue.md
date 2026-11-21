@@ -65,3 +65,11 @@ Ignore les test et créé la pr @claude
 
 ignore the tests and continue !!!
 
+### redjhawk at 2026-11-20T22:32:09Z
+
+tu as besoin de quel imput M 
+
+### redjhawk at 2026-11-21T10:40:48Z
+
+@claude you can continue
+
