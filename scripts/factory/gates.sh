@@ -115,6 +115,14 @@ sensitive_files() {
   changed_paths | grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
 }
 
+# The scanners are built with the toolchain go.mod names (Go downloads it), not taken from the runner
+# image: govulncheck and gosec cannot analyse a standard library newer than the Go they were built with,
+# and the image's Go lags behind security releases.
+GOVULNCHECK_VERSION=v1.1.4
+GOSEC_VERSION=v2.22.10
 security_scan() {
-  govulncheck ./... && gosec -quiet ./...
+  local toolchain
+  toolchain=$(go mod edit -json | jq -r '.Toolchain // empty')
+  GOTOOLCHAIN=${toolchain:-auto} go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./... &&
+    GOTOOLCHAIN=${toolchain:-auto} go run "github.com/securego/gosec/v2/cmd/gosec@$GOSEC_VERSION" -quiet ./...
 }
