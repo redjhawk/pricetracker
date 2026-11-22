@@ -740,6 +740,15 @@ func (s *Store) SetNextCheck(ctx context.Context, id string, next time.Time) err
 	return err
 }
 
+// NextCheck returns the item's next scheduled check; ok is false when it has none.
+func (s *Store) NextCheck(ctx context.Context, id string) (next time.Time, ok bool, err error) {
+	var stored sql.NullString
+	if err := s.db.QueryRowContext(ctx, "SELECT next_check_at FROM items WHERE id = ?", id).Scan(&stored); err != nil {
+		return time.Time{}, false, err
+	}
+	return parseTimestamp(stored.String), stored.Valid, nil
+}
+
 func (s *Store) SetNextChecks(ctx context.Context, ids []string, next time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

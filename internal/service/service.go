@@ -291,7 +291,7 @@ func (s *Service) RefreshAll(ctx context.Context) (time.Time, int, error) {
 	return requestedAt, len(refs), nil
 }
 
-// RefreshItem checks one item at once. An Amazon item keeps its scheduled check.
+// RefreshItem checks one item at once. An Amazon item keeps a scheduled check that is not due yet.
 func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error) {
 	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
@@ -299,9 +299,12 @@ func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error)
 	}
 	requestedAt := s.now().UTC()
 	if listing.Platform != "amazon" {
-		if err := s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt)); err != nil {
-			return time.Time{}, err
-		}
+		err = s.store.SetNextCheck(ctx, id, s.NextCheckAt(requestedAt))
+	} else {
+		err = s.rescheduleOverdueAmazonCheck(ctx, id, requestedAt)
+	}
+	if err != nil {
+		return time.Time{}, err
 	}
 	s.mu.Lock()
 	_, active := s.inFlight[id]
@@ -314,6 +317,17 @@ func (s *Service) RefreshItem(ctx context.Context, id string) (time.Time, error)
 		go s.runQueuedCollection(id, true)
 	}
 	return requestedAt, nil
+}
+
+// rescheduleOverdueAmazonCheck draws a time in the next window for an Amazon item whose scheduled
+// check is already due, as when it was skipped while the item was stopped: once Refresh price
+// restarts the item, that check must not run right after the manual one.
+func (s *Service) rescheduleOverdueAmazonCheck(ctx context.Context, id string, now time.Time) error {
+	due, ok, err := s.store.NextCheck(ctx, id)
+	if err != nil || !ok || due.After(now) {
+		return err
+	}
+	return s.store.SetNextCheck(ctx, id, nextAmazonCheckAt(now, s.config.Location, s.random))
 }
 
 // runQueuedCollection runs a reserved collection; manual (Refresh price) checks a stopped Amazon item too.
