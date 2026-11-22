@@ -172,12 +172,31 @@ Resolve it on the branch and run the factory again."
   done
 }
 
+# The developer may not add or change test files, not even throw-away ones. The agent cannot delete
+# files in a non-interactive run, so such a file used to stay, fail the green gate on every attempt and
+# be committed by the stop checkpoint. The factory restores every test file to the TDD red commit.
+discard_test_edits() {
+  local commit f
+  commit=$(git log -1 --format=%H --grep="^test: failing tests for #$ISSUE (TDD red)" HEAD)
+  [ -n "$commit" ] || return 0
+  for f in $({ git diff --name-only "$commit" --; git ls-files -o --exclude-standard; } | grep -E "$TEST_FILE_PATTERN" | sort -u); do
+    if git cat-file -e "$commit:$f" 2>/dev/null; then
+      git checkout -q "$commit" -- "$f"
+    else
+      git rm -q -f --ignore-unmatch -- "$f"; rm -f -- "$f"
+    fi
+    log "implement stage: $f restored to the TDD red commit"
+  done
+}
+
 stage_implement() {
   local attempt feedback="" out
   [ ! -s "$CHANGE_DIR/blocking.md" ] || feedback="Fix the blocking review comments in $CHANGE_DIR/blocking.md."
   for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+    discard_test_edits
     run_agent implement code "- Attempt $attempt of $MAX_ATTEMPTS
 $feedback"
+    discard_test_edits
     if [ -s "$CHANGE_DIR/blocked.md" ]; then
       # Not a test of this change: the environment or the base branch. Stay at implement.
       local blocked; blocked=$(cat "$CHANGE_DIR/blocked.md")

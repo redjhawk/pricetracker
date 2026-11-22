@@ -34,38 +34,30 @@ func Open(cfg config.Config) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	for _, pragma := range []string{"PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON", "PRAGMA busy_timeout=5000"} {
 		if _, err := db.Exec(pragma); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("configure SQLite: %w", err)
+			return nil, errors.Join(fmt.Errorf("configure SQLite: %w", err), db.Close())
 		}
 	}
 	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("connect to SQLite: %w", err)
+		return nil, errors.Join(fmt.Errorf("connect to SQLite: %w", err), db.Close())
 	}
 	s := &Store{db: db, config: cfg}
 	if err := s.createSchema(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	if err := s.createUserSchema(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	if err := s.createAIReviewSchema(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	if err := s.removeAmazonSearches(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("fail interrupted AI reviews: %w", err)
+		return nil, errors.Join(fmt.Errorf("fail interrupted AI reviews: %w", err), db.Close())
 	}
 	return s, nil
 }
@@ -103,6 +95,7 @@ const leboncoinSessionColumns = `
   last_attempt_at TEXT,
   last_attempt_outcome TEXT CHECK (last_attempt_outcome IS NULL OR last_attempt_outcome IN ('accepted', 'rejected', 'failed'))`
 
+// #nosec G101 -- SQL column definitions, not a credential.
 const claudeTokenColumns = `
   owner_id INTEGER PRIMARY KEY,
   value TEXT CHECK (value IS NULL OR length(value) BETWEEN 1 AND 1024),
@@ -496,14 +489,12 @@ func (s *Store) List(ctx context.Context, ownerID int64) ([]model.Item, error) {
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
+		return nil, errors.Join(err, rows.Close())
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -582,15 +573,13 @@ LIMIT 3`, id)
 		var observation model.Observation
 		var timestamp string
 		if err := prices.Scan(&observation.AmountCents, &observation.Currency, &timestamp, &observation.OldPrice); err != nil {
-			prices.Close()
-			return item, err
+			return item, errors.Join(err, prices.Close())
 		}
 		observation.Timestamp = observationTimestamp(timestamp)
 		item.LastThreeDetections = append(item.LastThreeDetections, observation)
 	}
 	if err := prices.Err(); err != nil {
-		prices.Close()
-		return item, err
+		return item, errors.Join(err, prices.Close())
 	}
 	if err := prices.Close(); err != nil {
 		return item, err
@@ -610,15 +599,13 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC`, id)
 			var observation model.Observation
 			var timestamp string
 			if err := historyRows.Scan(&observation.AmountCents, &observation.Currency, &timestamp, &observation.OldPrice); err != nil {
-				historyRows.Close()
-				return item, err
+				return item, errors.Join(err, historyRows.Close())
 			}
 			observation.Timestamp = observationTimestamp(timestamp)
 			item.PriceHistory = append(item.PriceHistory, observation)
 		}
 		if err := historyRows.Err(); err != nil {
-			historyRows.Close()
-			return item, err
+			return item, errors.Join(err, historyRows.Close())
 		}
 		if err := historyRows.Close(); err != nil {
 			return item, err
@@ -644,15 +631,13 @@ WHERE item_id = ? ORDER BY observed_at DESC, id DESC LIMIT 3`, id)
 			var detection model.SecondHandObservation
 			var observed string
 			if err := usedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
-				usedRows.Close()
-				return item, err
+				return item, errors.Join(err, usedRows.Close())
 			}
 			detection.Timestamp = parseTimestamp(observed)
 			item.SecondHandOffer.LastThreeDetections = append(item.SecondHandOffer.LastThreeDetections, detection)
 		}
 		if err := usedRows.Err(); err != nil {
-			usedRows.Close()
-			return item, err
+			return item, errors.Join(err, usedRows.Close())
 		}
 		if err := usedRows.Close(); err != nil {
 			return item, err
@@ -672,15 +657,13 @@ FROM second_hand_offer_observations WHERE item_id = ? ORDER BY observed_at DESC,
 				var detection model.SecondHandObservation
 				var observed string
 				if err := allUsedRows.Scan(&detection.AmountCents, &detection.Currency, &detection.Condition, &detection.ConditionLabel, &observed); err != nil {
-					allUsedRows.Close()
-					return item, err
+					return item, errors.Join(err, allUsedRows.Close())
 				}
 				detection.Timestamp = parseTimestamp(observed)
 				item.SecondHandOffer.PriceHistory = append(item.SecondHandOffer.PriceHistory, detection)
 			}
 			if err := allUsedRows.Err(); err != nil {
-				allUsedRows.Close()
-				return item, err
+				return item, errors.Join(err, allUsedRows.Close())
 			}
 			if err := allUsedRows.Close(); err != nil {
 				return item, err

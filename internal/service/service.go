@@ -577,7 +577,7 @@ func (s *Service) skipScheduledCheck(ctx context.Context, item model.Listing, du
 }
 
 func waitScheduledRequest(ctx context.Context) bool {
-	delay := time.Duration(5+mathrand.IntN(56)) * time.Second
+	delay := time.Duration(5+mathrand.IntN(56)) * time.Second // #nosec G404 -- pause jitter, not security
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {

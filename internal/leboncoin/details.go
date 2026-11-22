@@ -32,8 +32,9 @@ func listingDetails(ad listingData, priceCents *int64) *model.ListingDetails {
 	var owner struct {
 		Type string `json:"type"`
 	}
-	json.Unmarshal(ad.Location, &location) // a missing or odd value leaves the fields empty
-	json.Unmarshal(ad.Owner, &owner)
+	// A missing or odd value leaves the fields empty.
+	_ = json.Unmarshal(ad.Location, &location)
+	_ = json.Unmarshal(ad.Owner, &owner)
 	details := &model.ListingDetails{
 		Title:       strings.TrimSpace(ad.Subject),
 		Description: truncateCharacters(strings.TrimSpace(ad.Body), maxDescriptionCharacters),
