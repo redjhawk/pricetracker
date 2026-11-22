@@ -108,3 +108,7 @@ Continue.
 
 @claude The factory now removes test files added or changed after the TDD red commit by itself (#183), so `internal/amazon/zz_status_test.go` is dropped at the start of the next attempt; no manual deletion needed. R4-01 is fixed in HEAD. Do not add test files; the empty-body 404/410/503/429 fixture case goes to a follow-up issue. Continue.
 
+### redjhawk at 2026-11-22T13:11:59Z
+
+@claude The security scan is fixed: master builds with Go 1.26.11 and scans with that toolchain (#191), and every gosec finding is handled on master (#189) and on this branch (8d47c74). Merged master into `ai-dev/issue-168`; there `govulncheck` finds no vulnerabilities, `gosec` 0 issues, `go vet`, `go test ./...`, `npm run build` and `npx playwright test` (84) pass. Continue with the merge.
+
