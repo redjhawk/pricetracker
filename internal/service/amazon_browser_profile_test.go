@@ -200,9 +200,14 @@ func captureProfileOutput(t *testing.T) *profileOutput {
 }
 
 // waitStartFailures waits until want browser start failures are printed and checks there are no more.
+// It counts the collector's line only: other log lines (the request gate) may repeat the cause.
 func waitStartFailures(t *testing.T, output *profileOutput, want int) {
 	t.Helper()
-	count := func() int { return strings.Count(output.String(), "browser could not start") }
+	count := func() int {
+		return countLines(output.String(), func(line string) bool {
+			return strings.HasPrefix(line, "Amazon collection failed for ") && strings.Contains(line, "browser could not start")
+		})
+	}
 	for deadline := time.Now().Add(5 * time.Second); count() < want && time.Now().Before(deadline); {
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -478,4 +483,14 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 		assertFixturePriceRecorded(t, database, "B0PROF0094", scheduleDay(7, 5))
 		assertFixturePriceRecorded(t, database, "B0PROF0095", scheduleDay(7, 5))
 	})
+}
+
+func countLines(text string, match func(string) bool) int {
+	count := 0
+	for _, line := range strings.Split(text, "\n") {
+		if match(line) {
+			count++
+		}
+	}
+	return count
 }
