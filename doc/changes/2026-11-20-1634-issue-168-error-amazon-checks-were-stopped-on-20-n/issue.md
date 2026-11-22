@@ -89,3 +89,9 @@ Continue the implement stage.
 
 Continue the implement stage. The missing tests the reviewer asked for (morning-window check with now in the evening window, one-time redraw) will be added in a follow-up issue; do not add test files in this stage.
 
+### redjhawk at 2026-11-22T08:55:14Z
+
+@claude R3-01 is fixed on `ai-dev/issue-168` ($(git rev-parse --short HEAD)): `API_SPECIFICATION.md` and the API section of `doc/specifications/amazon-human-checks/technical.md` now say that the refresh endpoints no longer change a *future* Amazon `nextCheckAt`, that Refresh price (`POST /api/v1/items/{id}/refresh`) moves an already passed one to a random time in the next window, and that `POST /api/v1/items/refresh` never changes Amazon `nextCheckAt`. Documentation only; no code change needed.
+
+Continue.
+
