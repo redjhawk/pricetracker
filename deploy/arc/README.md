@@ -5,7 +5,7 @@ Self-hosted GitHub Actions runners for this repository (application deployment: 
 
 | Scale set | Used by | Image | Max runners |
 |---|---|---|---|
-| `arc-dev` | `fabrica.yml` (agent factory) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
+| `arc-dev` | `fabrica.yml` (agent factory) and `supervisor.yml` (its supervisor, every 15 minutes) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
 | `arc-build` | `release.yml` (build, tag and GitHub release) | default ARC runner image | 1 |
 
 `arc-dev` runs the runner pod in its own user namespace (`hostUsers: false`) with an unmasked `/proc`
