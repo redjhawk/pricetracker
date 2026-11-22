@@ -24,10 +24,7 @@ Chromium marks a profile as in use with three entries in the profile directory: 
 
 Not affected: there is no new screen, setting or message, and item states and messages stay the same (functional spec, "States and corner cases").
 
-Two keyboard focus races in existing Carbon components made the Playwright gate fail intermittently, so this change fixes them without changing behaviour:
-
-- `src/components/InformationModal.tsx`: wrap the modal in `<FeatureFlags enableFocusWrapWithoutSentinels>`, as `SettingsModal` already does. Carbon's sentinel focus wrap runs in a `setTimeout`, so right after Tab, focus could still sit on the sentinel outside the modal (`tests/app-information.spec.ts`, "keyboard opens the entry and focus stays inside the modal").
-- `src/components/AppMenu.tsx`: a late `OverflowMenu` re-render (its trigger `ResizeObserver`) re-arms Carbon's focus-on-open effect. If a key closes the menu before that effect runs, the effect pulls focus back into the closing menu, and focus falls to the page body. `onClose` now gives focus back to the menu button when the menu was used with the keyboard (item `onKeyDown`, reset by `onOpen`) and focus is on `document.body`. Mouse dismissal does not change (`tests/leboncoin-session-settings.spec.ts`, "header menu …").
+No frontend file changes. The keyboard focus fixes of earlier rounds in `src/components/AppMenu.tsx` and `src/components/InformationModal.tsx` are withdrawn (R1-02): they are unrelated to this issue and belong to their own issue about the intermittent Playwright tests.
 
 ## Backend
 
@@ -52,7 +49,6 @@ Not affected: there is no new endpoint or field and no change to responses or er
 | File | Change |
 | --- | --- |
 | `internal/amazon/browser.go` | TS-AMZ-BPROF-001 – 004 |
-| `src/components/InformationModal.tsx`, `src/components/AppMenu.tsx` | Keyboard focus race fixes (see Frontend) |
 | `internal/amazon/browser_profile_test.go` (new) | TC-001 – TC-006, TC-008 |
 | `internal/service/amazon_browser_profile_test.go` (new) | TC-007, TC-009 |
 | `internal/httpapi/amazon_browser_profile_test.go` (new) | TC-010 |
@@ -78,7 +74,7 @@ The existing tests must keep passing: `internal/amazon/browser_test.go` (includi
 
 ## Scope and refactoring
 
-No refactoring. In production code, only `internal/amazon/browser.go` changes for the feature; the two frontend files change only for the focus race fixes above. Out of scope: parsing the lock or checking whether its process is alive (not needed, because the collector's mutex already guarantees exclusive use), locking between application instances, and restarting items already stopped (they restart through **Refresh price**, FR-AMZ-STOP-006).
+No refactoring. In production code, only `internal/amazon/browser.go` changes. Out of scope: parsing the lock or checking whether its process is alive (not needed, because the collector's mutex already guarantees exclusive use), locking between application instances, and restarting items already stopped (they restart through **Refresh price**, FR-AMZ-STOP-006).
 
 ## Verification
 
