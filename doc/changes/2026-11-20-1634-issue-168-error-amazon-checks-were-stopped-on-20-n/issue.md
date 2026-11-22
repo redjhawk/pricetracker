@@ -83,3 +83,9 @@ There is a fix on master @claude
 
 Continue the implement stage.
 
+### redjhawk at 2026-11-21T23:19:02Z
+
+@claude `internal/service/amazon_due_window_test.go` is deleted from `ai-dev/issue-168` (it was committed by the stop commit 599700b). Locally on the branch: no test file changed since the TDD red commit, tests.lock matches, `go vet`, `go test ./...`, `npm run build` and `npx playwright test` (84) pass.
+
+Continue the implement stage. The missing tests the reviewer asked for (morning-window check with now in the evening window, one-time redraw) will be added in a follow-up issue; do not add test files in this stage.
+
