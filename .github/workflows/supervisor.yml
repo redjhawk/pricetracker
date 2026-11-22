@@ -1,8 +1,11 @@
 # Supervisor of the agent factory (scripts/factory/supervisor.mjs, doc/workflow/WORKFLOW.md "Supervisor").
 # Every 15 minutes it resumes the factory runs that stopped for a reason that goes away without the owner:
 # a Claude usage limit (after the reset), a failed or crashed run (up to 3 retries per stage), a broken
-# runner (once a probe agent passes) and a bug on master (once its issue is closed).
-# Off switch: set the repository variable FACTORY_SUPERVISOR to "off". The label factory-hold excludes one issue.
+# runner (once a probe agent passes) and a bug on master (once its issue is closed). While fewer than
+# FACTORY_MAX_ACTIVE issues (1 by default) are in development, it launches the next open issue, chosen by a
+# Claude agent and the owner's priority:high/low labels, by adding ai-dev.
+# Off switch: set the repository variable FACTORY_SUPERVISOR to "off"; FACTORY_MAX_ACTIVE=0 stops only the
+# launches. The label factory-hold excludes one issue.
 name: supervisor
 on:
   schedule:
@@ -21,9 +24,11 @@ jobs:
     permissions:
       contents: read
     env:
-      # The owner's token: a relaunch is a comment by the owner, which starts fabrica.yml.
+      # The owner's token: a relaunch is a comment by the owner, and a launch an ai-dev label added by the
+      # owner; both start fabrica.yml.
       GH_TOKEN: ${{ secrets.DEV_TOKEN }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      FACTORY_MAX_ACTIVE: ${{ vars.FACTORY_MAX_ACTIVE }}
     steps:
       - uses: actions/checkout@v7
         with:

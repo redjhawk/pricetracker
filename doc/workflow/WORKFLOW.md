@@ -60,12 +60,23 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 | `error`, `blocked-env`, `merge-failed`, or a run that failed without reporting a stop (crash) | relaunches 15, 30 and 45 minutes after the stop, at most 3 times at the same stage and round, then gives up: one comment and `factory:needs-human` |
 | `base-bug` | relaunches when the `waiting_on` issue is closed; the run merges the base branch before implementing |
 | an owner comment that started no run | relaunches 15 minutes after the comment, once |
+| an issue labelled `ai-dev` or launched whose run never started | relaunches 15, 30 and 45 minutes later, then gives up |
 | anything else (questions, failed gate, sensitive files, …) | waits for the owner |
 
 - Before relaunching anything, a probe agent runs `cat` on a file with a random value through the Bash tool, with the same environment as the factory's agents. When it fails for another reason than the usage limit, the supervisor opens one issue labelled `factory-infra` with the probe output and relaunches nothing; it closes that issue when the probe passes again.
 - A relaunch is a comment `<!-- factory-supervisor {…} -->` that names the reason and the attempt, and that starts `fabrica.yml`. Retries are counted from these comments since the last owner comment; an owner comment starts the count again.
 - Off switch: the repository variable `FACTORY_SUPERVISOR=off`. The label `factory-hold` excludes one issue. `node scripts/factory/supervisor.mjs --dry-run` prints the decisions without acting.
-- The decisions are tested in [`scripts/factory-supervisor.test.mjs`](../../scripts/factory-supervisor.test.mjs).
+
+### Queue
+
+The supervisor also starts new issues, so the factory always has work:
+
+- An issue is **in development** while the factory goes on with it without the owner: a run is queued or running, or the supervisor will relaunch it (retry, usage limit, base bug, a run that has not started). An issue stopped for the owner (questions, failed gate, merge conflict, given up…) or labelled `factory-hold` frees its place.
+- While fewer than `FACTORY_MAX_ACTIVE` issues (repository variable, 1 by default) are in development and no issue waits for the usage limit, the supervisor launches the next candidate: it posts a comment with the reason and the rest of the queue, then adds `ai-dev` with the owner's token, which starts `fabrica.yml`. Its probe must pass first, as for a relaunch. One at a time keeps the branches free of conflicts with each other and spends the usage limit slowest.
+- **Candidates:** open issues opened by a trusted author (the owner, or the factory with the owner's token) that have never been in the factory (no `ai-dev` and no `factory:*` label) and are not labelled `factory-hold`, `factory-infra`, `question`, `wontfix`, `duplicate` or `invalid`. Issues by anyone else are never launched or shown to the ranking agent.
+- **Order:** the owner's `priority:high` issues first and `priority:low` last; within each, the order of a Claude agent (`FACTORY_RANK_MODEL`, `claude-sonnet-5-5`, no tools) that ranks the candidates by bugs that block, dependencies, size and age. When it fails, oldest first. A single candidate is launched without asking it.
+- `FACTORY_MAX_ACTIVE=0` stops the launches and keeps the relaunches.
+- The decisions and the queue are tested in [`scripts/factory-supervisor.test.mjs`](../../scripts/factory-supervisor.test.mjs).
 
 ## Running it
 
