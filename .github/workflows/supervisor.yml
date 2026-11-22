@@ -4,19 +4,22 @@
 # runner (once a probe agent passes) and a bug on master (once its issue is closed). While fewer than
 # FACTORY_MAX_ACTIVE issues (1 by default) are in development, it launches the next open issue, chosen by a
 # Claude agent and the owner's priority:high/low labels, by adding ai-dev.
-# Off switch: set the repository variable FACTORY_SUPERVISOR to "off"; FACTORY_MAX_ACTIVE=0 stops only the
-# launches. The label factory-hold excludes one issue.
+# Off switch: set the repository variable FACTORY_SUPERVISOR to "off" (after switching it back on, run the
+# workflow once by hand); FACTORY_MAX_ACTIVE=0 stops only the launches. The label factory-hold excludes one issue.
 name: supervisor
 on:
+  # GitHub's schedule is best effort, and in this repository it never fired: the `next` job keeps the loop
+  # going by dispatching the next run itself. The schedule stays as a backup that restarts a stopped loop.
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
-concurrency:
-  group: factory-supervisor
-  cancel-in-progress: false
 jobs:
   supervisor:
     if: vars.FACTORY_SUPERVISOR != 'off'
+    # At job level, so that a run waiting in `next` does not hold the group.
+    concurrency:
+      group: factory-supervisor
+      cancel-in-progress: false
     # The arc-dev image has the Claude CLI, and the probe must meet the sandbox the factory's agents meet.
     runs-on: arc-dev
     environment: dev
@@ -36,3 +39,25 @@ jobs:
           persist-credentials: false
       - name: Supervisar
         run: node scripts/factory/supervisor.mjs
+  next:
+    # The loop: about 15 minutes after this run started, dispatch the next one, unless a newer run (a manual
+    # one, the schedule) already carries the loop. It waits on a GitHub-hosted runner, free for a public
+    # repository, so no arc-dev runner is held. A workflow_dispatch by GITHUB_TOKEN does start a run.
+    needs: supervisor
+    if: ${{ !cancelled() && vars.FACTORY_SUPERVISOR != 'off' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Esperar
+        run: sleep 780
+      - name: Lanzar la siguiente
+        run: |
+          newer=$(gh run list --workflow supervisor.yml --limit 20 --json databaseId,conclusion \
+            --jq "[.[] | select(.databaseId > $GITHUB_RUN_ID and .conclusion != \"cancelled\")] | length")
+          if [ "$newer" -gt 0 ]; then echo "A newer supervisor run carries the loop."; exit 0; fi
+          gh workflow run supervisor.yml --ref master

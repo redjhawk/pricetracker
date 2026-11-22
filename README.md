@@ -77,10 +77,10 @@ Nothing runs on the PriceFollower server. All three workflows run on the self-ho
    - `DEV_TOKEN`, in the `dev` environment: a token of the repository owner that can write contents, pull requests and issues. The factory pushes, opens and merges pull requests with it, and the supervisor comments and labels with it. Because the events it creates count as the owner's, they start the other workflows: a comment or an `ai-dev` label starts `fabrica.yml`, and a merge starts `release.yml`.
    - `CLAUDE_CODE_OAUTH_TOKEN`, a repository secret: the Claude subscription token from `claude setup-token`. Every agent of the factory and of the supervisor uses it, so they all share that account's usage limit.
 3. **Optional repository variables** (same page, *Variables* tab):
-   - `FACTORY_SUPERVISOR=off` stops the supervisor completely.
+   - `FACTORY_SUPERVISOR=off` stops the supervisor completely. After switching it back on, run `supervisor` once by hand (Actions → `supervisor` → *Run workflow*) to restart its loop.
    - `FACTORY_MAX_ACTIVE` sets how many issues are in development at a time. The default is `1`, and `0` stops the launch of new issues while the supervisor still resumes the stopped ones.
 
-The repository is public, so GitHub disables scheduled workflows after 60 days without activity. If that happens, re-enable `supervisor` in the Actions tab.
+GitHub's own schedule is best effort and has never fired in this repository. Each `supervisor` run therefore starts the next one itself, about 15 minutes later, from a short job on a GitHub-hosted runner, which is free for a public repository. The schedule stays as a backup.
 
 ### Daily use
 
@@ -129,7 +129,7 @@ When the factory has a free place, the supervisor launches the next issue by its
 
 ### Troubleshooting
 
-- **The supervisor does not run:** GitHub can delay scheduled runs by several minutes. Start it by hand from Actions → `supervisor` → *Run workflow*, and check that `FACTORY_SUPERVISOR` is not `off`.
+- **The supervisor does not run:** its loop stops if a run is cancelled or GitHub has an outage. Check that `FACTORY_SUPERVISOR` is not `off`, then start it once by hand from Actions → `supervisor` → *Run workflow*. That run restarts the loop.
 - **An issue does not move:** read its last factory or supervisor comment and its `factory:*` label. The summary of each `supervisor` run in Actions lists its decision for every issue and the current queue.
 - **Runner pods do not start:** see "Troubleshooting" in [deploy/arc/README.md](deploy/arc/README.md).
 
