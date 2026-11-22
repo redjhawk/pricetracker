@@ -32,3 +32,8 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-HCHK-002 — Add an Amazon item and start its random schedule](amazon-human-checks/UC-AMZ-HCHK-002-add-amazon-item-and-start-random-schedule.md)
 - [UC-AMZ-HCHK-003 — Refresh Amazon prices immediately](amazon-human-checks/UC-AMZ-HCHK-003-refresh-amazon-prices-immediately.md)
 - [UC-AMZ-HCHK-004 — Restart stopped Amazon items once after the upgrade](amazon-human-checks/UC-AMZ-HCHK-004-restart-stopped-amazon-items-once-after-upgrade.md)
+
+## Amazon browser profile recovery
+
+- [UC-AMZ-BPROF-001 — Amazon check after the browser ended abruptly](amazon-browser-profile/UC-AMZ-BPROF-001-amazon-check-after-browser-ended-abruptly.md)
+- [UC-AMZ-BPROF-002 — Amazon checks after the data directory is moved to another machine](amazon-browser-profile/UC-AMZ-BPROF-002-amazon-checks-after-data-directory-moved.md)
