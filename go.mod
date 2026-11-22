@@ -2,6 +2,8 @@ module pricefollower.local
 
 go 1.25.0
 
+toolchain go1.26.11
+
 require modernc.org/sqlite v1.59.0
 
 require (
