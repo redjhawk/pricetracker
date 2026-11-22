@@ -89,7 +89,7 @@ Secrets (FR-AMZ-HUMAN-012): causes come from error strings (exec, CDP `errorText
 `internal/amazon/cdp.go`:
 
 - New type `tailBuffer`, an `io.Writer` guarded by a mutex that keeps only the last 2,048 bytes written. It has a `String()` method.
-- `launchBrowser`: set `cmd.Stderr = &tailBuffer{}` and `cmd.WaitDelay = time.Second`. Child processes that keep the stderr pipe open then delay `Wait` by at most one second after the main process exits. The wait goroutine stores `cmd.Wait()`'s error in `b.waitErr`, then closes `b.exited`. Reads happen after `<-b.exited`, so no extra lock is needed.
+- `launchBrowser`: set `cmd.Stderr = &tailBuffer{}` and `cmd.WaitDelay = time.Second`. Child processes that keep the stderr pipe open then delay `Wait` by at most one second after the main process exits. The wait goroutine closes `b.exited` once `cmd.Wait()` returns, so `cmd.ProcessState` is set. Reads happen after `<-b.exited`, so no extra lock is needed.
 - New `(b *cdpBrowser) exitError() error`. It waits up to 2 s for `b.exited`. If the browser exited, it returns `fmt.Errorf("%w (%s): %s", errBrowserExited, status, tail)`. Otherwise it returns `errBrowserExited`. The status is `b.cmd.ProcessState.String()` (for example `exit status 1` or `signal: killed`), and the tail is the trimmed stderr tail. The `: tail` part is left out when the tail is empty.
 - `call`: the two `return errBrowserExited` paths (write error, and `b.read` closed) return `b.exitError()`. `errors.Is(err, errBrowserExited)` still holds. `open` already wraps these errors as `browser could not start: …` during `setUp`, so a stub that prints and exits gives the cause `browser could not start: the browser exited (exit status 1): Running as root without --no-sandbox is not supported. See https://crbug.com/638180.`
 - `close()` does not change. Its `Browser.close` call happens after `b.read` closes, and `exitError` returns at once because `b.exited` is already closed or about to close. TC-006 requires the check to end within 20 s, and the worst case is 2 s for `exitError` plus the existing 2 s + 5 s of `close`.
@@ -121,7 +121,7 @@ Secrets (FR-AMZ-HUMAN-012): causes come from error strings (exec, CDP `errorText
 
 - Persistence and migrations: none. `FailureCause` is never stored, and the schema, failure count, stops and attempts do not change.
 - Validation: none added. The browser path and the no-sandbox flag come from the environment as before.
-- Concurrency: unchanged. Checks are serialized by `BrowserCollector.mu` and `amazonGate.request`. `tailBuffer` has its own mutex because `exec`'s copy goroutine writes to it. `waitErr` is published by closing `exited`.
+- Concurrency: unchanged. Checks are serialized by `BrowserCollector.mu` and `amazonGate.request`. `tailBuffer` has its own mutex because `exec`'s copy goroutine writes to it. `cmd.ProcessState` is published by closing `exited`.
 
 ## API
 
@@ -133,7 +133,7 @@ Not affected. There is no new endpoint, field, status or error. `lastAttempt.res
 | --- | --- |
 | `internal/amazon/browser.go` | TS-AMZ-BRET-001, -003, -004, -006: `isRobotCheck`, robot cause text, `logText`, `FailureCause` in `requestFailure`, `BrowserPathVariable`, `BrowserNames` |
 | `internal/amazon/collector.go` | `productPriceRegions` extraction; `FailureCause` for `price_not_found` (TS-AMZ-BRET-001, -004) |
-| `internal/amazon/cdp.go` | TS-AMZ-BRET-005: `tailBuffer`, `WaitDelay`, `waitErr`, `exitError` |
+| `internal/amazon/cdp.go` | TS-AMZ-BRET-005: `tailBuffer`, `WaitDelay`, `exitError` |
 | `internal/model/model.go` | `CollectionResult.FailureCause` |
 | `internal/service/amazon_gate.go` | `cause=` in the failure line; new `price_not_found` line |
 | `internal/service/service.go` | `browserNoSandboxVariable`, `Options.AmazonBrowserOrigin`, `newBrowserCollector(cfg, origin)` |

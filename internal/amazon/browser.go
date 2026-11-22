@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"pricefollower.local/internal/model"
 )
@@ -69,7 +71,44 @@ const (
 	maxPageBytes             = 5 << 20
 )
 
-var robotCheckPattern = regexp.MustCompile(`(?i)captcha|robot check|enter the characters you see below`)
+var (
+	robotCheckText = regexp.MustCompile(`(?i)enter the characters you see below|saisissez les caractères que vous voyez ci-dessous`)
+	robotCheckForm = regexp.MustCompile(`(?is)<form\b[^>]*\baction\s*=\s*["']?[^"'>]*/errors/validatecaptcha`)
+)
+
+// isRobotCheck reports whether a rendered page asks to prove the visitor is not a robot instead of
+// showing the product: no product block, and a robot-check form or visible robot-check text. Scripts
+// and styles never count, so a product page mentioning "captcha" or "robot" is read as a product page.
+func isRobotCheck(html string) bool {
+	markup := stylePattern.ReplaceAllString(scriptPattern.ReplaceAllString(html, " "), " ")
+	for _, id := range append([]string{"productTitle"}, productPriceRegions...) {
+		if strings.Contains(markup, `id="`+id+`"`) || strings.Contains(markup, `id='`+id+`'`) {
+			return false
+		}
+	}
+	return robotCheckForm.MatchString(markup) || robotCheckText.MatchString(textContent(markup))
+}
+
+// logText returns reason as one line of at most 1,024 bytes of valid UTF-8, for the log.
+func logText(reason string) string {
+	const limit = 1024
+	text := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(reason, ""))
+	text = strings.Join(strings.Fields(text), " ")
+	if len(text) <= limit {
+		return text
+	}
+	const ellipsis = "…"
+	cut := limit - len(ellipsis)
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + ellipsis
+}
 
 // loadedPage is the main document of a page loaded by the browser.
 type loadedPage struct {
@@ -132,8 +171,10 @@ func (c *BrowserCollector) Collect(ctx context.Context, item model.Listing) mode
 
 // requestFailure returns the failure of a check that got no usable Amazon answer.
 func requestFailure(item model.Listing, result model.CollectionResult, reason string) model.CollectionResult {
-	printRequestError(item, reason)
+	cause := logText(reason)
+	printRequestError(item, cause)
 	result.Result, result.Message, result.SecondHandStatus = "request_error", amazonCheckFailedMessage, "check_error"
+	result.FailureCause = cause
 	return result
 }
 
@@ -153,8 +194,8 @@ func (c *BrowserCollector) classifyPage(page loadedPage) (bool, error) {
 	if page.mimeType != "text/html" && page.mimeType != "application/xhtml+xml" {
 		return false, errors.New("Amazon returned an unexpected content type")
 	}
-	if robotCheckPattern.MatchString(page.html[:min(len(page.html), 200_000)]) {
-		return false, errors.New("Amazon blocked the product request")
+	if isRobotCheck(page.html) {
+		return false, errors.New("Amazon showed a robot check instead of the product page")
 	}
 	return false, nil
 }
