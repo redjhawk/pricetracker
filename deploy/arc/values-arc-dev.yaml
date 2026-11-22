@@ -13,7 +13,7 @@ template:
     hostUsers: false
     containers:
       - name: runner
-        image: ghcr.io/redjhawk/arc-runner-dev:4
+        image: ghcr.io/redjhawk/arc-runner-dev:5
         imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         securityContext:
