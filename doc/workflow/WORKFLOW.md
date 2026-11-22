@@ -52,7 +52,7 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 
 ## Supervisor
 
-[`supervisor.yml`](../../.github/workflows/supervisor.yml) runs [`scripts/factory/supervisor.mjs`](../../scripts/factory/supervisor.mjs) every 15 minutes on `arc-dev`. It reads the open `ai-dev` issues, their comments and their `fabrica` runs, and resumes the runs that stopped for a reason that goes away without the owner:
+[`supervisor.yml`](../../.github/workflows/supervisor.yml) runs [`scripts/factory/supervisor.mjs`](../../scripts/factory/supervisor.mjs) every 15 minutes on `arc-dev`. GitHub's schedule is best effort and never fired in this repository, so each run ends with a job on a GitHub-hosted runner that waits 13 minutes and dispatches the next run, unless a newer run already exists; the schedule stays as a backup. It reads the open `ai-dev` issues, their comments and their `fabrica` runs, and resumes the runs that stopped for a reason that goes away without the owner:
 
 | Stop | Supervisor |
 |---|---|
@@ -65,7 +65,7 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 
 - Before relaunching anything, a probe agent runs `cat` on a file with a random value through the Bash tool, with the same environment as the factory's agents. When it fails for another reason than the usage limit, the supervisor opens one issue labelled `factory-infra` with the probe output and relaunches nothing; it closes that issue when the probe passes again.
 - A relaunch is a comment `<!-- factory-supervisor {…} -->` that names the reason and the attempt, and that starts `fabrica.yml`. Retries are counted from these comments since the last owner comment; an owner comment starts the count again.
-- Off switch: the repository variable `FACTORY_SUPERVISOR=off`. The label `factory-hold` excludes one issue. `node scripts/factory/supervisor.mjs --dry-run` prints the decisions without acting.
+- Off switch: the repository variable `FACTORY_SUPERVISOR=off`; after switching it back on, run the workflow once by hand to restart the loop. The label `factory-hold` excludes one issue. `node scripts/factory/supervisor.mjs --dry-run` prints the decisions without acting.
 
 ### Queue
 
