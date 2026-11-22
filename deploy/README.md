@@ -43,5 +43,5 @@ Then open the application, choose "Log in", and log in as `admin` to add users. 
 ## CI runners
 
 The GitHub Actions workflows run on self-hosted runners in a k3s cluster: `arc-dev` for the agent factory
-(`fabrica.yml`) and `arc-build` for `release.yml`. Their image, Helm values, install scripts and troubleshooting are
+(`fabrica.yml` and `supervisor.yml`) and `arc-build` for `release.yml`. Their image, Helm values, install scripts and troubleshooting are
 in [arc/README.md](arc/README.md).
