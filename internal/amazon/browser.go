@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"math/rand/v2"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -34,7 +36,7 @@ type BrowserOptions struct {
 // per check and never shows it.
 type BrowserCollector struct {
 	options BrowserOptions
-	mu      sync.Mutex // one browser at a time (one profile)
+	mu      sync.Mutex // one browser at a time (one profile); also guards the profile's stale lock cleanup
 }
 
 // NewBrowserCollector returns a browser collector.
@@ -77,6 +79,9 @@ func (c *BrowserCollector) Collect(ctx context.Context, item model.Listing) mode
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	result := model.CollectionResult{RequestURL: item.URL}
+	if ctx.Err() != nil {
+		return requestFailure(item, result, ctx.Err().Error())
+	}
 	tab, err := c.open(ctx, item)
 	if err != nil {
 		return requestFailure(item, result, err.Error())
@@ -237,10 +242,18 @@ func (c *BrowserCollector) open(ctx context.Context, item model.Listing) (*brows
 	return tab, nil
 }
 
-// profile returns the browser profile directory and the function removing it when temporary.
+// staleLockNames are the entries Chromium creates to mark its profile as in use. A killed or
+// crashed browser leaves them behind, and Chromium refuses the profile when the lock names another host.
+var staleLockNames = []string{"SingletonLock", "SingletonSocket", "SingletonCookie"}
+
+// profile returns the browser profile directory and the function removing it when temporary. It runs
+// with c.mu held, so the lock marks found in a persistent profile are stale.
 func (c *BrowserCollector) profile() (string, func(), error) {
 	if c.options.ProfileDir != "" {
-		return c.options.ProfileDir, func() {}, os.MkdirAll(c.options.ProfileDir, 0o700)
+		if err := os.MkdirAll(c.options.ProfileDir, 0o700); err != nil {
+			return "", nil, err
+		}
+		return c.options.ProfileDir, func() {}, removeStaleLocks(c.options.ProfileDir)
 	}
 	directory, err := os.MkdirTemp("", "pricefollower-browser-")
 	if err != nil {
@@ -251,6 +264,16 @@ func (c *BrowserCollector) profile() (string, func(), error) {
 			log.Printf("remove temporary browser profile: %v", err)
 		}
 	}, nil
+}
+
+// removeStaleLocks removes the lock marks from a profile directory (a symlink, never its target).
+func removeStaleLocks(directory string) error {
+	for _, name := range staleLockNames {
+		if err := os.Remove(filepath.Join(directory, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove stale profile lock %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func (t *browserTab) setUp(ctx context.Context, acceptLanguage string) error {
