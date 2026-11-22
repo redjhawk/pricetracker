@@ -86,3 +86,7 @@ There is a fix on master @claude
 
 @claude  tu puedes resolver los conflictos. hazlo automáticamente y sigue con tu ejecución 
 
+### redjhawk at 2026-11-22T20:24:45Z
+
+@claude The merge conflict is resolved on `ai-dev/issue-165` (7beca3d, `chore(factory): merge master into #165 (tests relocked)`): in `doc/FUNCTIONAL_SPECIFICATIONS.md` FR-36 keeps the #165 wording, and FR-37 (#168) and FR-38 (#180) from master are kept. tests.lock was relocked as `sync_base` does; no test file changed. Continue with the implementation.
+
