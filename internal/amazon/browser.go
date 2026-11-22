@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand/v2"
 	"net/url"
 	"os"
@@ -181,7 +182,7 @@ func (c *BrowserCollector) navigationTimeout() time.Duration {
 
 // pause waits like a person reading the page; it returns false when ctx ends first.
 func (c *BrowserCollector) pause(ctx context.Context) bool {
-	delay := time.Duration(2000+rand.IntN(3001)) * time.Millisecond
+	delay := time.Duration(2000+rand.IntN(3001)) * time.Millisecond // #nosec G404 -- pause jitter, not security
 	if c.options.Pause != nil {
 		delay = c.options.Pause()
 	}
@@ -245,7 +246,11 @@ func (c *BrowserCollector) profile() (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return directory, func() { os.RemoveAll(directory) }, nil
+	return directory, func() {
+		if err := os.RemoveAll(directory); err != nil {
+			log.Printf("remove temporary browser profile: %v", err)
+		}
+	}, nil
 }
 
 func (t *browserTab) setUp(ctx context.Context, acceptLanguage string) error {

@@ -51,24 +51,21 @@ func launchBrowser(executable string, args []string) (*cdpBrowser, error) {
 	}
 	output, browserOutput, err := os.Pipe()
 	if err != nil {
-		browserInput.Close()
-		input.Close()
-		return nil, err
+		return nil, errors.Join(err, browserInput.Close(), input.Close())
 	}
 	cmd := exec.Command(executable, args...) // #nosec G204 -- executable from the configuration, arguments built by the code
 	cmd.ExtraFiles = []*os.File{browserInput, browserOutput}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	err = cmd.Start()
-	browserInput.Close()
-	browserOutput.Close()
+	// The browser has its own copies of these ends; failing to close the parent's changes nothing.
+	_ = browserInput.Close()
+	_ = browserOutput.Close()
 	if err != nil {
-		input.Close()
-		output.Close()
-		return nil, err
+		return nil, errors.Join(err, input.Close(), output.Close())
 	}
 	b := &cdpBrowser{cmd: cmd, input: input, output: output, pending: map[int64]chan cdpMessage{},
 		handlers: map[string]func(string, json.RawMessage){}, read: make(chan struct{}), exited: make(chan struct{})}
-	go func() { cmd.Wait(); close(b.exited) }()
+	go func() { _ = cmd.Wait(); close(b.exited) }() // only the exit matters, not its status
 	go b.readMessages()
 	return b, nil
 }
@@ -160,16 +157,17 @@ func (b *cdpBrowser) call(ctx context.Context, sessionID, method string, params,
 // returns once the process has exited and the reader has stopped.
 func (b *cdpBrowser) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	b.call(ctx, "", "Browser.close", nil, nil)
+	_ = b.call(ctx, "", "Browser.close", nil, nil) // the process group is killed below anyway
 	cancel()
 	select {
 	case <-b.exited:
 	case <-time.After(5 * time.Second):
 	}
 	// Also ends the child processes still running after the browser itself exited.
-	syscall.Kill(-b.cmd.Process.Pid, syscall.SIGKILL)
+	// The group may already be gone; the browser has exited either way once b.exited is closed.
+	_ = syscall.Kill(-b.cmd.Process.Pid, syscall.SIGKILL)
 	<-b.exited
-	b.input.Close()
-	b.output.Close()
+	_ = b.input.Close()
+	_ = b.output.Close()
 	<-b.read
 }
