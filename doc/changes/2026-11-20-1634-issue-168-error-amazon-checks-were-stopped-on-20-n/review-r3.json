@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "file": "API_SPECIFICATION.md",
+    "line": 688,
+    "category": "spec",
+    "body": "The API contract still says that `POST /api/v1/items/{id}/refresh` and `POST /api/v1/items/refresh` \"no longer change `nextCheckAt` of Amazon items\". After the round-2 fix (R2-01), RefreshItem calls rescheduleOverdueAmazonCheck (internal/service/service.go:304, 325-331). When the stored next check is already due (<= now), it stores nextAmazonCheckAt(now). A client can see this: refresh a stopped Amazon item whose nextCheckAt is in the past, then call GET /api/v1/items, and nextCheckAt has moved to the next window. TS-AMZ-HCHK-007 and the Schedule section of technical.md were updated for this, but API_SPECIFICATION.md was not, so the two documents disagree. Fix: reword the bullet, e.g. \"... they no longer change a future `nextCheckAt` of Amazon items; Refresh price moves an already passed Amazon `nextCheckAt` (a check skipped while the item was stopped) to a random time in the next window (LeBoncoin unchanged).\""
+  },
+  {
+    "id": "R3-02",
+    "file": "internal/service/amazon_human_checks_test.go",
+    "line": 746,
+    "category": "test",
+    "body": "Since the R2-01 fix, the TC-032 subtest \"Refresh price running\" no longer reaches the code it was written for. The item is inserted due at 07:00 and the clock is at 07:05. RefreshItem now redraws that overdue time to the evening window before the check starts (rescheduleOverdueAmazonCheck). So service.collectDue gets no due item, and skipScheduledCheck's in-flight branch never runs for a Refresh price. The test still passes, but it would also pass if that branch were removed. Only the \"first check after add running\" subtest still covers the branch. The R2-01 behaviour (due 07:00, stopped, Refresh price at 07:30 restarts the item, collectDue at 07:31 → exactly one check, next check in the evening window) also has no test. Suggested follow-up, since test files are locked in this stage: in the Refresh price subtest, call database.SetNextCheck(ctx, id, now.Now().Add(-time.Minute)) after waitStarted and before collectDue, as the add subtest does. Also add a service test for the restart-after-stop scenario."
+  }
+]

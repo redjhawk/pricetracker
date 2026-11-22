@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Script product</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<h1><span id="productTitle">Script product</span></h1>
+<img id="landingImage" src="/static/pixel.png" alt="Script product">
+<div id="corePriceDisplay_desktop_feature_div"></div>
+<script>
+// The price exists only once this script has run: the downloaded HTML has none.
+var wrapper = document.createElement("span");
+wrapper.className = "a-price priceToPay";
+var amount = document.createElement("span");
+amount.className = "a-offscreen";
+amount.textContent = ["49", "99 €"].join(",");
+wrapper.appendChild(amount);
+document.getElementById("corePriceDisplay_desktop_feature_div").appendChild(wrapper);
+</script>
+</body>
+</html>

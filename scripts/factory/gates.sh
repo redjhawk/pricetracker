@@ -36,6 +36,23 @@ run_all_tests() {
 # Files the gates execute: always locked with the tests, even when unchanged.
 lock_files() { { test_files; ls playwright.config.ts scripts/*.test.mjs 2>/dev/null; } | sort -u; }
 
+# After the factory merges the base branch (sync_base in factory.sh): the same locked files, plus the
+# always-locked ones the merge may have added, hashed again with their merged content.
+relock_tests() {
+  local lock="$CHANGE_DIR/tests.lock" f
+  { awk '{print $2}' "$lock"; ls playwright.config.ts scripts/*.test.mjs 2>/dev/null; } | sort -u |
+    while IFS= read -r f; do [ ! -e "$f" ] || printf '%s\n' "$f"; done | xargs sha256sum >"$lock.new"
+  mv "$lock.new" "$lock"
+}
+
+# The commit the test files are compared with: the TDD red commit, or a later merge of the base branch that
+# the factory made before an implementation round. Agents cannot commit, so only the factory (or a human)
+# creates commits with these subjects.
+test_ref() {
+  git log -1 --format=%H --grep="^test: failing tests for #$ISSUE (TDD red)" \
+    --grep="^chore(factory): merge $BASE_BRANCH into #$ISSUE (tests relocked)" HEAD
+}
+
 gate_spec() {
   [ -n "$(functional_files)" ] || { echo "no doc/specifications/<subject>/functional.md changed"; return 1; }
   [ -n "$(requirement_ids)" ] || { echo "functional specs define no FR-<SUBJECT>-NNN requirement"; return 1; }
@@ -91,10 +108,10 @@ gate_red() {
 }
 
 # TDD green: the locked tests are untouched and the whole suite, build and e2e pass.
-# The lock is read from the commit of the tests stage, not from the working tree the agent can edit.
+# The lock is read from the test reference commit (test_ref), not from the working tree the agent can edit.
 gate_green() {
   local commit lock
-  commit=$(git log -1 --format=%H --grep="^test: failing tests for #$ISSUE (TDD red)" HEAD)
+  commit=$(test_ref)
   [ -n "$commit" ] || { echo "no TDD red commit found for #$ISSUE"; return 1; }
   if lock=$(git show "$commit:$CHANGE_DIR/tests.lock" 2>/dev/null) && [ -n "$lock" ]; then
     sha256sum --quiet -c - <<<"$lock" || { echo "locked tests were modified by the implementation"; return 1; }
@@ -102,7 +119,7 @@ gate_green() {
   elif ! git cat-file -e "$commit:$CHANGE_DIR/no-tests.md" 2>/dev/null; then
     echo "tests.lock missing or empty in the TDD red commit $commit"; return 1
   fi
-  # Any test file (new or pre-existing) changed after the red commit fails: tests cannot be weakened.
+  # Any test file (new or pre-existing) changed after the reference commit fails: tests cannot be weakened.
   local touched
   touched=$({ git diff --name-only "$commit" --; git ls-files -o --exclude-standard; } | grep -E "$TEST_FILE_PATTERN" | sort -u || true)
   [ -z "$touched" ] || { echo "test files changed after the TDD red commit:"; echo "$touched"; return 1; }
@@ -115,6 +132,14 @@ sensitive_files() {
   changed_paths | grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
 }
 
+# The scanners are built with the toolchain go.mod names (Go downloads it), not taken from the runner
+# image: govulncheck and gosec cannot analyse a standard library newer than the Go they were built with,
+# and the image's Go lags behind security releases.
+GOVULNCHECK_VERSION=v1.1.4
+GOSEC_VERSION=v2.22.10
 security_scan() {
-  govulncheck ./... && gosec -quiet ./...
+  local toolchain
+  toolchain=$(go mod edit -json | jq -r '.Toolchain // empty')
+  GOTOOLCHAIN=${toolchain:-auto} go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./... &&
+    GOTOOLCHAIN=${toolchain:-auto} go run "github.com/securego/gosec/v2/cmd/gosec@$GOSEC_VERSION" -quiet ./...
 }

@@ -58,6 +58,11 @@ for set in arc-dev arc-build; do
     --set githubConfigUrl="$repo_url" --set githubConfigSecret=github-app \
     -f "$dir/values-$set.yaml" \
     "$charts/gha-runner-scale-set"
+  # Left by an earlier version that set sandbox.enableWeakerNestedSandbox, which Claude Code ignores under
+  # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB; deleted after the upgrade so no runner pod still mounts it.
+  if [ "$set" = arc-dev ]; then
+    kubectl delete configmap claude-code-settings --namespace arc-dev --ignore-not-found
+  fi
 done
 
 kubectl get pods -n arc-systems

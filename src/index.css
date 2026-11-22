@@ -1,4 +1,20 @@
 :root {
+  /* Carbon spacing scale. @carbon/styles' compiled CSS only declares these
+     tokens inside .cds--guidebanner, so without them every
+     var(--cds-spacing-*) below is invalid and silently dropped. */
+  --cds-spacing-01: 0.125rem;
+  --cds-spacing-02: 0.25rem;
+  --cds-spacing-03: 0.5rem;
+  --cds-spacing-04: 0.75rem;
+  --cds-spacing-05: 1rem;
+  --cds-spacing-06: 1.5rem;
+  --cds-spacing-07: 2rem;
+  --cds-spacing-08: 2.5rem;
+  --cds-spacing-09: 3rem;
+  --cds-spacing-10: 4rem;
+  --cds-spacing-11: 5rem;
+  --cds-spacing-12: 6rem;
+  --cds-spacing-13: 10rem;
   color-scheme: light;
   font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
   font-synthesis: none;

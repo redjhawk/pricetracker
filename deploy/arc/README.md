@@ -5,8 +5,16 @@ Self-hosted GitHub Actions runners for this repository (application deployment: 
 
 | Scale set | Used by | Image | Max runners |
 |---|---|---|---|
-| `arc-dev` | `fabrica.yml` (agent factory) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
+| `arc-dev` | `fabrica.yml` (agent factory) and `supervisor.yml` (its supervisor, every 15 minutes) | private package `ghcr.io/redjhawk/arc-runner-dev:<tag>`, from [`Dockerfile.dev`](Dockerfile.dev) | 3 |
 | `arc-build` | `release.yml` (build, tag and GitHub release) | default ARC runner image | 1 |
+
+`arc-dev` runs the runner pod in its own user namespace (`hostUsers: false`) with an unmasked `/proc`
+(`procMount: Unmasked`) and AppArmor `Unconfined`, so bubblewrap, the Bash sandbox of the factory agents,
+can mount a fresh procfs. The factory sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, under which Claude Code
+ignores `sandbox.enableWeakerNestedSandbox`: binding the container's `/proc` would let a sandboxed command
+read Claude's credentials from `/proc/<pid>/environ`. The pod keeps the runtime's default seccomp profile
+and capabilities; do not add `SYS_ADMIN` or disable seccomp. This needs Kubernetes 1.33 or later (user
+namespaces and `ProcMountType` on by default), Linux 6.3 or later and containerd 2.
 
 The controller (`arc` in `arc-systems`) is shared and kept across updates.
 

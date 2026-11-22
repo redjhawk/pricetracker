@@ -19,7 +19,7 @@ Included: tab, searches, search-only items and their data, search pacing, Amazon
 | FR-AMZ-SRCH-DEL-003 | An item belongs only to searches and was never moved to the tracked Amazon list. | The item is deleted with its price history, collection outcomes and AI reviews (D-2). | After upgrade the item no longer exists anywhere. |
 | FR-AMZ-SRCH-DEL-004 | A tracked Amazon item, including one moved from a search or also in a search. | Kept with its whole price history; works as before (D-3). | Still listed in the Amazon tab with the same history and refreshed as before. |
 | FR-AMZ-SRCH-DEL-005 | Amazon AI reviews. | No Amazon item is reviewed or shows an AI review; stored Amazon reviews are removed (D-2, D-5). LeBoncoin reviews unchanged. | Amazon item details show no AI review; LeBoncoin reviews still appear. |
-| FR-AMZ-SRCH-DEL-006 | Search request windows and random pauses. | Removed (D-6). Tracked Amazon items keep the 08:00/20:00 schedule and manual refresh. | No Amazon request depends on the 22:00–01:00 / 06:00–08:00 windows. |
+| FR-AMZ-SRCH-DEL-006 | Search request windows and random pauses. | Removed (D-6). Tracked Amazon items keep the 08:00/20:00 schedule and manual refresh (schedule since replaced by [FR-AMZ-HCHK-004](../amazon-human-checks/functional.md), issue #168). | No Amazon request depends on the 22:00–01:00 / 06:00–08:00 windows. |
 | FR-AMZ-SRCH-DEL-007 | The former global Amazon stop is active at upgrade. | Handled by [FR-AMZ-STOP-009](../amazon-request-stop/functional.md). | See FR-AMZ-STOP-009. |
 
 ## States and corner cases

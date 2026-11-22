@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/service/service.go",
+    "line": 547,
+    "category": "bug",
+    "body": "skipScheduledCheck only asks whether `now` is inside *some* Amazon window today (`inAmazonWindow(now)`). It does not ask whether `now` is inside the window the item was due in. TS-AMZ-HCHK-009 says: \"A due Amazon item found outside its window (+15 min grace) ... is redrawn for the next window without a request\". Example: an item due at 08:30 while the application is down from 08:20 to 19:05, or an item due three days ago with a restart at 07:00. Both are checked as soon as the scheduler starts (RunScheduler calls collectDue immediately), because now is in a window. Every overdue Amazon item is then checked back to back in one pass at start-up, with only the 5–60 s pauses between them. That is the batched, bot-like pattern that FR-AMZ-HCHK-005 removes. Fix: compare the due time with now, not just now. For example, let DueIDs (or a variant) return next_check_at, and send the check only when `now` is in the same local window as the due time (between that window's start and its end + amazonWindowGrace). Otherwise redraw with nextAmazonCheckAt(now) and log 'missed its window'. Add a test with a due time in the morning window and now in the evening window: it expects no request and a redraw."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser.go",
+    "line": 221,
+    "category": "bug",
+    "body": "The default collector reuses a persistent profile (`<data dir>/amazon-browser`) for every check. Nothing clears Chromium's `SingletonLock`/`SingletonSocket`/`SingletonCookie` before launch. The lock stays in the profile whenever Chromium does not shut down cleanly: close() SIGKILLs the process group when Browser.close takes more than 5 s, and the same happens on an application crash, an OOM kill, a power loss, or a service stop during a check. The lock holds hostname-pid. Chromium refuses the profile when the hostname differs (new container or device hostname) or when that pid has been reused by another process after a reboot. It aborts with \"Failed to create a ProcessSingleton for your profile directory\". From then on every Amazon check fails at 'browser could not start', and after 5 checks every Amazon item is stopped again: the outcome issue #168 is about, with no self-recovery. BrowserCollector.mu already guarantees one browser per profile within this process. So before launchBrowser it is safe to remove `Singleton*` entries in the persistent profile directory (os.Remove on SingletonLock, SingletonSocket, SingletonCookie, ignoring ErrNotExist). Add a test that leaves a stale SingletonLock symlink pointing at another host and checks that the next check still succeeds."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/store/amazon_requests.go",
+    "line": 57,
+    "category": "spec",
+    "body": "The one-time migration clears next_check_at only for *stopped* Amazon items. Amazon items that are not stopped at upgrade time keep the next_check_at written by the old code: the shared configured time (08:00 or 20:00 by default, the same instant for every item). The service only redraws NULL times (scheduleUnscheduledAmazonItems), and collectDue accepts 08:00/20:00 because both are inside a window. So the first scheduled Amazon check after the upgrade still runs at the configured time, with all those items together in one pass. That contradicts FR-AMZ-HCHK-004 (\"The configured check times ... no longer apply to Amazon items\") and FR-AMZ-HCHK-005 (\"items are not checked together in one run\") for that first window. It happens to any item restarted by Refresh price or added before the upgrade. Suggested fix: inside the same guarded migration, unset next_check_at for every Amazon item (`UPDATE items SET next_check_at = NULL WHERE platform = 'amazon'`). Keep clearing the stop and resetting the count only for stopped items. Every Amazon item then gets its own draw at the first start. Update the TS-AMZ-HCHK-010 text and TC-027, which currently asserts that the old next check of a non-stopped item is kept."
+  },
+  {
+    "id": "R1-04",
+    "file": "doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md",
+    "line": 91,
+    "category": "spec",
+    "body": "TC-006 lists 'HTTP 404 for the product page' as a failure ('not unavailable'). The technical specification (TS-AMZ-HCHK-003, step 7: 404/410 → unavailable), the previous behaviour, and the implementation (classifyPage) all treat 404 as an unavailable listing. The test therefore uses 403 instead, and its comment says so (browser_test.go:335) while TC-004 asserts 404 → unavailable. The test case and the code now disagree, and the next reader cannot tell which is right. Correct TC-006 to name a non-404/410 status (for example 403), and keep 404 → unavailable as a corner case of TC-004."
+  }
+]

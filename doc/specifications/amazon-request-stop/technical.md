@@ -4,6 +4,7 @@ Status: ready
 Functional specification: [functional.md](functional.md), FR-AMZ-STOP-001–010 (ready, 2026-11-10)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon per-item stop (issue #111)"
 Companion: [Amazon searches removal technical](../amazon-searches-removal/technical.md). Replaces the stop design of [Amazon human browsing technical](../amazon-human-browsing/technical.md).
+Issue #168: Amazon checks go through a browser and are scheduled in random windows, and a one-time migration restarts the items stopped before it ([Amazon human-like checks technical](../amazon-human-checks/technical.md)). The gate, the count, the stops and the `DueIDs` filter below are unchanged.
 
 ## Requirement mapping
 
