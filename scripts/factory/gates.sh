@@ -129,7 +129,9 @@ gate_green() {
 # Files the factory never merges on its own: CI, the factory itself, dependencies.
 # Also agent instructions (prompt-injection persistence) and files executed by the build or the gates.
 sensitive_files() {
-  changed_paths | grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
+  # deploy/README.md is installation documentation the developer may update; the rest of deploy/ is infrastructure.
+  changed_paths | grep -Ev '^deploy/README\.md$' |
+    grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
 }
 
 # The scanners are built with the toolchain go.mod names (Go downloads it), not taken from the runner
