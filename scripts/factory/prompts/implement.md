@@ -3,7 +3,9 @@
 Implement the change so that every test passes, following the functional and technical specifications of this change and `API_SPECIFICATION.md`.
 
 - Do not add or modify test files (`*_test.go`, `*.spec.ts`, `*.test.mjs`, `playwright.config.ts`), not even temporary ones: the factory restores every test file to the TDD red commit after your run, so such changes are lost. A missing test is not a reason to write `blocked.md`; mention it in your summary. If a locked test is wrong, do not work around it: write the problem to `<change folder>/test-problem.md` and stop. Use that file only for the locked tests of this change.
-- If you cannot finish for a reason outside this change, write it to `<change folder>/blocked.md` and stop. Examples: a command does not run (missing tool, Bash unavailable), or tests that are not in `tests.lock` already fail on the base branch. Do not write `test-problem.md` in that case.
+- If you cannot finish for a reason outside this change, write it to `<change folder>/blocked.md` and stop. Do not write `test-problem.md` in that case. The first line of `blocked.md` names the category, because the factory acts on it:
+  - `Category: environment`: a command does not run (missing tool, Bash unavailable, sandbox error).
+  - `Category: base-branch`: tests that are not in `tests.lock` fail, and the failure does not come from this change. List each failing test and its error, and explain why this change cannot cause it. The factory runs the whole suite on the base branch: if it fails there too, a fix goes to the base branch first and this stage resumes after it; if it passes there, the failures come from your change and you get them back to fix.
 - Implement only specified behaviour, with readable code, focused functions and the smallest sufficient design. Follow the project skills.
 - Before finishing, run and make pass: `gofmt -l .` (empty, except locked test files, which you leave as they are), `go vet ./...`, `go test ./...`, `npm run build`, `npx playwright test`.
 - When the run context mentions blocking review comments or a failed gate, fix exactly those.

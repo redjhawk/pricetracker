@@ -1,0 +1,33 @@
+# Supervisor of the agent factory (scripts/factory/supervisor.mjs, doc/workflow/WORKFLOW.md "Supervisor").
+# Every 15 minutes it resumes the factory runs that stopped for a reason that goes away without the owner:
+# a Claude usage limit (after the reset), a failed or crashed run (up to 3 retries per stage), a broken
+# runner (once a probe agent passes) and a bug on master (once its issue is closed).
+# Off switch: set the repository variable FACTORY_SUPERVISOR to "off". The label factory-hold excludes one issue.
+name: supervisor
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: factory-supervisor
+  cancel-in-progress: false
+jobs:
+  supervisor:
+    if: vars.FACTORY_SUPERVISOR != 'off'
+    # The arc-dev image has the Claude CLI, and the probe must meet the sandbox the factory's agents meet.
+    runs-on: arc-dev
+    environment: dev
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      # The owner's token: a relaunch is a comment by the owner, which starts fabrica.yml.
+      GH_TOKEN: ${{ secrets.DEV_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          persist-credentials: false
+      - name: Supervisar
+        run: node scripts/factory/supervisor.mjs

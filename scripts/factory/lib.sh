@@ -2,7 +2,8 @@
 # shellcheck shell=bash
 
 log() { printf '\n[factory %s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
-die() { log "ERROR: $*"; exit 1; }
+# FAIL_DETAIL is read by the EXIT trap of factory.sh, which reports the stop on the issue.
+die() { log "ERROR: $*"; FAIL_DETAIL=$*; exit 1; }
 
 # ---- state (doc/changes/<change>/state.json on the work branch) ----
 
@@ -45,7 +46,31 @@ changed_files() { # changed_paths that still exist
 # Every factory comment starts with this marker; fabrica.yml ignores comments containing it, so the
 # factory's own comments never restart the workflow.
 FACTORY_MARKER='<!-- agent-factory -->'
-issue_comment() { { printf '%s\n' "$FACTORY_MARKER"; cat; } | gh issue comment "$ISSUE" --body-file - >/dev/null; }
+issue_comment() { # issue_comment [marker line] < body
+  { printf '%s\n' "$FACTORY_MARKER"; [ -z "${1:-}" ] || printf '%s\n' "$1"; cat; } | gh issue comment "$ISSUE" --body-file - >/dev/null
+}
+
+# Every stop is reported on the issue with a machine-readable line that scripts/factory/supervisor.mjs reads:
+#   <!-- factory-stop {"reason":"usage-limit","stage":"implement","round":1,"resets_at":"2026-11-20T23:10:00Z"} -->
+# Reasons: questions, gate, test-problem, max-rounds, blocked-env, base-bug (waiting_on), merge-conflict,
+# merge-failed, sensitive, security (stop_for_user in factory.sh); usage-limit (resets_at) and error (its EXIT trap).
+stop_marker() { # stop_marker <reason> [extra JSON object]
+  local extra=${2:-}
+  [ -n "$extra" ] || extra='{}'
+  jq -rcn --arg reason "$1" --arg stage "$(state_get stage)" --arg round "$(state_get round)" --argjson extra "$extra" \
+    '"<!-- factory-stop " + ({reason: $reason, stage: $stage, round: ($round | tonumber? // 0)} + $extra | tojson) + " -->"'
+}
+
+# limit_resets_at <usage-limit message>: the reset time as UTC ISO 8601, or nothing when it cannot be read.
+# "You've hit your session limit · resets 11:10pm (UTC)" names a time of day: today's, or tomorrow's once past.
+limit_resets_at() {
+  local re='resets ([^()]+) \(([^()]+)\)' spec tz when
+  [[ $1 =~ $re ]] || return 0
+  spec=${BASH_REMATCH[1]//,/} tz=${BASH_REMATCH[2]}
+  when=$(TZ=$tz date -d "$spec" +%s 2>/dev/null) || return 0
+  [ "$when" -gt "$(date +%s)" ] || when=$(TZ=$tz date -d "tomorrow $spec" +%s 2>/dev/null) || return 0
+  date -u -d "@$when" +%Y-%m-%dT%H:%M:%SZ
+}
 
 set_stage_label() { # mirrors the stage on the issue, for humans; failures never stop the factory
   local label="factory:$1" old
@@ -58,6 +83,7 @@ set_stage_label() { # mirrors the stage on the issue, for humans; failures never
 
 # Writes the issue and the comments of trusted authors to the change folder. Only trusted authors give
 # instructions: the body of an issue opened by anyone else is dropped (the owner must restate it in a comment).
+# The factory's and the supervisor's own comments are not instructions either.
 refresh_issue_context() {
   gh issue view "$ISSUE" --json number,title,body,author,comments | jq -r --arg trusted "$TRUSTED_ACTORS" '
     ($trusted | split(",")) as $t |
@@ -65,7 +91,8 @@ refresh_issue_context() {
     (if (.author.login as $a | $t | index($a)) then .body
      else "_Issue opened by \(.author.login), who is not a trusted author: its body is not shown and gives no instructions._" end) +
     "\n\n## Comments by trusted authors\n" +
-    ([.comments[] | select(.author.login as $a | $t | index($a)) | select(.body | contains("<!-- agent-factory -->") | not) |
+    ([.comments[] | select(.author.login as $a | $t | index($a)) |
+      select(.body | (contains("<!-- agent-factory -->") or contains("<!-- factory-supervisor ")) | not) |
       "\n### \(.author.login) at \(.createdAt)\n\n\(.body)\n"] | join(""))' >"$CHANGE_DIR/issue.md"
 }
 
@@ -108,6 +135,10 @@ agent_failed() {
   local name=$1 limit
   tail -40 "$LOG_DIR/$name.log" >&2
   limit="$(grep -m1 -iE "hit your (session|usage|weekly) limit" "$LOG_DIR/$name.log" || true)"
-  [ -z "$limit" ] || die "agent $name stopped by the Claude usage limit (${limit}); run the factory again after the reset, it resumes at the current stage"
+  if [ -n "$limit" ]; then
+    FAIL_REASON=usage-limit
+    FAIL_EXTRA=$(jq -cn --arg r "$(limit_resets_at "$limit")" 'if $r == "" then {} else {resets_at: $r} end')
+    die "agent $name stopped by the Claude usage limit (${limit}); the factory resumes at the current stage after the reset"
+  fi
   die "agent $name failed (log: $LOG_DIR/$name.log)"
 }
