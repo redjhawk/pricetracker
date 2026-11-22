@@ -14,9 +14,6 @@ on:
   workflow_dispatch:
     inputs:
       issue: {description: 'Issue number', required: true}
-concurrency:
-  group: fabrica-${{ github.event.issue.number || inputs.issue }}
-  cancel-in-progress: false
 jobs:
   fabrica:
     if: >-
@@ -27,6 +24,12 @@ jobs:
           contains(github.event.issue.labels.*.name, 'ai-dev') &&
           !contains(github.event.comment.body, '<!-- agent-factory -->'))
       )
+    # At job level, so that runs whose job is skipped (the factory's own label changes and comments) never
+    # join the group: a pending run is cancelled when another run of its group queues behind it, and an
+    # owner comment written during a run could be lost that way.
+    concurrency:
+      group: fabrica-${{ github.event.issue.number || inputs.issue }}
+      cancel-in-progress: false
     runs-on: arc-dev
     environment: dev
     timeout-minutes: 240
