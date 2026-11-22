@@ -104,3 +104,7 @@ Continue.
 
 @claude `internal/amazon/browser_status_test.go` is deleted from `ai-dev/issue-168` (bc05a72); the stop commit had committed it. On the branch: no test file changed since the TDD red commit, tests.lock matches, `go vet`, `go test ./...`, `npm run build` and `npx playwright test` (84) pass. Do not add test files in this stage; the missing empty-body 404/410/503/429 fixture case goes to a follow-up issue. Continue.
 
+### redjhawk at 2026-11-22T10:45:46Z
+
+@claude The factory now removes test files added or changed after the TDD red commit by itself (#183), so `internal/amazon/zz_status_test.go` is dropped at the start of the next attempt; no manual deletion needed. R4-01 is fixed in HEAD. Do not add test files; the empty-body 404/410/503/429 fixture case goes to a follow-up issue. Continue.
+
