@@ -28,6 +28,30 @@ The script refuses a dirty working tree, builds the Linux amd64 binary with `./s
 
 Installing the release on the server is outside this repository: the server checks for new GitHub releases and downloads them itself.
 
+## Server setup
+
+The service user must be able to write the data directory (`PRICEFOLLOWER_DATA_DIR`). It holds the SQLite database and the browser profile used for Amazon checks, `amazon-browser/`.
+
+### Browser for Amazon checks
+
+Amazon prices are read through a headless web browser, so the server needs Chromium or Google Chrome. On Debian:
+
+```bash
+sudo apt-get install -y chromium
+```
+
+On Ubuntu and other amd64 systems: `wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && sudo apt-get install -y ./google-chrome-stable_current_amd64.deb`.
+
+The application uses `PRICEFOLLOWER_BROWSER_PATH` (full path to the browser executable) when it is set, otherwise the first of `chromium`, `chromium-browser`, `google-chrome-stable`, `google-chrome` found on the service's `PATH`. It looks for the browser again at each check, so a browser installed later is used without a restart.
+
+In a container or for a service running as root, the browser cannot use its sandbox: set `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true`. In Docker, also give the container enough shared memory (`--shm-size=1g`).
+
+What the server log shows:
+
+- At start, when no browser is found: `Amazon browser not found; Amazon checks will fail until Chromium is installed or …`.
+- For each failed Amazon check: `Amazon request failed url=… at=… status=… cause=…`. The cause says whether the browser could not start (with the browser's own reason), the page could not be opened or did not finish loading, Amazon returned a non-success HTTP status, or Amazon showed a robot check.
+- For a page without a detectable price: `Amazon check found no price url=… at=… status=… cause=…`. It is not counted as a failed request.
+
 ## Administrator account
 
 Without regular users, PriceFollower works without login (open mode). To add users, create the `admin` account on the server, as the service user and with the service's data directory:

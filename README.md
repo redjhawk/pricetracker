@@ -25,7 +25,7 @@ Prices are shown in euros and represent the item price. Shipping, taxes, alerts,
 - **Frontend:** React 19, TypeScript, Vite, IBM Carbon Design System
 - **Backend:** Go HTTP server
 - **Storage:** SQLite
-- **Production deployment:** One Go executable serving the embedded frontend and API
+- **Production deployment:** One Go executable serving the embedded frontend and API. Amazon checks also need Chromium or Google Chrome on the server (see [server setup](deploy/README.md#server-setup))
 
 ## Development
 
