@@ -1,8 +1,8 @@
 # Technical specification: Amazon human-like checks
 
-Status: ready (issue #168)
-Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010; modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
-Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032
+Status: ready (issue #168); TS-AMZ-HCHK-013–014 ready (issue #186)
+Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010, FR-AMZ-HCHK-011–012 (issue #186); modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
+Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032; issue #186: [testcases.md](../../changes/2026-11-22-1943-issue-186-treat-a-2xx-navigation-with-errortext-as/testcases.md), TC-001–006 (section [Success response not opened as a page](#success-response-not-opened-as-a-page-issue-186))
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon human-like checks (issue #168)" (no shape change)
 Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) (gate, failure count and stops unchanged)
 
@@ -23,6 +23,8 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-009 | HCHK-009 | `next_check_at` stays durable and is advanced before the check (existing). A due Amazon item found outside the window it was due in (+15 min grace), or already being checked, is redrawn for the next window without a request | `internal/service/service.go`, `internal/service/amazon_schedule.go`, `internal/store/store.go` |
 | TS-AMZ-HCHK-010 | HCHK-010 | One-time store migration guarded by `amazon_request_state.human_checks_restarted`: clears every Amazon stop, resets the count when it restarted items, sets their `next_check_at = NULL` and marks the other Amazon items' pre-change check times for one redraw (`human_checks_redraw`); `service.New` draws a window time for Amazon items with a `NULL` next check and, once, for every marked item | `internal/store/amazon_requests.go`, `internal/store/store.go`, `internal/service/service.go` |
 | TS-AMZ-HCHK-011 | all (testability) | `service.NewWithOptions` (collector, clock, random source, scheduler pause) and `s.now()` in the scheduling/recording paths of `service.go` | `internal/service/service.go` |
+| TS-AMZ-HCHK-013 | HCHK-011, HCHK-012 | `browserTab.load`: when `Page.navigate` returns an `errorText`, the recorded Document response of the navigated frame is the loaded page only when its status is outside 200–299; a 2xx response, or none, gives the failure `Amazon page could not be opened: <errorText>` (issue #186) | `internal/amazon/browser.go` |
+| TS-AMZ-HCHK-014 | HCHK-011 | The collector's failure log line also prints the request URL (`item.URL`, the result's `RequestURL`), so a check that fails in the browser is logged with the request URL and the browser's error on one line (issue #186) | `internal/amazon/collector.go` |
 | TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
 ## Backend
@@ -61,7 +63,7 @@ Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`,
 1. Launch. Error → failure "browser could not start: <reason>" (status 0).
 2. `Browser.getVersion`; user agent = the browser's own, `HeadlessChrome/` replaced by `Chrome/`. The client hints are overridden to match (`userAgentMetadata`: brands Chromium / Google Chrome / Not_A Brand with the engine's version, platform `Linux`, architecture of the server, not mobile), since headless Chromium otherwise announces a `HeadlessChrome` brand. `AMAZON_USER_AGENT` no longer applies to Amazon (still used by LeBoncoin).
 3. `Target.createTarget(about:blank)`, `Target.attachToTarget(flatten)`; on the session: `Network.enable`, `Page.enable`, `Emulation.setUserAgentOverride{userAgent, acceptLanguage: locale(marketplace), platform: "Linux x86_64" (or "Linux aarch64"), userAgentMetadata}` (`navigator.platform` keeps the real Linux value).
-4. `Page.navigate(item.URL)` (with `Origin` applied in tests). Record the last `Network.responseReceived` of type `Document` per frame and use the navigated frame's (status, MIME type, final URL after redirects). `errorText` with a recorded response of the navigated frame (waited for up to 1 s; Chromium sets `net::ERR_HTTP_RESPONSE_CODE_FAILURE` for a non-2xx answer with an empty body) → that response is the loaded page, without waiting for the load event, so step 7 classifies its status; `errorText` without a response (DNS, refused, reset) → failure with the error text. Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
+4. `Page.navigate(item.URL)` (with `Origin` applied in tests). Record the last `Network.responseReceived` of type `Document` per frame and use the navigated frame's (status, MIME type, final URL after redirects). `errorText` with a recorded response of the navigated frame (waited for up to 1 s) whose status is outside 200–299 (Chromium sets `net::ERR_HTTP_RESPONSE_CODE_FAILURE` for a non-2xx answer with an empty body) → that response is the loaded page, without waiting for the load event, so step 7 classifies its status (FR-AMZ-HCHK-012). `errorText` with a 2xx response (a download such as `Content-Disposition: attachment`, or 204/205 without content: the frame stays on `about:blank` or an error page) or without any response (DNS, refused, reset) → failure "Amazon page could not be opened: <errorText>" (FR-AMZ-HCHK-011, issue #186). Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
 5. Pause (`Pause`).
 6. Final URL host not a supported Amazon host (or `Origin`) → failure "redirected to an unsupported host". Read `document.documentElement.outerHTML` (`Runtime.evaluate`, `returnByValue`, first 5 MB).
 7. Classify with the existing rules, now in `classifyPage(page)` used only here: 404/410 → `unavailable`; other non-2xx → failure "Amazon returned HTTP <n>"; MIME not `text/html`/`application/xhtml+xml` → failure; robot check/captcha pattern → failure "Amazon blocked the product request". Failures keep `RequestURL` (item URL), `HTTPStatus`, `ResponseExcerpt` = first 2 KB of the rendered HTML via the existing `excerpt`; the user message stays "Amazon could not be reached for a price check." and `SecondHandStatus = "check_error"`.
@@ -171,8 +173,73 @@ Existing tests keep compiling and passing: `internal/amazon/collector_test.go` t
 
 Out of scope: LeBoncoin requests and schedule, the failure count and stop rules, price parsing rules, UI, `deploy/` and `go.mod` (no change needed).
 
+## Success response not opened as a page (issue #186)
+
+Origin: review comment R5-01 on #179 (`doc/todo/issue-168-r5-01.md`). Before this change, every `errorText` navigation with a recorded Document response returned that response as the loaded page, a 2xx one included. A 2xx answer that Chromium does not open (download, 204/205) leaves the frame on `about:blank` or an error page. `parseProductPage` then found no price, so the check gave `price_not_found`, an Amazon answer that resets the gate's failure count.
+
+### Frontend
+
+Not affected: no new state, field or message. The failure surfaces through the existing retrieval issue, second-hand `check_error`, stop warning and "refresh failed" states (`tests/item-refresh.spec.ts`, `tests/platform-tabs.spec.ts` unchanged and must keep passing).
+
+### Backend (TS-AMZ-HCHK-013, -014)
+
+`internal/amazon/browser.go`, `browserTab.load`, `errorText` branch only:
+
+```go
+if navigation.ErrorText != "" {
+    // A non-2xx answer with an empty body also ends with an error text (Chromium then shows its own
+    // error page): its status still classifies the page. A 2xx answer the browser did not open as a
+    // page (a download, no content) fails like a navigation without an answer.
+    if page, found := awaitDocument(loadContext, document, responded); found && (page.status < 200 || page.status >= 300) {
+        return page, nil
+    }
+    return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
+}
+```
+
+- The failure goes through the existing path. `Collect` returns `requestFailure` with `Result: "request_error"`, the message "Amazon could not be reached for a price check.", `SecondHandStatus: "check_error"`, `RequestURL` = item URL and `HTTPStatus` 0, because no page was opened. The gate logs the failure (`Amazon request failed url=… status=0 …`), counts it and stops every Amazon item at the 5th consecutive failure. `RecordCollection` keeps the last price and second-hand offer as for any failure. No used-offer fetch is made.
+- FR-AMZ-HCHK-012 is unchanged. A recorded status outside 200–299 (404/410/403/503 with an empty body, or a status below 200) is still returned without waiting for the load event, so `classifyPage` gives `unavailable` for 404/410 and "Amazon returned HTTP <n>" otherwise, with `HTTPStatus` set.
+- The 1 s wait in `awaitDocument` is kept: when Chromium reports the error before the response event, a non-2xx status must still be found. A 2xx response that arrives after the error is also a failure.
+- A navigation without `errorText` is unchanged. The `Content-Disposition: inline` case opens the page normally (TC-001 corner case). If some Chromium version ended a download or 204 navigation without `errorText`, the load wait would end in the existing failure "Amazon page did not finish loading", which is still a failure and never `price_not_found`.
+- `internal/amazon/collector.go`, `printRequestError(item, reason)`: append the request URL, giving `Amazon collection failed for <marketplace>/<ASIN>: <reason> url=<item.URL>`. `item.URL` is the canonical product URL from `ParseURL` and holds no cookie, header or secret. This is the only caller (`requestFailure`), so the format gains a field for every collector failure.
+- Validation, persistence, migrations: none. Concurrency: unchanged. The gate lock and `BrowserCollector.mu` still serialize checks, each check starts its own browser, and a failed download leaves nothing for the next check.
+
+### API
+
+No new endpoint, field, error code or shape change. Behaviour: an Amazon check answered with a success status that the browser does not open as a page now gives `lastAttempt.result: "request_error"` (item `status: "retrieval_error"`, second-hand `check_error`) instead of `price_not_found`. `POST /api/v1/items/{id}/refresh` and `POST /api/v1/items/refresh` still answer `202`. `API_SPECIFICATION.md`, section "Amazon human-like checks (issue #168)", gets one bullet. Clients need no change.
+
+### Files to change
+
+| File | Change |
+| --- | --- |
+| `internal/amazon/browser.go` | TS-AMZ-HCHK-013 (`load`, `errorText` branch and its comment) |
+| `internal/amazon/collector.go` | TS-AMZ-HCHK-014 (`printRequestError` prints the URL) |
+| `internal/amazon/browser_navigation_test.go` (new) | TC-001, TC-002, TC-003 |
+| `internal/httpapi/amazon_browser_navigation_test.go` (new) | TC-004, TC-005, TC-006 |
+| `API_SPECIFICATION.md` | Behaviour bullet (done in this stage) |
+
+### Test files
+
+Test names: `TestBrowserNavigation_TCnnn_…` in `internal/amazon` and `TestAmazonBrowserNavigation_TCnnn_…` in `internal/httpapi`, because the `TestBrowserCollector_TCnnn_` and `TestAmazonHumanChecks_TCnnn_` names of issue #168 are already taken. Each test file carries a `// TC-nnn` comment per test. All tests use the real Chromium (`amazontest.Browser`), `amazontest.NewServer` and `Origin`. They need no new fixture file: the body is `amazontest.Fixture(t, "price-found.html")`, whose price is 129.99.
+
+| Test case | File | Notes |
+| --- | --- | --- |
+| TC-001 | `internal/amazon/browser_navigation_test.go` | A mux whose `/dp/B0PRICE001` handler serves a mode switched with an `atomic.Int32` (attachment / normal / inline), with `/` delegating to the existing `fixtureHandler(t)` for resources and used offers. The collector is built from `testBrowserOptions`, the check runs through `browserCheck`, and the log is read with `captureOutput`. Assert the failure fields (`amazonCheckFailed`, `check_error`, `RequestURL` suffix), that the log contains `/dp/B0PRICE001` and `Amazon page could not be opened: net::`, then a second check on the same collector in normal mode → `success`, 12999 cents. The inline subtest → `success`, 12999. |
+| TC-002 | `internal/amazon/browser_navigation_test.go` | Subtests 204 and 205: `w.WriteHeader(status)` and no body. Assert the failure (never `price_not_found`/`unavailable`) and the log content as in TC-001. |
+| TC-003 | `internal/amazon/browser_navigation_test.go` | Subtests 404, 410, 503, 403 with `Content-Type: text/html` and an empty body. 404/410 → `unavailable` with `unavailableMessage`. 503/403 → failure with `HTTPStatus` = the status. The excerpt (Chromium's own error page) is not asserted. |
+| TC-004 | `internal/httpapi/amazon_browser_navigation_test.go` | `openBrowserProfileAPI` with `amazon.NewBrowserCollector(browserProfileOptions(t, filepath.Join(dir, "amazon-browser"), server.URL))`. A switchable fixture server answers 503 page / attachment / empty-body statuses / normal page. Items come from `insertHumanItem` + `RecordCollection` (success 1999 cents, second-hand `available` with an amount and condition). Scheduled checks run with `clock.Set` + `items.Collect`. A local `captureCheckOutput` helper captures `log` and `os.Stdout` (as `captureOutput` of `internal/amazon`), because the collector line is printed to stdout. Stops are read from `listItems`. The protected-mode subtest inserts the items with two `OwnerID`s (as `insertOwned` in `internal/service`) and asserts both stopped through the store (`AmazonStopped`). |
+| TC-005 | `internal/httpapi/amazon_browser_navigation_test.go` | `refresh` + `waitBrowserCheck`, then `POST /api/v1/items/refresh` (expects `202`) and a wait for the next attempt. Assert `itemDetails`/`listItems`: `retrieval_error`, `request_error`, second-hand `check_error`, price and second-hand offer unchanged. Stopped item: `database.StopAmazonItems` beforehand, `amazonStoppedAt` still set afterwards. Repeated refresh: `storedFailures` grows by one per attempt. |
+| TC-006 | `internal/httpapi/amazon_browser_navigation_test.go` | The same harness. 4 real checks answered 503 with a page, then 404 with an empty body (subtest: 410), then 4 checks of 503 with an empty body (no item stopped), then one more (every item stopped). Each 503 gate line contains `status=503`. |
+
+The existing tests must keep passing, in particular `TestBrowserCollector_TC004`, `TC006` and `TC007` in `internal/amazon/browser_test.go`: an error text without a response still fails, and a non-2xx with a page is unchanged. No existing test asserts the `printRequestError` format.
+
+### Refactoring
+
+None. Out of scope: download behaviour of the browser (for example `Browser.setDownloadBehavior` to deny downloads), which concerns where Chromium may save an attachment, not the check result; the failure count and stop rules; the UI.
+
 ## Verification and open questions
 
 - `gofmt -l .`, `go vet ./...`, `go test ./...` (browser tests need Chromium; present in the CI image under `/ms-playwright`), `npm run build`, `npx playwright test`; gosec and govulncheck.
 - QA on a machine with Chromium: add an Amazon item and watch the logs for a browser check; `nextCheckAt` of Amazon items in a window; Refresh price keeps it; a missing browser gives counted failures and the start-up log line.
 - Open functional questions: none. Technical interpretations recorded: overdue Amazon checks outside their window (beyond 15 min) are redrawn instead of sent (FR-HCHK-004); a scheduled check due while the item is already being checked is redrawn (no duplicate).
+- Issue #186: no open question. The browser tests (TC-001–006) need Chromium; with `CI` set they cannot skip.
