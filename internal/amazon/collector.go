@@ -430,7 +430,7 @@ func (c *Collector) secondHandOffer(ctx context.Context, item model.Listing) (st
 		} else {
 			failedResponses = append(failedResponses, fmt.Sprintf("HTTP %d", response.StatusCode))
 		}
-		response.Body.Close()
+		_ = response.Body.Close() // the body is fully read or not needed; a close error changes nothing
 	}
 	if len(pages) == 0 {
 		log.Printf("Amazon used-offer check failed for %s/%s: %s", item.Marketplace, item.ASIN, strings.Join(failedResponses, "; "))

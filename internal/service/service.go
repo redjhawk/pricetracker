@@ -458,7 +458,7 @@ func (s *Service) collectDue(ctx context.Context) {
 }
 
 func waitScheduledRequest(ctx context.Context) bool {
-	delay := time.Duration(5+mathrand.Intn(56)) * time.Second
+	delay := time.Duration(5+mathrand.Intn(56)) * time.Second // #nosec G404 -- pause jitter, not security
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
