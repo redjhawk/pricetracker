@@ -1,0 +1,28 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The observation is right: `assertBrowserRefusesProfile` (internal/amazon/browser_profile_test.go:345-366) only checks that the page was not requested, so it is a weak check. But it is only the fixture sanity corner case. TC-002's main assertions (success, the cookie is carried, no 'browser could not start') then run the same executable on the same profile, so a broken or crashing browser cannot make the test pass. The case is still proven.",
+    "title": "Make TC-002's fixture sanity check prove the refusal is caused by the profile lock",
+    "todo": "**Problem:** `assertBrowserRefusesProfile` in `internal/amazon/browser_profile_test.go:345-366` passes whenever the page is not requested within 15 s. A startup crash, a missing library or a slow start would pass it too, so it does not show that the cross-host `SingletonLock` is the cause.\n\n**Suggested work:** Also assert that the captured `output` contains Chromium's refusal message (for example `ProcessSingleton` or `another computer`). Or add a control run on a copy of the profile without the `Singleton*` entries and assert that the page *is* requested.\n\n**Where:** `internal/amazon/browser_profile_test.go:343-366` (used by TC-002 at line 376)."
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "reason": "Confirmed. `src/components/AppMenu.tsx` (usedKeyboard/restoreFocus, onOpen/onClose, item onKeyDown) and `src/components/InformationModal.tsx` (the `FeatureFlags enableFocusWrapWithoutSentinels` wrapper) change frontend focus behaviour. Issue #180 is backend only and has no UI change. The technical spec itself says these are fixes for flaky Playwright tests that are unrelated to the feature. Unrelated work mixed into the PR blocks the merge: move it to its own issue or PR."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "This is test-code duplication across `internal/amazon`, `internal/service` and `internal/httpapi`: stale-lock writers, browser kill helpers, the /proc scan and the fixture servers. It is a maintainability concern, not a correctness problem. The tests are correct as they are.",
+    "title": "Move duplicated browser-profile test helpers into internal/amazon/amazontest",
+    "todo": "**Problem:** Three test packages carry their own copies of the same fixtures:\n- stale-lock writers: `writeStaleLock` (`internal/amazon/browser_profile_test.go`), `leaveStaleLock` (`internal/service/amazon_browser_profile_test.go`, around line 75), `leaveOtherHostLock` (`internal/httpapi/amazon_browser_profile_test.go`), all with the same three symlink targets;\n- kill helpers: `killBrowserOnProfile` / `killBrowser` and the duplicated `/proc` scan `profileProcesses`;\n- fixture servers: `profileServer` / `browserProfileServer`, with the same cookie, aod and static handlers.\n\n**Suggested work:** Add `StaleLock(t, profile, host)`, `KillBrowserOnProfile(t, profile)` and `BrowserProcesses(profile)`, plus a shared profile fixture handler if practical, to `internal/amazon/amazontest` (which already provides `Browser`, `Fixture` and `NewServer`). Then replace the local copies in the three test files."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "This is a readability point, not a bug. The only caller, `open` (internal/amazon/browser.go:222-225), returns as soon as the error is set and ignores the other return values, so the non-empty path and no-op cleanup are never used.",
+    "title": "Return explicit zero values from BrowserCollector.profile when stale lock removal fails",
+    "todo": "**Problem:** In `internal/amazon/browser.go` `profile()` (around line 256), `return c.options.ProfileDir, func() {}, removeStaleLocks(c.options.ProfileDir)` returns a path and a cleanup together with a possible error. The `MkdirAll` branch just above returns `\"\", nil, err`.\n\n**Suggested work:** Use the same explicit form in both branches:\n```go\nif err := removeStaleLocks(c.options.ProfileDir); err != nil {\n\treturn \"\", nil, err\n}\nreturn c.options.ProfileDir, func() {}, nil\n```"
+  }
+]

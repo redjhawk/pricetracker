@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/browser_profile_test.go",
+    "line": 363,
+    "category": "test",
+    "body": "TC-002's sanity check (`assertBrowserRefusesProfile`) passes whenever the page is not requested within 15 s, whatever the reason: a browser that crashes at startup, a sandbox or library error, or a slow start all pass it. So it does not prove what TC-002 says it proves, that 'the profile is in use on another computer' is the cause the change removes. Fix: also check that `output` contains Chromium's refusal message (for example `ProcessSingleton` or `another computer`). Or run a control: start the same command on a copy of the profile without the Singleton* entries and check that the page is requested."
+  },
+  {
+    "id": "R1-02",
+    "file": "src/components/AppMenu.tsx",
+    "line": 383,
+    "category": "refactor-pr",
+    "body": "The keyboard focus race fixes in `AppMenu.tsx` (usedKeyboard/restoreFocus, onOpen/onClose, item onKeyDown) and `InformationModal.tsx` (the `FeatureFlags enableFocusWrapWithoutSentinels` wrapper, line 454) have nothing to do with issue #180, which is backend only and has no UI change. The technical spec explains them as fixes for flaky Playwright gates. AGENTS.md says unrelated changes go in their own commit or PR. Mixing them in makes this PR harder to review and revert, and the frontend behaviour change has no test case in this change. Suggest moving them to a separate PR or issue that tracks the flaky tests `tests/app-information.spec.ts` and `tests/leboncoin-session-settings.spec.ts`."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/service/amazon_browser_profile_test.go",
+    "line": 75,
+    "category": "simplify",
+    "body": "Three test packages now carry their own copies of the same fixtures. Stale-lock writers: `writeStaleLock` (internal/amazon), `leaveStaleLock` (internal/service) and `leaveOtherHostLock` (internal/httpapi), all with the same three symlink targets. Kill helpers: `killBrowserOnProfile` and `killBrowser`, plus the duplicated /proc scan `profileProcesses`. Fixture servers: `profileServer` and `browserProfileServer`, with the same cookie, aod and static handlers. The shared, non-test package `internal/amazon/amazontest` exists for exactly this and already provides `Browser`, `Fixture` and `NewServer`. Suggest moving `StaleLock(t, profile, host)`, `KillBrowserOnProfile(t, profile)` and `BrowserProcesses(profile)` there, so a change to the lock layout or the kill procedure is made in one place."
+  },
+  {
+    "id": "R1-04",
+    "file": "internal/amazon/browser.go",
+    "line": 256,
+    "category": "readability",
+    "body": "When `removeStaleLocks` fails, `profile()` still returns the profile path and a no-op cleanup along with the error. The `MkdirAll` branch just above returns `\"\", nil, err`. Callers only work today because `open` ignores the other values when the error is set. Suggest the same explicit form in both branches: `if err := removeStaleLocks(c.options.ProfileDir); err != nil { return \"\", nil, err }` followed by `return c.options.ProfileDir, func() {}, nil`."
+  }
+]
