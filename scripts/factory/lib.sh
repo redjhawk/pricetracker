@@ -83,6 +83,7 @@ set_stage_label() { # mirrors the stage on the issue, for humans; failures never
 
 # Writes the issue and the comments of trusted authors to the change folder. Only trusted authors give
 # instructions: the body of an issue opened by anyone else is dropped (the owner must restate it in a comment).
+# The factory's and the supervisor's own comments are not instructions either.
 refresh_issue_context() {
   gh issue view "$ISSUE" --json number,title,body,author,comments | jq -r --arg trusted "$TRUSTED_ACTORS" '
     ($trusted | split(",")) as $t |
@@ -90,7 +91,8 @@ refresh_issue_context() {
     (if (.author.login as $a | $t | index($a)) then .body
      else "_Issue opened by \(.author.login), who is not a trusted author: its body is not shown and gives no instructions._" end) +
     "\n\n## Comments by trusted authors\n" +
-    ([.comments[] | select(.author.login as $a | $t | index($a)) | select(.body | contains("<!-- agent-factory -->") | not) |
+    ([.comments[] | select(.author.login as $a | $t | index($a)) |
+      select(.body | (contains("<!-- agent-factory -->") or contains("<!-- factory-supervisor ")) | not) |
       "\n### \(.author.login) at \(.createdAt)\n\n\(.body)\n"] | join(""))' >"$CHANGE_DIR/issue.md"
 }
 
