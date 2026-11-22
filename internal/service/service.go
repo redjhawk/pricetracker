@@ -81,13 +81,18 @@ type Options struct {
 	Now           func() time.Time           // nil = time.Now
 	Random        func(n int64) int64        // nil = math/rand/v2; value in [0, n), goroutine-safe
 	SchedulePause func(context.Context) bool // nil = 5–60 s pause between scheduled checks; false = cancelled
+	// AmazonBrowserOrigin is for tests only: BrowserOptions.Origin of the default browser collector.
+	AmazonBrowserOrigin string
 }
+
+// browserNoSandboxVariable set to "true" starts the browser without its sandbox (containers, root).
+const browserNoSandboxVariable = "PRICEFOLLOWER_BROWSER_NO_SANDBOX"
 
 // NewWithOptions is New with replaced dependencies. Amazon items without a next check (restarted
 // once by the store, issue #168) or with a pre-#168 check time get a time in the next Amazon window.
 func NewWithOptions(cfg config.Config, database *store.Store, options Options) *Service {
 	if options.Amazon == nil {
-		options.Amazon = newBrowserCollector(cfg)
+		options.Amazon = newBrowserCollector(cfg, options.AmazonBrowserOrigin)
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -114,13 +119,14 @@ func NewWithOptions(cfg config.Config, database *store.Store, options Options) *
 
 // newBrowserCollector returns the default Amazon collector. The browser is PRICEFOLLOWER_BROWSER_PATH
 // or found on PATH at each check; without one the application still starts and Amazon checks fail.
-func newBrowserCollector(cfg config.Config) *amazon.BrowserCollector {
+func newBrowserCollector(cfg config.Config, origin string) *amazon.BrowserCollector {
 	if _, err := amazon.FindBrowser(); err != nil {
 		log.Print("Amazon browser not found; Amazon checks will fail until Chromium is installed or PRICEFOLLOWER_BROWSER_PATH is set")
 	}
 	return amazon.NewBrowserCollector(amazon.BrowserOptions{
 		ProfileDir: filepath.Join(cfg.DataDirectory, "amazon-browser"),
-		NoSandbox:  os.Getenv("PRICEFOLLOWER_BROWSER_NO_SANDBOX") == "true",
+		NoSandbox:  os.Getenv(browserNoSandboxVariable) == "true",
+		Origin:     origin,
 	})
 }
 

@@ -44,12 +44,18 @@ func NewBrowserCollector(options BrowserOptions) *BrowserCollector {
 	return &BrowserCollector{options: options}
 }
 
+// BrowserPathVariable is the environment variable naming the browser executable.
+const BrowserPathVariable = "PRICEFOLLOWER_BROWSER_PATH"
+
+// BrowserNames are the executable names looked up on PATH, in order, without BrowserPathVariable.
+var BrowserNames = []string{"chromium", "chromium-browser", "google-chrome-stable", "google-chrome"}
+
 // FindBrowser returns PRICEFOLLOWER_BROWSER_PATH, or else the Chromium or Chrome executable found on PATH.
 func FindBrowser() (string, error) {
-	if path := os.Getenv("PRICEFOLLOWER_BROWSER_PATH"); path != "" {
+	if path := os.Getenv(BrowserPathVariable); path != "" {
 		return path, nil
 	}
-	for _, name := range []string{"chromium", "chromium-browser", "google-chrome-stable", "google-chrome"} {
+	for _, name := range BrowserNames {
 		if path, err := exec.LookPath(name); err == nil {
 			return path, nil
 		}
