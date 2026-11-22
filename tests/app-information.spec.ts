@@ -132,6 +132,8 @@ test("keyboard opens the entry and focus stays inside the modal", async ({ page,
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Information" });
   await expect(dialog).toContainText(version);
+  // The Carbon modal moves focus inside only once it has opened; tabbing earlier starts from the menu.
+  await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   for (let i = 0; i < 4; i += 1) {
     await page.keyboard.press("Tab");
     expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
