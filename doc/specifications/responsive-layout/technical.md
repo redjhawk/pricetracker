@@ -134,7 +134,7 @@ CSS only, in `src/index.css`. There are no component, markup, state or dependenc
   - **Spacing scale.** No rule is needed. Master commit 248ae54 declares `--cds-spacing-*` on `:root`, so the tokens used by TS-RESPONSIVE-015 to 018 resolve everywhere, and modals keep their current look.
   - **Tab bar.** `.tracked-page .cds--tabs .cds--tabs__nav-item--close--hidden { display: none }`. Carbon's 1 px close-button placeholder after each tab otherwise stops the last tab 1 px short of the gutter.
   - **Card cells.** `.responsive-table tbody tr td:has(> .item-cell) { flex: 1 1 14rem }` lets the item cell take the space the values leave on its line, and `td:has(> .row-actions) { margin-inline-start: auto }` ends the line with the actions, so the flipped Options menu opens on screen. `.item-cell { min-width: 0 }` lets a long title wrap inside the card.
-  - **Breadcrumb.** The `.detail-breadcrumb` wrapping rules (REV-004) move from the phone query to this query, so a long title in the breadcrumb wraps over the whole range below desktop.
+  - **Breadcrumb.** The `.detail-breadcrumb` wrapping rules (REV-004) move from the phone query to the base rules, outside any media query. A long title in the breadcrumb then wraps at every width, including desktop, where it otherwise widened the page (FR-RESPONSIVE-001, 010; TC-012). Short titles keep their current layout.
   - **Item details.** `.detail-summary` uses two columns from 672 to 1055 px; the phone query keeps one column.
   - **Page top.** `.page-shell` gets `padding-block-start: var(--cds-spacing-05)` instead of `spacing-07`, so the top gap matches the 16 px side gutter.
 
