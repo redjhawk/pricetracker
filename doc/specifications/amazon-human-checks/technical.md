@@ -140,7 +140,7 @@ Not affected: the item fields and their meaning for the UI are unchanged (`nextC
 
 ## API
 
-No new endpoint, field or error. Behaviour changes documented in API_SPECIFICATION.md "Amazon human-like checks (issue #168)": Amazon `nextCheckAt` is a random time in a window; Refresh price / Refresh all prices no longer change Amazon `nextCheckAt`; after the upgrade, items stopped before it return `amazonStoppedAt: null`. Clients are compatible without change.
+No new endpoint, field or error. Behaviour changes documented in API_SPECIFICATION.md "Amazon human-like checks (issue #168)": Amazon `nextCheckAt` is a random time in a window; Refresh price / Refresh all prices no longer change a future Amazon `nextCheckAt`, and Refresh price moves an already passed one (a check skipped while the item was stopped) to a random time in the next window; after the upgrade, items stopped before it return `amazonStoppedAt: null`. Clients are compatible without change.
 
 ## Test files
 
