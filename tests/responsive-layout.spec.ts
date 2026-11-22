@@ -363,11 +363,11 @@ const cardWidths = [320, 360, 671, 672, 700, 775, 1055];
 const tabs = ["Amazon", "LeBoncoin"] as const;
 const cardLabels = { Amazon: ["Prices", "Amazon second-hand offer", "Status"], LeBoncoin: ["Prices", "Status"] };
 
-// Baseline measured on master before issue #165: at >= 1056 px Carbon's .cds--content padding (2rem)
-// is the only page inset (the --cds-spacing-* tokens are not defined globally, so the .page-shell inset
-// resolves to 0), and the tracked-items tab panel adds 1rem. The login form is 24rem wide and centred.
-const DESKTOP_PAGE_OFFSET = 32;
-const DESKTOP_TABLE_OFFSET = 48;
+// Baseline measured on master before issue #165: at >= 1056 px the page inset is Carbon's .cds--content
+// padding (2rem) plus the .page-shell inset (spacing-07, 2rem, since the --cds-spacing-* tokens are
+// declared on :root), and the tracked-items tab panel adds 1rem. The login form is 24rem wide and centred.
+const DESKTOP_PAGE_OFFSET = 64;
+const DESKTOP_TABLE_OFFSET = 80;
 const LOGIN_FORM_WIDTH = 384;
 // Carbon header: 3rem high; the name link has a 2px border and 1rem start padding.
 const HEADER_HEIGHT = 48;

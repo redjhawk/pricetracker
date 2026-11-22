@@ -403,62 +403,9 @@ input {
 }
 
 @media (max-width: 1055.98px) {
-  /* TS-RESPONSIVE-015: below desktop the page content sits at the .page-shell gutter (spacing-05). */
-  .app-content {
-    padding-inline: 0;
-  }
-
-  .tracked-page .cds--tab-content {
-    padding-inline: 0;
-  }
-
   .page-shell {
     width: min(100% - 2 * var(--cds-spacing-05), 96rem);
     padding-block-start: var(--cds-spacing-05);
-  }
-
-  /* TS-RESPONSIVE-018/019: blocks around the lists fill the content width. */
-  .tracked-table-search .tracked-search {
-    flex-basis: 100%;
-    width: 100%;
-  }
-
-  .tracked-page .cds--tabs .cds--tab--list {
-    inline-size: 100%;
-  }
-
-  .tracked-page .cds--tabs .cds--tabs__nav-item {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  /* Carbon's placeholder for the close button of non-dismissable tabs takes 1px after each tab,
-     so the last tab stopped 1px short of the gutter. */
-  .tracked-page .cds--tabs .cds--tabs__nav-item--close--hidden {
-    display: none;
-  }
-
-  .page-feedback .cds--inline-notification,
-  .login-form .cds--inline-notification {
-    min-inline-size: 0;
-    max-inline-size: none;
-  }
-
-  .login-form,
-  .login-form .cds--btn[type="submit"] {
-    width: 100%;
-    max-width: none;
-  }
-
-  /* The current breadcrumb item repeats the item title; a long title wraps. */
-  .detail-breadcrumb .cds--breadcrumb-item {
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .detail-breadcrumb .cds--link {
-    overflow-wrap: anywhere;
-    white-space: normal;
   }
 
   .item-cell {
@@ -495,6 +442,10 @@ input {
 
   .summary-tile {
     min-height: auto;
+  }
+
+  .tracked-table-search .tracked-search {
+    width: 100%;
   }
 }
 
@@ -595,6 +546,16 @@ img {
     white-space: normal;
   }
 
+  .detail-breadcrumb .cds--breadcrumb-item {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .detail-breadcrumb .cds--link {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
   .login-page {
     padding-inline: var(--cds-spacing-05);
   }
@@ -606,6 +567,14 @@ img {
 
   .page-heading-actions .cds--btn {
     max-width: 100%;
+  }
+
+  .tracked-table-search .tracked-search {
+    flex-basis: 100%;
+  }
+
+  .cds--tabs .cds--tabs__nav-item {
+    min-width: 0;
     flex: 1 1 auto;
   }
 
@@ -634,35 +603,12 @@ img {
 /* Tables become stacked cards below desktop (QA-F001: Carbon's inner scroller
    hid Status and actions between 672px and 1055px); the header stays in the DOM, visually hidden. */
 @media (max-width: 1055.98px) {
-  /* TS-RESPONSIVE-016: card lists run edge to edge by cancelling the .page-shell gutter. */
-  .tracked-table-container,
-  .responsive-table-container {
-    margin-inline: calc(-1 * var(--cds-spacing-05));
-  }
-
-  .responsive-table-container .cds--table-toolbar {
-    padding-inline: var(--cds-spacing-05);
-  }
-
   .responsive-table,
-  .responsive-table tbody {
-    display: block;
-    width: 100%;
-  }
-
-  /* TS-RESPONSIVE-017: a card's values sit side by side and wrap only when the next one does not fit. */
-  .responsive-table tr {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    width: 100%;
-    height: auto;
-    padding-block: var(--cds-spacing-03);
-    border-block-end: 1px solid var(--cds-border-subtle);
-  }
-
+  .responsive-table tbody,
+  .responsive-table tr,
   .responsive-table td {
     display: block;
+    width: 100%;
   }
 
   .responsive-table thead {
@@ -675,24 +621,16 @@ img {
     white-space: nowrap;
   }
 
+  .responsive-table tr {
+    height: auto;
+    padding-block: var(--cds-spacing-03);
+    border-block-end: 1px solid var(--cds-border-subtle);
+  }
+
   .responsive-table tbody tr td {
-    flex: 0 1 auto;
-    width: auto;
-    min-width: 0;
-    max-width: 100%;
     height: auto;
     padding: var(--cds-spacing-03) var(--cds-spacing-05);
     border: 0;
-  }
-
-  /* The item cell takes the space the values leave on its line; the actions end their line,
-     so the flipped Options menu opens on screen. */
-  .responsive-table tbody tr td:has(> .item-cell) {
-    flex: 1 1 14rem;
-  }
-
-  .responsive-table tbody tr td:has(> .row-actions) {
-    margin-inline-start: auto;
   }
 
   .responsive-table td[data-label]::before {
@@ -710,6 +648,13 @@ img {
 }
 
 @media (max-width: 671.98px) {
+  /* TS-RESPONSIVE-011: tracked-items cards edge to edge. The gap is Carbon's
+     .cds--content padding (2rem), the .page-shell inset (spacing-05) and the
+     Carbon tab panel (.cds--tab-content) padding, read from its density token. */
+  .tracked-table-container {
+    margin-inline: calc(-1 * (2rem + var(--cds-spacing-05) + var(--cds-layout-density-padding-inline-local, 1rem)));
+  }
+
   .responsive-table-container .cds--toolbar-content {
     flex-wrap: wrap;
   }
