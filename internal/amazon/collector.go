@@ -1,19 +1,14 @@
 package amazon
 
 import (
-	"context"
 	"fmt"
 	"html"
-	"io"
 	"log"
-	"mime"
-	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"pricefollower.local/internal/model"
@@ -66,58 +61,13 @@ func ParseURL(raw string) URLResult {
 	return URLResult{Kind: "valid", ASIN: asin, Marketplace: host, URL: canonical, Canonical: canonical}
 }
 
-type Collector struct {
-	client    *http.Client
-	userAgent string
-}
+var unavailableTextPattern = regexp.MustCompile(`(?i)currently unavailable|temporarily out of stock|no longer available|this item is not available`)
 
-func NewCollector(userAgent string) *Collector {
-	return &Collector{
-		userAgent: userAgent,
-		client: &http.Client{
-			Timeout: 15 * time.Second,
-			CheckRedirect: func(request *http.Request, via []*http.Request) error {
-				if len(via) >= 4 {
-					return fmt.Errorf("too many Amazon redirects")
-				}
-				if request.URL.Scheme != "https" || !hosts[strings.ToLower(strings.TrimPrefix(request.URL.Hostname(), "www."))] {
-					return fmt.Errorf("redirected to an unsupported host")
-				}
-				return nil
-			},
-		},
-	}
-}
-
-func (c *Collector) Collect(ctx context.Context, item model.Listing) model.CollectionResult {
-	result, page := c.productPage(ctx, item)
-	if result.Result == "request_error" {
-		return result
-	}
-	if page != "" {
-		result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = secondHandOfferFromProductPage(page)
-		if result.SecondHandStatus == "available" {
-			return result
-		}
-	}
-	return c.withSecondHand(ctx, item, result)
-}
-
-// productPage requests and parses the product page. The page is empty unless the product was read
-// (success or price_not_found). A failure keeps the request URL, HTTP status and a response excerpt.
-func (c *Collector) productPage(ctx context.Context, item model.Listing) (model.CollectionResult, string) {
-	result, page := c.fetchPage(ctx, item.Marketplace, item.URL, "product")
-	if result.Result == "request_error" {
-		printRequestError(item, result.Message)
-		result.Message = "Amazon could not be reached for a price check."
-		result.SecondHandStatus = "check_error"
-		return result, ""
-	}
-	if result.Result == "unavailable" {
-		return result, ""
-	}
-	if regexp.MustCompile(`(?i)currently unavailable|temporarily out of stock|no longer available|this item is not available`).MatchString(textContent(page[:min(len(page), 200_000)])) {
-		result.Result, result.Message = "unavailable", "The listing is no longer available."
+// parseProductPage reads a product page into result. The returned page is empty unless the product
+// was read (success or price_not_found).
+func parseProductPage(result model.CollectionResult, page string) (model.CollectionResult, string) {
+	if unavailableTextPattern.MatchString(textContent(page[:min(len(page), 200_000)])) {
+		result.Result, result.Message = "unavailable", unavailableMessage
 		return result, ""
 	}
 	result.Result, result.Message, result.SecondHandStatus = "price_not_found", "Amazon did not show a detectable euro price.", "check_error"
@@ -130,46 +80,6 @@ func (c *Collector) productPage(ctx context.Context, item model.Listing) (model.
 	return result, page
 }
 
-// fetchPage sends one Amazon page request. It returns a request_error result with the reason in
-// Message, an unavailable result for 404/410, or an empty result with the HTML page.
-func (c *Collector) fetchPage(ctx context.Context, marketplace, target, kind string) (model.CollectionResult, string) {
-	result := model.CollectionResult{RequestURL: target}
-	fail := func(body []byte, err error) (model.CollectionResult, string) {
-		result.Result, result.Message, result.ResponseExcerpt = "request_error", err.Error(), excerpt(body)
-		return result, ""
-	}
-	request, err := c.newRequest(ctx, model.Listing{Marketplace: marketplace}, target)
-	if err != nil {
-		return fail(nil, err)
-	}
-	response, err := c.client.Do(request)
-	if err != nil {
-		return fail(nil, err)
-	}
-	defer response.Body.Close()
-	result.HTTPStatus = response.StatusCode
-	body, err := io.ReadAll(io.LimitReader(response.Body, 5<<20))
-	if err != nil {
-		return fail(body, err)
-	}
-	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
-		result.Result, result.Message = "unavailable", "The listing is no longer available."
-		return result, ""
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fail(body, fmt.Errorf("Amazon returned HTTP %d", response.StatusCode))
-	}
-	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
-	if mediaType != "text/html" && mediaType != "application/xhtml+xml" {
-		return fail(body, fmt.Errorf("Amazon returned an unexpected content type"))
-	}
-	page := string(body)
-	if regexp.MustCompile(`(?i)captcha|robot check|enter the characters you see below`).MatchString(page[:min(len(page), 200_000)]) {
-		return fail(body, fmt.Errorf("Amazon blocked the %s request", kind))
-	}
-	return result, page
-}
-
 // excerpt returns the first 2 KB of a response body with control characters replaced, for logs.
 func excerpt(body []byte) string {
 	text := strings.ToValidUTF8(string(body[:min(len(body), 2048)]), "")
@@ -179,35 +89,6 @@ func excerpt(body []byte) string {
 		}
 		return r
 	}, text)
-}
-
-func (c *Collector) withSecondHand(ctx context.Context, item model.Listing, result model.CollectionResult) model.CollectionResult {
-	result.SecondHandStatus, result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel = c.secondHandOffer(ctx, item)
-	return result
-}
-
-func (c *Collector) newRequest(ctx context.Context, item model.Listing, target string) (*http.Request, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	if err != nil {
-		return nil, err
-	}
-	chromeMajor := "154"
-	if match := regexp.MustCompile(`Chrome/(\d+)`).FindStringSubmatch(c.userAgent); len(match) > 1 {
-		chromeMajor = match[1]
-	}
-	request.Header.Set("User-Agent", c.userAgent)
-	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	request.Header.Set("Accept-Language", locale(item.Marketplace))
-	request.Header.Set("Accept-Encoding", "identity")
-	request.Header.Set("Upgrade-Insecure-Requests", "1")
-	request.Header.Set("Sec-CH-UA", `"Google Chrome";v="`+chromeMajor+`", "Chromium";v="`+chromeMajor+`", "Not_A Brand";v="99"`)
-	request.Header.Set("Sec-CH-UA-Mobile", "?0")
-	request.Header.Set("Sec-CH-UA-Platform", `"Linux"`)
-	request.Header.Set("Sec-Fetch-Dest", "document")
-	request.Header.Set("Sec-Fetch-Mode", "navigate")
-	request.Header.Set("Sec-Fetch-Site", "none")
-	request.Header.Set("Sec-Fetch-User", "?1")
-	return request, nil
 }
 
 type usedCondition struct {
@@ -373,10 +254,11 @@ func isVoidElement(tag string) bool {
 	}
 }
 
-func (c *Collector) secondHandOffer(ctx context.Context, item model.Listing) (string, int64, string, string) {
+// usedOfferURLs returns the used-offer requests of an item: the used offers, then all offers.
+func usedOfferURLs(item model.Listing) []string {
 	parsed, err := url.Parse(item.URL)
 	if err != nil {
-		return "check_error", 0, "", ""
+		return nil
 	}
 	parsed.Path = "/gp/aod/ajax/ref=tmm_pap_used_aod_0"
 	parsed.RawQuery = ""
@@ -397,41 +279,21 @@ func (c *Collector) secondHandOffer(ctx context.Context, item model.Listing) (st
 	allQuery.Set("experienceId", "aodAjaxMain")
 	queries = append(queries, allQuery)
 
-	var pages []string
-	var failedResponses []string
+	urls := make([]string, 0, len(queries))
 	for _, query := range queries {
 		endpoint := *parsed
 		if query.Get("condition") == "ALL" {
 			endpoint.Path = "/gp/aod/ajax"
 		}
 		endpoint.RawQuery = query.Encode()
-		request, requestErr := c.newRequest(ctx, item, endpoint.String())
-		if requestErr != nil {
-			continue
-		}
-		request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-		request.Header.Set("Referer", item.URL)
-		request.Header.Set("Sec-Fetch-Site", "same-origin")
-		request.Header.Set("Sec-Fetch-Mode", "cors")
-		request.Header.Set("Sec-Fetch-Dest", "empty")
-		request.Header.Set("X-Requested-With", "XMLHttpRequest")
-		response, requestErr := c.client.Do(request)
-		if requestErr != nil {
-			failedResponses = append(failedResponses, requestErr.Error())
-			continue
-		}
-		if response.StatusCode >= 200 && response.StatusCode < 300 {
-			body, readErr := io.ReadAll(io.LimitReader(response.Body, 5<<20))
-			if readErr == nil {
-				pages = append(pages, string(body))
-			} else {
-				failedResponses = append(failedResponses, readErr.Error())
-			}
-		} else {
-			failedResponses = append(failedResponses, fmt.Sprintf("HTTP %d", response.StatusCode))
-		}
-		_ = response.Body.Close() // the body is fully read or not needed; a close error changes nothing
+		urls = append(urls, endpoint.String())
 	}
+	return urls
+}
+
+// parseUsedOffers reads the used-offer responses (pages) into the lowest second-hand offer sold by
+// Amazon; failedResponses are the reasons of the requests that got no page.
+func parseUsedOffers(item model.Listing, pages, failedResponses []string) (string, int64, string, string) {
 	if len(pages) == 0 {
 		log.Printf("Amazon used-offer check failed for %s/%s: %s", item.Marketplace, item.ASIN, strings.Join(failedResponses, "; "))
 		return "check_error", 0, "", ""

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "blocking": true,
+    "reason": "Confirmed contract violation. API_SPECIFICATION.md:688 says the two refresh endpoints \"no longer change `nextCheckAt` of Amazon items\". But RefreshItem (internal/service/service.go:302-304, 325-331) stores a new window time when the stored one is already due, and clients can see that in GET /api/v1/items. TS-AMZ-HCHK-007 and technical.md:106 describe the new behaviour; technical.md:143 has the same outdated sentence as the API spec. Fix both documents.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R3-02",
+    "blocking": false,
+    "reason": "Confirmed coverage gap, not a bug. Since R2-01, RefreshItem redraws the overdue 07:00 time before collectDue runs (service.go:325-331), so the \"Refresh price running\" subtest no longer reaches skipScheduledCheck's in-flight branch. The \"first check after add running\" subtest still covers that same branch, and the code is correct. Test files are locked in this stage, and the owner has moved missing tests to a follow-up issue.",
+    "title": "Make the TC-032 Refresh price subtest reach the in-flight branch and test restart after stop",
+    "todo": "**Problem:** In `internal/service/amazon_human_checks_test.go:746` (TC-032, subtest \"Refresh price running\"), the item is due at 07:00 and the clock is at 07:05. `RefreshItem` now calls `rescheduleOverdueAmazonCheck` (`internal/service/service.go:325-331`), which moves the overdue time to the evening window before the check starts. So `collectDue` finds no due item, and the in-flight branch of `skipScheduledCheck` never runs for a Refresh price. The subtest would still pass if that branch were removed. The R2-01 scenario has no test either.\n\n**Suggested work:**\n- In the Refresh price subtest, call `database.SetNextCheck(ctx, id, now.Now().Add(-time.Minute))` after `waitStarted` and before `service.collectDue(ctx)`, as the add subtest does.\n- Add a service test for restart after stop: the item is due at 07:00 and stopped; Refresh price at 07:30 restarts it; `collectDue` at 07:31 gives exactly one check in total, and the next check is in the evening window."
+  }
+]

@@ -25,3 +25,10 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)
 - [UC-PC-02 — Restart a stopped Amazon item while Refresh all is pending](price-collection/UC-PC-02-restart-stopped-amazon-item-during-refresh-all.md)
+
+## Amazon human-like checks
+
+- [UC-AMZ-HCHK-001 — Scheduled Amazon checks at random times](amazon-human-checks/UC-AMZ-HCHK-001-scheduled-amazon-checks-at-random-times.md)
+- [UC-AMZ-HCHK-002 — Add an Amazon item and start its random schedule](amazon-human-checks/UC-AMZ-HCHK-002-add-amazon-item-and-start-random-schedule.md)
+- [UC-AMZ-HCHK-003 — Refresh Amazon prices immediately](amazon-human-checks/UC-AMZ-HCHK-003-refresh-amazon-prices-immediately.md)
+- [UC-AMZ-HCHK-004 — Restart stopped Amazon items once after the upgrade](amazon-human-checks/UC-AMZ-HCHK-004-restart-stopped-amazon-items-once-after-upgrade.md)

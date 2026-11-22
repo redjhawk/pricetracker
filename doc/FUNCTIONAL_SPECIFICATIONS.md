@@ -116,6 +116,8 @@ The Amazon searches feature (issue #56) was removed in issue #111: no searches t
 
 Failed Amazon requests are logged with the server's response. After 5 consecutive failures every tracked Amazon item is stopped, each with its own stopped state: scheduled checks and **Refresh all prices** skip it and the Amazon tab shows a warning. A successful **Refresh price** on an item restarts only that item. Details: [Amazon request stop](specifications/amazon-request-stop/functional.md).
 
+To look less like a bot (issue #168), Amazon pages are requested through a real web browser, and each tracked Amazon item is checked once at a random time between 06:00 and 09:00 and once between 19:00 and 23:00, drawn anew every day and independently for each item; manual refreshes stay immediate. LeBoncoin is unchanged. Amazon items stopped before this change are restarted once automatically. Details: [Amazon human-like checks](specifications/amazon-human-checks/functional.md).
+
 ### 5.7 Users and login
 
 Phase 1 of [multi-user login](specifications/multi-user-login/functional.md), as defined in its [delivery plan](specifications/multi-user-login/delivery-plan.md), which prevails where it differs from the full specification.
@@ -134,7 +136,7 @@ Not yet implemented (later phases): item sharing and the "Shared by others" list
 - Each active item is scheduled for two collection attempts per day.
 - As soon as a new item is accepted, trigger an immediate price collection attempt; then continue with its regular twice-daily schedule.
 - Preserve the submitted Amazon listing URL and use it for collection requests; normalize the Amazon product identity separately for duplicate detection.
-- The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment.
+- The schedule defaults to 08:00 and 20:00 in `Europe/Paris`; timezone and check times are configurable for deployment. Amazon scheduled checks instead happen at random times, drawn daily per item, within 06:00–09:00 and 19:00–23:00 ([FR-AMZ-HCHK-004](specifications/amazon-human-checks/functional.md)).
 - Each successful check stores the detected item price in euros and its timestamp.
 - Amazon checks also look for second-hand offers sold by Amazon. If multiple qualifying offers exist, store the lowest-priced offer and its condition. Ignore third-party offers; do not accept an offer unless Amazon's seller attribution can be verified. LeBoncoin items have no separate second-hand-offer field.
 - A LeBoncoin free/donation listing with no numeric price is recorded as a zero-euro price only when the listing explicitly indicates that it is a donation/free item. The interface displays this as “Gratuit”. A missing or unparseable price is not treated as free.
@@ -218,6 +220,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-34 | Superseded by FR-32 (issue #111). | — |
 | FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
 | FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; at phone width (≤ 671 px) the tracked-items list cards span the full screen width without lateral margins; desktop and tablet layout unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
+| FR-37 | Amazon checks are made through a real web browser, and each Amazon item is checked at a random time, drawn daily and per item, within 06:00–09:00 and within 19:00–23:00; manual refreshes stay immediate; items stopped before the change are restarted once ([FR-AMZ-HCHK-*](specifications/amazon-human-checks/functional.md)). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -329,5 +332,6 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | superseded (issue #111) |
 | Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
+| Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
 | Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140) |

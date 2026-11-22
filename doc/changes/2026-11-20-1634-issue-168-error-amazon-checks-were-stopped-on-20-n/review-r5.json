@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R5-01",
+    "file": "internal/amazon/browser.go",
+    "line": 355,
+    "category": "bug",
+    "body": "The R4-01 fix uses *any* recorded Document response of the navigated frame as the loaded page whenever `Page.navigate` returns an `errorText`, including a 2xx response. TS-AMZ-HCHK-003 step 4 gives the reason for this path: Chromium sets `net::ERR_HTTP_RESPONSE_CODE_FAILURE` for a non-2xx answer with an empty body. A 2xx response with an `errorText` is a different case: the navigation was aborted after the headers (for example `net::ERR_ABORTED` for a response Chromium downloads instead of rendering, such as `Content-Disposition: attachment` on `text/html`, or `ERR_INVALID_RESPONSE`). The frame then stays on `about:blank` or shows Chromium's error page. `classifyPage` accepts it (status 200, MIME `text/html`, no robot pattern), and `parseProductPage` turns that empty or error DOM into `price_not_found`. That result counts as an Amazon answer: it resets the failure count, and on a Refresh price it restarts a stopped item, although Amazon sent no usable page. The old HTTP collector reported these cases as `request_error`. Fix: in the `errorText` branch, return the recorded response only when its status is outside 200–299, which is the documented case; that keeps the 404/410 → unavailable and 'Amazon returned HTTP n' rules. Otherwise keep the failure \"Amazon page could not be opened: <errorText>\"."
+  },
+  {
+    "id": "R5-02",
+    "file": "internal/amazon/browser.go",
+    "line": 116,
+    "category": "bug",
+    "body": "With the new `errorText` path, an empty-body 404/410 is classified `unavailable` while the tab shows Chromium's own error page (`chrome-error://chromewebdata/`), not an Amazon document. `Collect` then goes on to `tab.fetchAll(ctx, urls)` and runs the two used-offer `fetch` calls (with `credentials: \"include\"` and the non-safelisted `X-Requested-With` header) from that opaque origin. These requests are cross-origin from an error page, so they cannot succeed. Either they fail at once, or the browser sends Amazon a CORS preflight `OPTIONS` with `Origin: null`, which is not traffic a person's browser produces; issue #168 is about avoiding bot-like traffic. The second-hand status always ends as `check_error`, and a misleading 'used-offer check failed' line is logged. Fix: have `load` mark a page returned through the `errorText` branch (for example an `errorPage bool` field in `loadedPage`), and skip `fetchAll` for such a page. Return `check_error` for the second-hand status without sending a request, as already happens for failures."
+  }
+]

@@ -275,3 +275,40 @@ test("Carbon keyboard navigation and the narrow stacked table preserve access", 
   await page.getByRole("button", { name: "Options", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "View details", exact: true })).toBeVisible();
 });
+
+// Issue #168: after the one-time restart the API returns no stopped Amazon item.
+test("TC-030 Amazon tab shows no stop warning after the upgrade", async ({ page, context }) => {
+  const restarted = [
+    { ...amazon, amazonStoppedAt: null },
+    { ...amazon, id: "amazon-two", title: "Second Amazon item", amazonStoppedAt: null },
+    { ...leboncoin, amazonStoppedAt: null },
+  ] as FixtureItem[];
+  await mockApi(context, restarted);
+  const amazonTab = page.getByRole("tab", { name: "Amazon", exact: true });
+  const leboncoinTab = page.getByRole("tab", { name: "LeBoncoin" });
+  const amazonRow = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Amazon headphones", exact: true }) });
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await expect(amazonTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("button", { name: "Amazon headphones", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Second Amazon item", exact: true })).toBeVisible();
+    await expect(amazonRow).toContainText("12,99");
+    await expect(page.getByText(/Amazon checks were stopped/)).toHaveCount(0);
+    await expect(page.getByText(/are stopped since/)).toHaveCount(0);
+  }
+
+  await leboncoinTab.click();
+  await expect(leboncoinTab).toHaveAttribute("aria-selected", "true");
+  await leboncoinTab.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(amazonTab).toBeFocused();
+  await expect(amazonTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "Amazon headphones", exact: true })).toBeVisible();
+  await expect(page.getByText(/Amazon checks were stopped/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Amazon headphones", exact: true }).click();
+  await expect(page).toHaveURL("/items/amazon-one");
+  await expect(page.getByRole("heading", { name: "Amazon headphones", exact: true })).toBeVisible();
+  await expect(page.getByText(/are stopped since/)).toHaveCount(0);
+});

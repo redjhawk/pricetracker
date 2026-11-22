@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "reason": "Confirmed. For Amazon items, RefreshItem (internal/service/service.go:301) no longer writes next_check_at. StopAmazonItems and ClearAmazonStop (internal/store/amazon_requests.go:149-158) change only amazon_stopped_at. So an item stopped before its due time keeps that past due time after a Refresh price restarts it. On the next tick, DueChecks returns it, inDueAmazonWindow(07:00, 07:31) is true and the item is no longer in flight (amazon_schedule.go:34, service.go:548-553). collectDue then sends a second scheduled browser check right after the manual one. That is the back-to-back pattern the issue removes, and it means a check skipped while stopped still runs (FR-AMZ-HCHK-008 / FR-AMZ-STOP-004). Before this PR, RefreshItem moved next_check_at forward, so this did not happen.",
+    "title": "",
+    "todo": ""
+  }
+]

@@ -48,6 +48,8 @@ func newSessionService(t *testing.T) (*Service, *store.Store) {
 	t.Cleanup(func() { database.Close() })
 	service := New(cfg, database)
 	t.Cleanup(service.Close)
+	// Amazon checks use a real browser (issue #168): no test may reach Amazon.
+	service.collectors["amazon"] = fakeAmazon(func(context.Context, model.Listing) model.CollectionResult { return succeeded() })
 	return service, database
 }
 
@@ -155,9 +157,15 @@ func TestSessionlessAndAmazonCollectionSendNoCookie(t *testing.T) {
 		t.Fatalf("sessionless result %+v", item.LastAttempt)
 	}
 	saveSession(t, service, "synthetic-amazon-guard")
+	leboncoinRequests := calls.Load()
+	var amazonChecks atomic.Int32
+	service.collectors["amazon"] = fakeAmazon(func(context.Context, model.Listing) model.CollectionResult { amazonChecks.Add(1); return succeeded() })
 	service.Collect(context.Background(), "amz")
-	if calls.Load() < 2 {
-		t.Fatal("Amazon was not requested")
+	if amazonChecks.Load() != 1 {
+		t.Fatal("Amazon was not checked")
+	}
+	if calls.Load() != leboncoinRequests {
+		t.Fatal("the Amazon check sent a plain HTTP request (issue #168: Amazon is read through the browser)")
 	}
 	session, _ := service.LeboncoinSession(context.Background())
 	if session.LastAttempt != nil {

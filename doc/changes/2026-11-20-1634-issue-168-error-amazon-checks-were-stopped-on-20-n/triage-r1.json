@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: skipScheduledCheck (internal/service/service.go:547) only tests inAmazonWindow(now), never the window the stored next_check_at belonged to. After downtime across a window (e.g. due 21:00, restart at 07:00), collectDue sends every overdue Amazon item in one start-up pass. That breaks TS-AMZ-HCHK-009 (\"outside its window\") and FR-AMZ-HCHK-005 (items not checked together in one run), and it is the batched pattern the issue blames for the bot detection.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "The code never clears Singleton* files from the persistent profile (internal/amazon/browser.go:216-226). But on the same host Chromium takes over a stale SingletonLock when the recorded pid is dead or is not a Chrome process, so pid reuse does not block it. The lock only blocks after an unclean shutdown followed by a hostname change. Production runs one binary on a server (deploy/README.md), so this is hardening, not a likely failure in this PR.",
+    "title": "Clear stale Chromium Singleton files in the persistent Amazon browser profile",
+    "todo": "**Problem:** `BrowserCollector` reuses `<data dir>/amazon-browser` (`internal/amazon/browser.go:216-226`, `profile()` at line 240). If Chromium is killed (for example `close()` SIGKILLs the process group after 5 s, a crash, or a stop during a check), `SingletonLock`/`SingletonSocket`/`SingletonCookie` stay in the profile. If the data directory is later used under another hostname (moved server, new container), Chromium refuses the profile (\"Failed to create a ProcessSingleton\"). Every Amazon check then fails with \"browser could not start\", and after 5 failures all Amazon items are stopped.\n\n**Suggested work:** `BrowserCollector.mu` already ensures one browser per profile in this process. Before `launchBrowser`, when `ProfileDir` is set, remove `SingletonLock`, `SingletonSocket` and `SingletonCookie` with `os.Remove`, ignoring `fs.ErrNotExist`. Add a browser test that creates a `SingletonLock` symlink to `otherhost-12345` in the profile and checks that the next check still succeeds."
+  },
+  {
+    "id": "R1-03",
+    "blocking": true,
+    "reason": "Confirmed: restartAmazonItemsOnce (internal/store/amazon_requests.go:57) unsets next_check_at only for stopped items, and scheduleUnscheduledAmazonItems redraws only NULL times. Non-stopped Amazon items (restarted by Refresh price or added after the stop) keep the old shared 08:00/20:00 time. collectDue accepts that time because it is inside a window, so they are all checked together at the configured time. That breaks FR-AMZ-HCHK-004 and FR-AMZ-HCHK-005 for the first window after the upgrade and risks stopping the items again right after the one-time restart.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "Confirmed documentation inconsistency only: TC-006 (testcases.md:91) lists HTTP 404 as a failure. TS-AMZ-HCHK-003 step 7, the previous behaviour, classifyPage and TC-004 all treat 404 as unavailable. The test uses 403 and says why (browser_test.go:335). The code and the test match the technical specification, so no behaviour is wrong.",
+    "title": "Correct TC-006 to use a non-404/410 HTTP status",
+    "todo": "**Problem:** `doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md:91` (TC-006) lists \"HTTP 404 for the product page\" as a failure. TS-AMZ-HCHK-003 step 7 and `classifyPage` map 404/410 to `unavailable`. The test in `internal/amazon/browser_test.go:335` uses 403 instead.\n\n**Suggested work:** In TC-006, replace \"HTTP 404\" with a non-404/410 status such as 403. Add \"HTTP 404/410 → unavailable\" as a corner case of TC-004 so the test case document matches the specification and the tests."
+  }
+]
