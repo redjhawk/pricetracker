@@ -1,0 +1,37 @@
+[
+  {
+    "id": "R1-01",
+    "file": "tests/responsive-layout.spec.ts",
+    "line": 732,
+    "category": "test",
+    "body": "TC-005's 'a value starts a new line only when it does not fit' check measures free space as card.right - previous.right. The implementation gives the item cell `flex: 1 1 14rem` (src/index.css, `td:has(> .item-cell)`), so the item cell always grows to the end of its line. Whenever the value that wraps comes right after the item cell, `free` is about 0 and the assertion passes whatever the layout is. For example, if the item basis were large enough to push Prices to the next line, this check would still pass, and only the separate sameLine checks would catch it. To really prove FR-RESPONSIVE-024 after a growing cell, measure the free space from the previous cell's flex-basis/max-content width (or the sum of the hypothetical sizes on the line) instead of its grown border box. If the tests stay locked, record this limitation."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/responsive-layout/technical.md",
+    "line": 117,
+    "category": "readability",
+    "body": "TS-RESPONSIVE-017 says \"Cells do not grow, so the free space left on a line is always smaller than the next cell's width\". TS-RESPONSIVE-023 and src/index.css now make the item cell grow (`flex: 1 1 14rem`) and push the actions cell with `margin-inline-start: auto`. The two sections contradict each other. Reword TS-RESPONSIVE-017 to name the exception, for example \"Value cells do not grow; only the item cell grows into the space left on its line (TS-RESPONSIVE-023)\", so the stated invariant matches the CSS."
+  },
+  {
+    "id": "R1-03",
+    "file": "src/index.css",
+    "line": 664,
+    "category": "simplify",
+    "body": "The new standalone `.responsive-table td { display: block; }` only splits off what the old grouped rule did. Every td it matches is also matched by `.responsive-table tbody tr td` a few lines below (the thead has only th). Move `display: block` into the `.responsive-table tbody tr td` block and delete this rule, so the card-cell styling lives in one place."
+  },
+  {
+    "id": "R1-04",
+    "file": "src/index.css",
+    "line": 461,
+    "category": "nit",
+    "body": "`max-width: none` is only needed for `.login-form .cds--btn[type=\"submit\"]`, to lift Carbon's 20rem button cap. `.login-form` has no max-width anywhere (its base rule sets only `width: min(100%, 24rem)`). Either split the rule, or add a comment saying max-width targets the button, so readers do not look for a form cap that does not exist."
+  },
+  {
+    "id": "R1-05",
+    "file": "doc/FUNCTIONAL_SPECIFICATIONS.md",
+    "line": 341,
+    "category": "nit",
+    "body": "The index row says \"FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165)\", but FR-RESPONSIVE-020 is new in this change: it does not exist on master. It is already covered by \"018 to 024 specified\". Write \"016/017 updated\". The same wording appears in the issue #165 reference bullet of doc/specifications/responsive-layout/functional.md (\"FR-RESPONSIVE-016/017/020 updated\")."
+  }
+]
