@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R4-01",
+    "file": "internal/amazon/browser.go",
+    "line": 341,
+    "category": "bug",
+    "body": "`load` treats any `Page.navigate` `errorText` as a failure before `classifyPage` sees the HTTP status. Chromium returns `errorText: \"net::ERR_HTTP_RESPONSE_CODE_FAILURE\"` (and shows its own error page) when the main document answers 4xx/5xx with an empty body. `Network.responseReceived` (type Document, with the real status) is still emitted for that frame, so `documents[navigation.FrameID]` has the status, but the code returns at line 342 first. Consequences: (1) a 404/410 with an empty body, which the old HTTP collector and TS-AMZ-HCHK-003 step 7 classify as `unavailable`, becomes a counted `request_error`, so removed listings push the failure count towards a stop of every Amazon item; (2) an empty-body 503/429 (a typical throttling answer) is reported with `HTTPStatus` 0 and no 'Amazon returned HTTP n' reason, which loses the HTTP status that FR-AMZ-STOP-001 / TS-AMZ-HCHK-003 require in the log. The 404 fixture in browser_test.go always sends a body, so TC-004 does not cover this. Suggested fix: when `errorText` is set, wait briefly (or check at once) for a recorded Document response of `navigation.FrameID`. If one exists, return it as the loaded page (skip waiting for the load event) so `classifyPage` applies the 404/410 → unavailable and 'HTTP n' rules. Keep the errorText failure only when no response was received (DNS, refused, reset). Add a fixture case with an empty-body 404 (→ unavailable) and an empty-body 503 (→ failure with HTTPStatus 503)."
+  }
+]
