@@ -301,6 +301,7 @@ func userAgentOverride(product, userAgent, acceptLanguage string) map[string]any
 func (t *browserTab) load(ctx context.Context, target string, timeout time.Duration) (loadedPage, error) {
 	var mu sync.Mutex
 	documents := map[string]loadedPage{} // last document response by frame
+	responded := make(chan struct{}, 1)  // signalled when a document response is recorded
 	loaded := make(chan struct{})
 	var loadedOnce sync.Once
 	t.browser.on(t.session, func(method string, params json.RawMessage) {
@@ -319,6 +320,10 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 				mu.Lock()
 				documents[event.FrameID] = loadedPage{status: event.Response.Status, mimeType: event.Response.MimeType, url: event.Response.URL}
 				mu.Unlock()
+				select {
+				case responded <- struct{}{}:
+				default:
+				}
 			}
 		case "Page.loadEventFired":
 			mu.Lock()
@@ -338,7 +343,18 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 	if err := t.browser.call(loadContext, t.session, "Page.navigate", map[string]any{"url": target}, &navigation); err != nil {
 		return loadedPage{}, loadError(ctx, err)
 	}
+	document := func() (loadedPage, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		page, found := documents[navigation.FrameID]
+		return page, found
+	}
 	if navigation.ErrorText != "" {
+		// A non-2xx answer with an empty body also ends with an error text (Chromium then shows its own
+		// error page): its status still classifies the page, so only a navigation without an answer fails.
+		if page, found := awaitDocument(loadContext, document, responded); found {
+			return page, nil
+		}
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
 	}
 	select {
@@ -346,13 +362,30 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 	case <-loadContext.Done():
 		return loadedPage{}, loadError(ctx, loadContext.Err())
 	}
-	mu.Lock()
-	page, found := documents[navigation.FrameID]
-	mu.Unlock()
+	page, found := document()
 	if !found {
 		return loadedPage{}, errors.New("Amazon page loaded without a response")
 	}
 	return page, nil
+}
+
+// awaitDocument returns the navigated document's response, waiting up to a second for it since the
+// browser may report the failed navigation before the response event.
+func awaitDocument(ctx context.Context, document func() (loadedPage, bool), responded <-chan struct{}) (loadedPage, bool) {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	for {
+		if page, found := document(); found {
+			return page, true
+		}
+		select {
+		case <-responded:
+		case <-timer.C:
+			return loadedPage{}, false
+		case <-ctx.Done():
+			return loadedPage{}, false
+		}
+	}
 }
 
 // loadError keeps the cancellation of the check and reports the end of the load deadline.
