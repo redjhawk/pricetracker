@@ -432,6 +432,7 @@ stage_review() {
   run_agent review review "- Pull request: #$pr, head $(git rev-parse HEAD)
 - Diff: git diff origin/$BASE_BRANCH...HEAD
 - Write your findings to $review"
+  json_from_log review "$review"
   jq -e 'type == "array"' "$review" >/dev/null 2>&1 || die "review did not write a JSON array to $review"
   post_review "$pr" "$review"
   state_set round "$round"
@@ -459,6 +460,7 @@ stage_triage() {
     run_agent triage review "- Pull request: #$pr
 - Review to triage: $review
 - Write your decisions to $triage"
+    json_from_log triage "$triage"
     validate_triage "$review" "$triage" || die "invalid triage in $triage (see above)"
   fi
   create_todos "$pr" "$triage"
