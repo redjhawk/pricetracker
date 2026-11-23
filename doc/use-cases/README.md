@@ -35,6 +35,12 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 
 - [UC-APP-INFO-001 — Keep keyboard focus inside the Information modal](app-information/UC-APP-INFO-001-keep-focus-inside-information-modal.md)
 
+## Login attempt limits
+
+- [UC-LOGIN-LIM-001 — Locked out after repeated failed logins from one client](login-attempt-limits/UC-LOGIN-LIM-001-locked-out-after-repeated-failures-from-one-client.md)
+- [UC-LOGIN-LIM-002 — Log in while another client is locked out for the same username](login-attempt-limits/UC-LOGIN-LIM-002-log-in-while-another-client-is-locked-out.md)
+- [UC-LOGIN-LIM-003 — Log in when too many password checks are waiting](login-attempt-limits/UC-LOGIN-LIM-003-log-in-when-too-many-password-checks-are-waiting.md)
+
 ## Price collection
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)
