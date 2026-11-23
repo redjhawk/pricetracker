@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "file": "internal/amazon/cdp.go",
+    "line": 124,
+    "category": "test",
+    "body": "The fix for blocking R1-01/R2-01 (`lastBytes` and `exitReasonBytes = 768`, added in 804a40b) looks correct. With the longest prefix, `browser could not start: the browser exited (<status>): ` is about 90 bytes, so the cause stays under the 1,024 bytes `logText` keeps, and the newest stderr line is kept. No test proves it. The locked TC-006 subtest 'browser writing several lines' (browser_retrieval_test.go:604-615) checks only that `stub line` appears somewhere, so it also passes on the old code that dropped the end. Nothing else uses `lastBytes`. A later change to `exitReasonBytes` or `logText` could lose the browser's fatal reason (FR-AMZ-BRET-005) again without any test failing. Suggested follow-up, in a new unlocked test file (for example `internal/amazon/cdp_exit_reason_test.go`): (1) a unit test of `lastBytes` that checks short text comes back unchanged, long text keeps its last line, the result is at most `limit` bytes, starts with `…` and is valid UTF-8 when the cut falls inside a multi-byte rune; (2) a stub run like the TC-006 one that requires `stub line 40` (the last stderr line) in `FailureCause`."
+  },
+  {
+    "id": "R3-02",
+    "file": "src/components/AppMenu.tsx",
+    "line": 13,
+    "category": "refactor-pr",
+    "body": "Unrelated changes in this PR: `AppMenu` now controls `open` and closes the menu on Escape, and `InformationModal` (line 42) is wrapped in `FeatureFlags enableFocusWrapWithoutSentinels`. Both fix existing Playwright keyboard races and have nothing to do with issue #204. The functional spec puts the interface out of scope ('item states, labels and messages in the interface ... unchanged'), and the technical spec's Frontend section originally said 'No file in `src/` changes'. That sentence was replaced during implementation (64f47f6) to record these fixes. The code looks correct with Carbon 1.117: `open` is re-synced only when the prop changes, and `onOpen`/`onClose` keep the parent state aligned. Still, AGENTS.md asks for such fixes in their own PR, and here they make the frontend part of a backend bug fix that is harder to review and revert. Suggestion: move the two frontend changes and their technical-spec paragraph into a separate PR (or a follow-up issue if the gate needs them here), and say so in the PR description."
+  }
+]
