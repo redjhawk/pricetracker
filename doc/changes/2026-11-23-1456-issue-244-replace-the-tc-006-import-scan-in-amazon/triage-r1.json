@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: TestHelperImportPath (server_dependencies_test.go:31-35) compares the constant with the same literal, and the fixture modules also hard-code that path, so if the package or module path changes, checkServerDependencies never matches a listing line and TestServerDoesNotDependOnTestHelper passes even when the server imports the helper. The check fails open (FR-TEST-HYG-010/012), and the test meant to guard the constant proves nothing.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "True limitation of go list -deps (current GOOS/GOARCH and default tags only), but no file under cmd/ or internal/ has a //go:build constraint today, so nothing is missed now. Documenting it or widening the listing is an improvement.",
+    "title": "Document or cover build-constrained files in the server dependency check",
+    "todo": "**Problem:** `listServerDependencies` (`internal/amazon/amazontest/server_dependencies.go:17`) runs `go list -deps ./cmd/...`, which only resolves files for the current GOOS/GOARCH and default build tags. A helper import in a build-constrained file (for example `//go:build windows` or `_darwin.go`) used by the server would be missed. No such files exist today.\n\n**Suggested work:** Note the limitation in the doc comment of `listServerDependencies` and in TS-TEST-HYG-011 (`doc/specifications/test-suite-hygiene/technical.md`), or, if release targets differ, also run the listing for each release GOOS/GOARCH (and relevant `-tags`)."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Readability only: the `fails` field's mixed sentinel/free-text values are handled correctly by the switch, and row g still proves that a go list failure makes the check fail with the tool's error (it also asserts \"exit status\"). Tightening to `main.go:3` is nice to have.",
+    "title": "Split the `fails` field of the dependency check table tests",
+    "todo": "**Problem:** In `internal/amazon/amazontest/server_dependencies_test.go` the `fails` field (line 173, and line 81 for TC-002) mixes sentinels (`\"dependency\"`, `\"listing\"`) with free text a listing error must contain, and TC-002 and TC-003 use different sentinel sets under the same name. Row TC-003 g only checks for `main.go`.\n\n**Suggested work:** Replace `fails` with an outcome enum (pass / dependency / listing) plus a separate `listErrHolds string`, or name the sentinel constants. Check for `main.go:3` in row g so the assertion is tied to the syntax error."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "Nit: the loop at server_dependencies_test.go:293-298 is correct, just longer than needed and keeps scanning after the match.",
+    "title": "Simplify the cmd/pricefollower presence check in TestServerDoesNotDependOnTestHelper",
+    "todo": "**Problem:** `TestServerDoesNotDependOnTestHelper` (`internal/amazon/amazontest/server_dependencies_test.go:293-298`) repeats the split/trim loop of `checkServerDependencies` to find `pricefollower.local/cmd/pricefollower` and does not stop at the match.\n\n**Suggested work:** Use `slices.Contains(strings.Fields(listing), \"pricefollower.local/cmd/pricefollower\")`, or at least `break` after `found = true`."
+  }
+]
