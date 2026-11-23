@@ -105,10 +105,12 @@ run_agent() {
   case "$profile" in
     # Edit rules (which also cover Write) are limited to the paths each profile produces; Bash to fixed commands.
     docs)   tools="Read,Glob,Grep,Edit(doc/**),Edit(API_SPECIFICATION.md)" ;;
-    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Edit(cmd/**),Edit(internal/**),Edit(src/**),Edit(tests/**),Edit(web/**),Edit($CHANGE_DIR/**)"
+    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Edit(cmd/**),Edit(internal/**),Edit(src/**),Edit(tests/**),Edit(web/**),Edit(README.md),Edit(deploy/README.md),Edit($CHANGE_DIR/**)"
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
     review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
+    # Exactly the files of a failed merge (MERGE_FILES, set by resolve_conflicts in factory.sh).
+    merge)  tools="Read,Glob,Grep$(printf ',Edit(%s)' $MERGE_FILES),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)" ;;
     *) die "unknown tool profile $profile" ;;
   esac
   prompt="$(cat "$FACTORY_DIR/prompts/common.md" "$FACTORY_DIR/prompts/$name.md")
@@ -126,8 +128,67 @@ $extra"
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
-    --output-format text >"$LOG_DIR/$name.log" 2>&1 \
-    || agent_failed "$name"
+    --output-format json >"$LOG_DIR/$name.json" 2>"$LOG_DIR/$name.err" \
+    || { agent_log "$name"; agent_failed "$name"; }
+  agent_log "$name"
+  apply_deletions "$tools"
+}
+
+# apply_deletions <tools>: no tool profile can delete a file (rm and git rm need an approval nobody gives in a
+# non-interactive run), so an agent lists the files to delete in $CHANGE_DIR/delete.txt, one path per line.
+# The factory deletes those its profile's Edit rules cover and keeps the others; the list is never committed.
+apply_deletions() {
+  local list="$CHANGE_DIR/delete.txt" p rule ok rules
+  [ -f "$list" ] || return 0
+  IFS=, read -ra rules <<<"$1"
+  while IFS= read -r p || [ -n "$p" ]; do
+    p=${p%$'\r'}; p=${p#"$PWD"/}; p=${p#./}
+    [ -n "$p" ] || continue
+    ok=0
+    if [[ $p != /* && /$p/ != */../* ]] && { [ -f "$p" ] || [ -L "$p" ]; }; then
+      for rule in "${rules[@]}"; do
+        case "$rule" in Edit\(*\)) rule=${rule#Edit(}; rule=${rule%)} ;; *) continue ;; esac
+        # shellcheck disable=SC2053 # the rule is a glob; in [[ ]], * also matches /
+        [[ $p == $rule ]] && ok=1
+      done
+    fi
+    if [ $ok = 1 ]; then
+      git rm -q -f --ignore-unmatch -- "$p"; rm -f -- "$p"
+      log "deleted $p, listed in delete.txt"
+    else
+      log "kept $p, listed in delete.txt: not a file the stage may change"
+    fi
+  done <"$list"
+  rm -f -- "$list"
+}
+
+# agent_log <prompt name>: $LOG_DIR/<name>.log holds the agent's final answer, followed by every tool call
+# the permissions refused (tool and input), so a stage that could not write its file shows why.
+# Output that is not the JSON result (a usage limit message, a crash) is kept as is.
+agent_log() {
+  local name=$1
+  if jq -e 'type == "object" and has("result")' "$LOG_DIR/$name.json" >/dev/null 2>&1; then
+    jq -r '.result + (if (.permission_denials // []) == [] then "" else
+      "\n\n## Permission denials\n" + ([.permission_denials[] |
+        "- \(.tool_name): \(.tool_input | tostring | .[0:300])"] | join("\n")) end)' "$LOG_DIR/$name.json" >"$LOG_DIR/$name.log"
+  else
+    cat "$LOG_DIR/$name.json" >"$LOG_DIR/$name.log"
+  fi
+  cat "$LOG_DIR/$name.err" >>"$LOG_DIR/$name.log" 2>/dev/null || true
+  if grep -q '^## Permission denials' "$LOG_DIR/$name.log"; then
+    log "agent $name: tool calls refused by its permissions:"; sed -n '/^## Permission denials/,$p' "$LOG_DIR/$name.log" | tail -n +2 >&2
+  fi
+}
+
+# json_from_log <prompt name> <file>: when an agent could not write its JSON file but printed it, take the
+# last ```json block of its answer. Leaves the file alone when it already holds valid JSON.
+json_from_log() {
+  local name=$1 file=$2 block
+  ! jq -e . "$file" >/dev/null 2>&1 || return 0
+  block=$(awk '/^```json[[:space:]]*$/ {b=""; on=1; next} on && /^```[[:space:]]*$/ {last=b; on=0; next} on {b=b $0 "\n"} END {printf "%s", last}' "$LOG_DIR/$name.log")
+  [ -n "$block" ] && jq -e . >/dev/null 2>&1 <<<"$block" || return 0
+  printf '%s\n' "$block" >"$file"
+  log "agent $name did not write $file; taken from the JSON block of its answer"
 }
 
 # agent_failed <prompt name>: report a failed agent, telling a usage limit apart from an agent error.

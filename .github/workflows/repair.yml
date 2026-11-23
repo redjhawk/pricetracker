@@ -1,0 +1,59 @@
+# Repair of the agent factory (scripts/factory/repair.sh, doc/workflow/WORKFLOW.md "Supervisor").
+# The supervisor posts a repair comment on an issue that stopped for a technical reason (a failed gate, a
+# blocked environment, an error that relaunches did not cure); this workflow starts on it. An agent fixes the
+# cause on master, the fix must pass the whole suite, then repair.sh merges it and relaunches the issue.
+# The comment carries the <!-- agent-factory --> marker, so fabrica.yml ignores it.
+name: repair
+run-name: "repair #${{ github.event.issue.number || inputs.issue }}"
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue: {description: 'Issue number', required: true}
+jobs:
+  repair:
+    if: >-
+      github.actor == github.repository_owner && (
+        github.event_name == 'workflow_dispatch' ||
+        (!github.event.issue.pull_request && contains(github.event.comment.body, '<!-- factory-supervisor {"action":"repair"'))
+      )
+    # One repair at a time: each one changes master.
+    concurrency:
+      group: factory-repair
+      cancel-in-progress: false
+    runs-on: arc-dev
+    environment: dev
+    # Below the supervisor's repairMinutes (180), so that a repair without an outcome is not taken as running.
+    timeout-minutes: 170
+    permissions:
+      contents: read
+    env:
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      GH_TOKEN: ${{ secrets.DEV_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.DEV_TOKEN }}
+      - name: Preparar
+        run: |
+          echo "FACTORY_LOG_DIR=$RUNNER_TEMP/repair-logs" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/repair-logs"
+          npm ci
+          go mod download
+          # Run from a copy, so the repair's own edits do not change the script that is running.
+          cp -r scripts/factory "$RUNNER_TEMP/factory"
+          git config user.name "pricefollower-factory"
+          git config user.email "pricefollower-factory@users.noreply.github.com"
+      - name: Reparar
+        run: '"$RUNNER_TEMP/factory/repair.sh" "$ISSUE"'
+      - name: Logs del agente
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-logs-${{ env.ISSUE }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/repair-logs
+          if-no-files-found: ignore

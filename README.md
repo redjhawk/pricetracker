@@ -66,11 +66,12 @@ Claude agents develop the issues of this repository. An issue goes through speci
 |---|---|---|---|
 | [`fabrica.yml`](.github/workflows/fabrica.yml) | an issue gets the `ai-dev` label, or the owner comments on an `ai-dev` issue | runs the factory on that issue until it stops or merges | `arc-dev` |
 | [`supervisor.yml`](.github/workflows/supervisor.yml) | every 15 minutes | resumes stopped runs and launches the next issue | `arc-dev` |
+| [`repair.yml`](.github/workflows/repair.yml) | a supervisor repair comment | fixes the cause of a technical stop on `master`, merges it and resumes the issue | `arc-dev` |
 | [`release.yml`](.github/workflows/release.yml) | every push to `master` | builds and publishes the GitHub release | `arc-build` |
 
 ### Setup
 
-Nothing runs on the PriceFollower server. All three workflows run on the self-hosted runners, and the supervisor needs nothing beyond what the factory needs:
+Nothing runs on the PriceFollower server. All the workflows run on the self-hosted runners, and the supervisor and the repair need nothing beyond what the factory needs:
 
 1. **Runners.** Deploy the `arc-dev` and `arc-build` scale sets as described in [deploy/arc/README.md](deploy/arc/README.md). The `arc-dev` image ([`Dockerfile.dev`](deploy/arc/Dockerfile.dev)) contains the whole toolchain: Go, Node, `gh`, `jq`, the Claude CLI, Playwright Chromium, `govulncheck` and `gosec`. After changing the image, publish it under a new tag (see "Changing the runner image" in that README).
 2. **Secrets** (GitHub → Settings → Secrets and variables → Actions):
@@ -90,7 +91,7 @@ GitHub's own schedule is best effort and has never fired in this repository. Eac
   - Stage labels: `factory:spec`, `factory:usecases`, `factory:testcases`, `factory:techspec`, `factory:tests`, `factory:implement`, `factory:pr`, `factory:review`, `factory:triage`, `factory:merge` and `factory:done`.
   - Labels of a stopped run:
     - `factory:needs-input`: questions;
-    - `factory:needs-human`: a failed gate, a merge conflict, or the supervisor gave up;
+    - `factory:needs-human`: a merge conflict, a stop the supervisor could not repair, or the supervisor gave up;
     - `factory:blocked`: the environment;
     - `factory:waiting`: a bug on `master`;
     - `factory:waiting-limit`: the Claude usage limit;

@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useState, type KeyboardEvent, type RefObject } from "react";
 import { OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { UserAvatar } from "@carbon/icons-react";
 
@@ -10,6 +10,13 @@ interface Props {
 }
 
 export default function AppMenu({ onOpenInformation, onOpenSettings, onLogout, triggerRef }: Props) {
+  const [open, setOpen] = useState(false);
+
+  // Carbon moves focus into the menu only once it is placed; Escape pressed earlier reaches the trigger.
+  function closeOnEscape(event: KeyboardEvent) {
+    if (event.key === "Escape") setOpen(false);
+  }
+
   return (
     <OverflowMenu
       innerRef={triggerRef}
@@ -19,6 +26,10 @@ export default function AppMenu({ onOpenInformation, onOpenSettings, onLogout, t
       iconDescription="Application menu"
       flipped
       size="lg"
+      open={open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
+      onKeyDown={closeOnEscape}
     >
       {onOpenInformation && <OverflowMenuItem itemText="Information" onClick={onOpenInformation} />}
       {onOpenSettings && <OverflowMenuItem itemText="Settings" onClick={onOpenSettings} />}

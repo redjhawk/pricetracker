@@ -197,15 +197,41 @@ stage_tests() {
   advance implement "test: failing tests for #$ISSUE (TDD red)"
 }
 
+# resolve_conflicts any|no-tests: after a merge of the base branch that stopped on conflicts, a merge agent
+# resolves them, with Edit on exactly the conflicted files. Fails, leaving the merge to abort, when the merge
+# failed for another reason, when a conflicted test file must stay locked (no-tests: after the TDD red commit,
+# where the merge commit becomes the test reference), or when conflict markers remain. The resolved files are
+# staged; the gates that follow check the result as usual.
+resolve_conflicts() {
+  local files
+  git rev-parse -q --verify MERGE_HEAD >/dev/null || return 1
+  files=$(git diff --name-only --diff-filter=U)
+  [ -n "$files" ] || return 1
+  if [ "$1" = no-tests ] && grep -qE "$TEST_FILE_PATTERN" <<<"$files"; then
+    log "merge conflict in locked test files, left to the owner: $(grep -E "$TEST_FILE_PATTERN" <<<"$files" | tr '\n' ' ')"
+    return 1
+  fi
+  MERGE_FILES=$(tr '\n' ' ' <<<"$files")
+  log "merge conflict in: $MERGE_FILES; the merge agent resolves it"
+  run_agent merge merge "- Merging origin/$BASE_BRANCH into $BRANCH stopped on conflicts in: $MERGE_FILES"
+  # shellcheck disable=SC2086
+  if git grep -n -E '^(<<<<<<<|=======$|>>>>>>>)' -- $files >&2; then
+    log "conflict markers remain after the merge agent"
+    return 1
+  fi
+  # shellcheck disable=SC2086
+  git add -- $files
+}
+
 # The red gate needs the code without this change. Bring in the base branch, so the tests are written
 # against current code (including test fixes made there), and drop any implementation left on the branch:
 # a test problem sends the change back here after the developer has written code, and with that code
 # the new tests would pass and the red gate could never succeed. The tests stage writes its stubs anew.
 prepare_tests() {
   local out p
-  if ! out=$(git merge --no-edit "origin/$BASE_BRANCH" 2>&1); then
+  if ! out=$(git merge --no-edit "origin/$BASE_BRANCH" 2>&1) && ! { resolve_conflicts any && git commit -q --no-edit; }; then
     git merge --abort >/dev/null 2>&1 || true
-    stop_for_user needs-human merge-conflict "Merging \`$BASE_BRANCH\` into \`$BRANCH\` before writing the tests failed:
+    stop_for_user needs-human merge-conflict "Merging \`$BASE_BRANCH\` into \`$BRANCH\` before writing the tests failed, and the merge agent could not resolve it:
 \`\`\`
 $(tail -30 <<<"$out")
 \`\`\`
@@ -249,9 +275,9 @@ sync_base() {
     git add -A
     git commit -q -m "chore(factory): restore test files before merging $BASE_BRANCH" -m "Refs: #$ISSUE"
   fi
-  if ! out=$(git merge --no-ff --no-commit "origin/$BASE_BRANCH" 2>&1); then
+  if ! out=$(git merge --no-ff --no-commit "origin/$BASE_BRANCH" 2>&1) && ! resolve_conflicts no-tests; then
     git merge --abort >/dev/null 2>&1 || true
-    stop_for_user needs-human merge-conflict "Merging \`$BASE_BRANCH\` into \`$BRANCH\` before the implementation failed:
+    stop_for_user needs-human merge-conflict "Merging \`$BASE_BRANCH\` into \`$BRANCH\` before the implementation failed, and the merge agent could not resolve it:
 \`\`\`
 $(tail -30 <<<"$out")
 \`\`\`
@@ -432,6 +458,7 @@ stage_review() {
   run_agent review review "- Pull request: #$pr, head $(git rev-parse HEAD)
 - Diff: git diff origin/$BASE_BRANCH...HEAD
 - Write your findings to $review"
+  json_from_log review "$review"
   jq -e 'type == "array"' "$review" >/dev/null 2>&1 || die "review did not write a JSON array to $review"
   post_review "$pr" "$review"
   state_set round "$round"
@@ -459,6 +486,7 @@ stage_triage() {
     run_agent triage review "- Pull request: #$pr
 - Review to triage: $review
 - Write your decisions to $triage"
+    json_from_log triage "$triage"
     validate_triage "$review" "$triage" || die "invalid triage in $triage (see above)"
   fi
   create_todos "$pr" "$triage"

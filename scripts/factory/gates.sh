@@ -95,6 +95,10 @@ gate_red() {
     grep -q "$id" $files || { echo "test case $id is not referenced by any changed test"; missing=1; }
   done
   [ $missing = 0 ] || return 1
+  # Locked tests cannot be formatted later, and an unformatted file on the base branch fails every repair.
+  local unformatted
+  unformatted=$(grep -E '_test\.go$' <<<"$files" | xargs -r gofmt -l 2>&1 || true)
+  [ -z "$unformatted" ] || { echo "gofmt reports (run gofmt -w on them):"; echo "$unformatted"; return 1; }
   # A Playwright spec that playwright.config.ts (explicit testMatch) does not list would never run.
   local listed f
   listed=$(npx playwright test --list 2>/dev/null || true)
@@ -129,7 +133,9 @@ gate_green() {
 # Files the factory never merges on its own: CI, the factory itself, dependencies.
 # Also agent instructions (prompt-injection persistence) and files executed by the build or the gates.
 sensitive_files() {
-  changed_paths | grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
+  # deploy/README.md is installation documentation the developer may update; the rest of deploy/ is infrastructure.
+  changed_paths | grep -Ev '^deploy/README\.md$' |
+    grep -E '^(\.github/|\.claude/|\.agents/|project-skills/|AGENTS\.md$|CLAUDE\.md$|scripts/|deploy/|CODEOWNERS$|go\.(mod|sum)$|package(-lock)?\.json$|vite\.config\.ts$|playwright\.config\.ts$)' || true
 }
 
 # The scanners are built with the toolchain go.mod names (Go downloads it), not taken from the runner

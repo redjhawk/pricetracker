@@ -1,0 +1,37 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: the generic free-space check in TC-005 (tests/responsive-layout.spec.ts:732) is vacuous when the wrapped value follows the growing item cell. But it measures exactly what the TC-005 Then states, the case's concrete criteria (Prices/offer/Status on one line, labels shown) are checked and pass, and flex-wrap breaks lines on the 14rem basis, so the current CSS meets FR-RESPONSIVE-024. The tests are locked, so this is a test-strengthening follow-up, not a defect in this PR.",
+    "title": "Strengthen TC-005 wrap check after the growing item cell",
+    "todo": "**Problem:** In `tests/responsive-layout.spec.ts:729-734` (TC-005), the check \"a value starts a new line only when it does not fit\" computes free space as `card.right - previous.right`. The item cell has `flex: 1 1 14rem` (`src/index.css`, `td:has(> .item-cell)`), so it always grows to the end of its line and `free` is about 0 whenever the wrapped value follows it. A regression such as a much larger item basis (pushing Prices to the next line while it would fit beside the item) would still pass.\n\n**Suggested work:** Measure free space from the previous cells' hypothetical sizes (flex-basis or max-content width, e.g. via `window.layoutProbe`) instead of the grown border box, or add an explicit check that Prices sits on the item's line when `14rem + Prices width` fits in the card. Update TC-005 in `doc/changes/2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the/testcases.md` if the wording changes."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: technical.md:117 says \"Cells do not grow\" while TS-RESPONSIVE-023 (line 136) and src/index.css make the item cell grow and push the actions with margin-inline-start: auto. The exception is documented in TS-RESPONSIVE-023 and the code is correct, so this is a documentation consistency fix.",
+    "title": "Align TS-RESPONSIVE-017 wording with the growing item cell",
+    "todo": "**Problem:** `doc/specifications/responsive-layout/technical.md:117` (TS-RESPONSIVE-017) states \"Cells do not grow, so the free space left on a line is always smaller than the next cell's width\", which contradicts TS-RESPONSIVE-023 (line 136) and `src/index.css` (`td:has(> .item-cell) { flex: 1 1 14rem }`, `td:has(> .row-actions) { margin-inline-start: auto }`).\n\n**Suggested work:** Reword to e.g. \"Value cells do not grow; only the item cell grows into the space left on its line, and the actions cell is pushed to the line end (TS-RESPONSIVE-023).\""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Simplification only: the standalone `.responsive-table td { display: block; }` (src/index.css:664) has the same effect if merged into `.responsive-table tbody tr td` (line 678), since the hidden thead holds only th cells. No behaviour change.",
+    "title": "Merge card td display rule into the tbody td block",
+    "todo": "**Problem:** `src/index.css:664-666` keeps a standalone `.responsive-table td { display: block; }` inside the 1055.98px query; every matched td is also matched by `.responsive-table tbody tr td` at line 678.\n\n**Suggested work:** Move `display: block` into the `.responsive-table tbody tr td` block and delete the standalone rule, so the card-cell styling lives in one place. Re-run `tests/responsive-layout.spec.ts` to confirm no layout change."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "Nit: `max-width: none` at src/index.css:461 only matters for the submit button (Carbon's 20rem cap); `.login-form` has no max-width (line 64-66 sets only width). Harmless, readability only.",
+    "title": "Clarify max-width override in the login form rule",
+    "todo": "**Problem:** `src/index.css:458-462` applies `max-width: none` to both `.login-form` and `.login-form .cds--btn[type=\"submit\"]`, but only the button has a max-width to lift (Carbon's 20rem button cap).\n\n**Suggested work:** Split the rule so `max-width: none` targets only the submit button, or add a short comment saying it lifts Carbon's button cap."
+  },
+  {
+    "id": "R1-05",
+    "blocking": false,
+    "reason": "Confirmed: FR-RESPONSIVE-020 does not exist on master (`git show master:doc/specifications/responsive-layout/functional.md` has no match), so \"016/017/020 updated\" is inaccurate. Wording nit in the index; the requirement itself is correctly specified.",
+    "title": "Fix \"020 updated\" wording in responsive-layout references",
+    "todo": "**Problem:** `doc/FUNCTIONAL_SPECIFICATIONS.md:341` says \"FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165)\" and the issue #165 reference bullet in `doc/specifications/responsive-layout/functional.md` says \"FR-RESPONSIVE-016/017/020 updated\", but FR-RESPONSIVE-020 is new in issue #165.\n\n**Suggested work:** Change both to \"016/017 updated\" (020 is already covered by \"018 to 024 specified\")."
+  }
+]

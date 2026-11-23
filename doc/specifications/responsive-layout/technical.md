@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 017, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 024, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -69,6 +69,134 @@ Intermediate widths (REV-001, QA-F001): the page itself did not scroll at 700 px
 - **TS-RESPONSIVE-014 Scope.** Single rule in the phone query; nothing changes at ≥ 672 px or on other screens. Risk: if `.cds--content` padding, the `.page-shell` inset, or the `.cds--tab-content` padding / `--cds-layout-density-padding-inline-local` token change, the calc must follow (noted in the CSS comment).
 
 Backend and API: not affected; `API_SPECIFICATION.md` unchanged.
+
+Issue #165 replaces TS-RESPONSIVE-011's calc and supersedes TS-RESPONSIVE-013 (search and surrounding content keep their margins) and TS-RESPONSIVE-014 (nothing changes at ≥ 672 px). TS-RESPONSIVE-012 still applies. See the next section.
+
+### Full width below desktop (issue #165, FR-RESPONSIVE-014 to 024)
+
+Change folder: [issue 165](../../changes/2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the/issue.md). Use cases: UC-TI-05, UC-TI-06, UC-TI-07, UC-RL-01, UC-RL-02.
+
+#### Current gaps (inspected)
+
+- Below 1056 px the page content is inset by 48 px per side: Carbon's `.cds--content` has `padding: 2rem` (the app overrides only the block-start padding in `.app-content`), and the `.page-shell` inset is `spacing-05`. On the tracked items page, the Carbon tab panel `.cds--tab-content` adds 16 px more, so the cards there are inset by 64 px per side. Only the phone query cancels this gap, and only for `.tracked-table-container`, with a calc.
+- The stacked cards (`max-width: 1055.98px`) set every `td` to `display: block; width: 100%`, so each value takes a whole line and the right part of the card stays empty.
+- From 672 to 1055 px, the search field keeps its 24 rem width. The tabs keep their content width. Carbon's `.cds--inline-notification` has a breakpoint `max-inline-size` (608 px from md, 736 px from lg). The login form is capped at `min(100%, 24rem)`. So the space to the right of these elements stays empty.
+- The admin `.responsive-table-container` (toolbar with Add user, then the users table) keeps the page margins at every width.
+
+#### Requirement mapping
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-014, 018 | TS-RESPONSIVE-015, TS-RESPONSIVE-016 | `src/index.css` | TC-001 |
+| FR-RESPONSIVE-015, 020 | TS-RESPONSIVE-016 (kept TS-RESPONSIVE-012), TS-RESPONSIVE-017 | `src/index.css` | TC-002, TC-007, TC-008 |
+| FR-RESPONSIVE-016 | TS-RESPONSIVE-015, TS-RESPONSIVE-018 | `src/index.css` | TC-004, TC-007 |
+| FR-RESPONSIVE-017 | TS-RESPONSIVE-021 | `src/index.css` | TC-003, TC-012, TC-013 |
+| FR-RESPONSIVE-019 | TS-RESPONSIVE-016, TS-RESPONSIVE-021 | `src/index.css` | TC-003, TC-012 |
+| FR-RESPONSIVE-021 | TS-RESPONSIVE-016, TS-RESPONSIVE-017 | `src/index.css` | TC-004 |
+| FR-RESPONSIVE-022 | TS-RESPONSIVE-015, TS-RESPONSIVE-018, TS-RESPONSIVE-019, TS-RESPONSIVE-020 | `src/index.css` | TC-004, TC-007 to TC-011 |
+| FR-RESPONSIVE-023 | TS-RESPONSIVE-016 | `src/index.css` | TC-010 |
+| FR-RESPONSIVE-024 | TS-RESPONSIVE-017 | `src/index.css` | TC-005, TC-006, TC-010 |
+| Kept FR-RESPONSIVE-001 to 013, FR-APP-INFO-013 | TS-RESPONSIVE-021, TS-RESPONSIVE-022 | — | TC-001 to TC-013 |
+
+#### Frontend
+
+CSS only, in `src/index.css`. There are no component, markup, state or dependency changes. Every new or moved rule is inside `@media (max-width: 1055.98px)`, the query that already switches the tables to cards, unless stated otherwise. Spacing uses Carbon tokens. The page gutter is `var(--cds-spacing-05)` (16 px). This is both the maximum gap that FR-RESPONSIVE-022 allows and the card inner padding.
+
+- **TS-RESPONSIVE-015 Page gutter.** Add `.app-content { padding-inline: 0 }`. This applies to the tracker and admin apps, and removes Carbon's 2 rem. Keep the existing `.page-shell` width `min(100% - 2 * var(--cds-spacing-05), 96rem)`, so page content sits 16 px from each edge. Add `.tracked-page .cds--tab-content { padding-inline: 0 }`. Its block padding is kept, and it is scoped to the tracked page, the only `Tabs` user. Result: the heading, notifications, tab bar, search, empty and loading states, and item details content all sit at the 16 px gutter.
+- **TS-RESPONSIVE-016 Edge-to-edge card lists.** Add `.tracked-table-container, .responsive-table-container { margin-inline: calc(-1 * var(--cds-spacing-05)) }`. As blocks with `width: auto`, they widen by exactly the gutter to span the viewport.
+  - Delete the phone-only calc rule (TS-RESPONSIVE-011) and its comment. Replace it with a comment that names the gutter it cancels.
+  - The admin container also holds the `TableToolbar`. Add `.responsive-table-container .cds--table-toolbar { padding-inline: var(--cds-spacing-05) }` so Add user stays 16 px from the edge.
+  - The admin loading and empty `.empty-state` boxes inside the container become edge-to-edge bordered boxes. Their own padding keeps their text inset.
+  - Card content keeps `padding-inline: var(--cds-spacing-05)` on each `td` (TS-RESPONSIVE-012). This includes the `colSpan` cell holding “No items match your search.” (FR-RESPONSIVE-021).
+  - The cards and the full width share one media query, so they start and stop together at 1056 px (FR-RESPONSIVE-019).
+- **TS-RESPONSIVE-017 Values side by side in a card.** In the existing stacked-table block:
+  - `.responsive-table tr` changes from `display: block` to `display: flex; flex-wrap: wrap; align-items: flex-start`. `width: 100%`, `height: auto`, the padding and the bottom border are kept.
+  - `.responsive-table tbody tr td` gets `width: auto; flex: 0 1 auto; min-width: 0; max-width: 100%`, replacing `width: 100%`. `display: block` and the padding are kept.
+  - `table` and `tbody` stay `display: block; width: 100%`. The visually hidden `thead`, the `td[data-label]::before` labels and `.row-actions { justify-content: flex-start }` are unchanged.
+
+  Flex line breaking puts each cell on the current line when its max-content width fits, and otherwise starts a new line. This is the rule of FR-RESPONSIVE-024. Cells do not grow, so the free space left on a line is always smaller than the next cell's width.
+
+  A cell wider than the card, such as a long title or an 80-character username, takes its own line, is clamped to the card width, and wraps (`overflow-wrap: anywhere` on `.responsive-table td`, already present). No `order` or reversed direction is used, so visual order equals DOM order: Item, Prices, Amazon second-hand offer, Status, actions; or Username, Last login. Reading and Tab order follow it (FR-RESPONSIVE-012). Below 672 px the existing phone rules still remove `white-space: nowrap` from `.latest-price` and `.price-history-list li`. From 672 to 1055 px they keep `nowrap`, which keeps each value's max-content width compact.
+- **TS-RESPONSIVE-018 Full-width blocks above and around the list.**
+  - **Search field.** Move `.tracked-table-search .tracked-search { flex-basis: 100%; width: 100% }` from the two phone rules to the 1055.98 px query.
+  - **Tab bar.** Move the tab rule from the phone query to the 1055.98 px query, scoped as `.tracked-page .cds--tabs .cds--tabs__nav-item { min-width: 0; flex: 1 1 auto }`. Add `.tracked-page .cds--tabs .cds--tab--list { inline-size: 100% }`, because Carbon sets it to `auto`. The two tabs and their bottom borders then span the content width.
+  - **Notifications.** Add `.page-feedback .cds--inline-notification, .login-form .cds--inline-notification { min-inline-size: 0; max-inline-size: none }`. This covers the list error, the admin list error, the item-details error, the session error and the login error, and lifts Carbon's breakpoint cap. `.detail-notification` (Amazon-stop warning, refresh errors, admin success, purchase-goal messages) already has `max-width: none`. `.page-feedback` and `.login-form` never contain a modal, so modal notifications are untouched.
+  - **Heading actions.** In the phone query only, add `.page-heading-actions .cds--btn { flex: 1 1 auto }`. The stacked heading's button row then reaches the right gutter. From 672 to 1055 px the actions are already right-aligned at the gutter, and the title at the left gutter.
+  - **Empty and loading states.** `.empty-state` is a block and already fills the content width.
+- **TS-RESPONSIVE-019 Login page.** Add `.login-form, .login-form .cds--btn[type="submit"] { width: 100%; max-width: none }`. Carbon caps buttons at 20 rem, so this makes the Log in button span the form too. `.login-page` already has `padding-inline: var(--cds-spacing-05)` at every width, so at 775 px the fields, the button and the error notification span the viewport minus 16 px per side. The phone-only `.login-page` padding rule is now redundant but harmless. Leave it.
+- **TS-RESPONSIVE-020 Item details.** No dedicated rule is expected. TS-RESPONSIVE-015 moves the breadcrumb, heading, `.detail-actions` (right-aligned from 672 px, left-aligned below), summary tiles, histories, purchase goal `TextArea`, AI review `Accordion` and notifications to the 16 px gutter. These Carbon blocks are full width. The loading state is a Carbon `InlineLoading`, whose `.cds--inline-loading` box is `inline-size: 100%`. TC-008 and TC-009 measure that box, and the left gap of its text. If TC-009 finds a block narrower than the content width at 775 or 1055 px, give it `inline-size: 100%` in the same query. That is a developer decision; record it in the review.
+- **TS-RESPONSIVE-021 Desktop, header and modals unchanged.** At ≥ 1056 px no new rule applies, so the margins, table header rows and search alignment equal the baseline (FR-RESPONSIVE-011, 017).
+  - The Carbon `Header` is outside `.app-content`, and none of its selectors change.
+  - Modals are Carbon fixed-position containers. Ancestor padding does not affect them, including the admin Add user `Modal` rendered inside `.page-shell`. The new notification selectors never match them.
+  - FR-APP-INFO-013 is kept.
+- **TS-RESPONSIVE-022 Resize.** CSS only, with no remount. The tab, search text and modal inputs survive resizing across 1056 px (FR-RESPONSIVE-013).
+- **TS-RESPONSIVE-023 Supporting rules found during development.** All are in the 1055.98 px query:
+  - **Spacing scale.** No rule is needed. Master commit 248ae54 declares `--cds-spacing-*` on `:root`, so the tokens used by TS-RESPONSIVE-015 to 018 resolve everywhere, and modals keep their current look.
+  - **Tab bar.** `.tracked-page .cds--tabs .cds--tabs__nav-item--close--hidden { display: none }`. Carbon's 1 px close-button placeholder after each tab otherwise stops the last tab 1 px short of the gutter.
+  - **Card cells.** `.responsive-table tbody tr td:has(> .item-cell) { flex: 1 1 14rem }` lets the item cell take the space the values leave on its line, and `td:has(> .row-actions) { margin-inline-start: auto }` ends the line with the actions, so the flipped Options menu opens on screen. `.item-cell { min-width: 0 }` lets a long title wrap inside the card.
+  - **Breadcrumb.** The `.detail-breadcrumb` wrapping rules (REV-004) move from the phone query to the base rules, outside any media query. A long title in the breadcrumb then wraps at every width, including desktop, where it otherwise widened the page (FR-RESPONSIVE-001, 010; TC-012). Short titles keep their current layout.
+  - **Item details.** `.detail-summary` uses two columns from 672 to 1055 px; the phone query keeps one column.
+  - **Page top.** `.page-shell` gets `padding-block-start: var(--cds-spacing-05)` instead of `spacing-07`, so the top gap matches the 16 px side gutter.
+
+Accessibility: no markup change. The table semantics, visible `data-label` captions, focus styles and Carbon target sizes are as in TS-RESPONSIVE-008. The stretched tabs keep their full labels and the Carbon tab keyboard behaviour.
+
+#### Backend
+
+Not affected. The change is presentation only: no handler, service, validation, persistence, migration or concurrency change.
+
+#### API
+
+Not affected. No endpoint, field, status or error changes. `API_SPECIFICATION.md` is unchanged.
+
+#### Files to change
+
+- `src/index.css`: TS-RESPONSIVE-015 to 020 and 023. Remove the TS-RESPONSIVE-011 calc rule.
+- `tests/responsive-layout.spec.ts`: the new cases below. Remove `700px tracked-items list keeps its page margins`, whose behaviour FR-RESPONSIVE-018 replaces.
+
+`playwright.config.ts` already lists the spec. No `.tsx`, Go or API file changes.
+
+#### Tests
+
+All cases are e2e Playwright tests in `tests/responsive-layout.spec.ts`, using the existing `mockApi` and `expectNoHorizontalScroll`. `mockApi` gets options for:
+
+- sample-like items: a short-title Amazon item with three prices, an available second-hand offer and success status; an Amazon item without an offer; a short-title LeBoncoin item;
+- the users list (short or 80-character username);
+- an items response held unanswered, or returned with HTTP 500;
+- an item details response held, or returned with HTTP 500;
+- a login API returning 401.
+
+Shared helpers: `edgeGaps(locator)` (left and right gap of a box or text range to the viewport edges) and `expectEdgeToEdge(locator)` (|left| ≤ 1, |right − width| ≤ 1). Baseline constants (TC-003, TC-012, TC-013) are measured on `master` before `src/index.css` changes and recorded in the test. For TC-005, a value is the `td` border box.
+
+| Test case | Test (in `tests/responsive-layout.spec.ts`) | TS IDs |
+| --- | --- | --- |
+| TC-001 | `TC-001 tracked-item cards run edge to edge` (widths 320 to 1055, both tabs) | 015, 016 |
+| TC-002 | `TC-002 card content stays inset and readable` | 016, 017 |
+| TC-003 | `TC-003 card layout and full width switch together at 1056px` | 016, 021, 022 |
+| TC-004 | `TC-004 no-match message inside the full-width list` | 016, 018 |
+| TC-005 | `TC-005 card values side by side` | 017 |
+| TC-006 | `TC-006 phone card values in reading and focus order` | 017 |
+| TC-007 | `TC-007 elements above the list use the full width` | 015, 018 |
+| TC-008 | `TC-008 tracked items empty, loading and error states use the full width` | 015, 018 |
+| TC-009 | `TC-009 item details use the full width` | 015, 018, 020 |
+| TC-010 | `TC-010 administrator users list edge to edge` | 016, 017 |
+| TC-011 | `TC-011 login page uses the full width` | 018, 019 |
+| TC-012 | `TC-012 desktop layout unchanged` (1056, 1440) | 021 |
+| TC-013 | `TC-013 header and modals unchanged below desktop` | 021 |
+
+The existing 320 px and 360 px `tracked-items list spans the full width` tests and the issue #140 tests stay.
+
+#### Refactoring
+
+Moving the search-width and tab-stretch rules from the phone query to the 1055.98 px query, and replacing the TS-RESPONSIVE-011 calc with the gutter rule, are needed by FR-RESPONSIVE-018 and 022.
+- **Scope:** `src/index.css` only.
+- **Risk:** low. Rules apply only below 1056 px, and TC-012 guards the desktop layout.
+
+No other refactoring.
+
+#### Risks
+
+- The design relies on Carbon internals: `.cds--content` padding, the `.cds--tab-content` padding, the `.cds--tab--list` width, the `.cds--table-toolbar` layout and the `.cds--inline-notification` breakpoint widths. A Carbon upgrade may change them. TC-001, TC-007 and TC-010 detect it.
+- Stretched tabs and phone heading buttons are a visible change below 1056 px. FR-RESPONSIVE-022 requires them.
 
 ## Backend
 
