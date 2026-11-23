@@ -33,12 +33,7 @@ Price and second-hand parsing, the failure count, stop and restart rules, the UI
 
 ## Frontend
 
-Not affected. There is no new screen, state, label or message, and item states and the retrieval-issue display stay the same. The functional spec says nothing about the cause is added to the UI. The Playwright tests in `tests/` must keep passing.
-
-Two existing keyboard races made the green gate's Playwright run fail. They are fixed without any visible change:
-
-- `InformationModal` uses Carbon's synchronous focus wrap (`FeatureFlags enableFocusWrapWithoutSentinels`), as `SettingsModal` already does. With the default sentinel wrap, focus came back into the modal only after a timeout following Tab.
-- `AppMenu` controls the menu's `open` state and closes the menu on Escape pressed on the trigger. Carbon moves focus into the menu only after placing it, so an earlier Escape reached the trigger and was ignored.
+Not affected. There is no new screen, state, label or message, and item states and the retrieval-issue display stay the same. The functional spec says nothing about the cause is added to the UI. The Playwright tests in `tests/` must keep passing. No file in `src/` changes.
 
 ## Backend
 
