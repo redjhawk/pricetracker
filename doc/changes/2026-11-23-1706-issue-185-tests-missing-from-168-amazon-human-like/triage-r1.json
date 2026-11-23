@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The test checks everything FR-TEST-HYG-023 and the TC-002 Then clauses require: each item is in the evening window of 2030-03-05, none keeps 08:00, the mark is cleared, and a second start changes nothing. Requiring the drawn times to differ is not in the requirement, so this is a useful extra assertion, not a missing one.",
+    "title": "Assert that the upgrade redraw draws a different time for each Amazon item",
+    "todo": "**Problem:** `TestAmazonUpgradeRedraw_Issue185_TC002_EveryItemRedrawnOnce` (`internal/service/amazon_human_checks_issue185_test.go:118-125`) lists FR-AMZ-HCHK-005 (independent draws per item) as covered behaviour, and the TC-002 title says each item gets \"its own\" window time. But the test only checks that each item is in the evening window. A regression that draws one time and writes it to every item (for example `nextCheckAt` moved out of the loop in `scheduleUnscheduledAmazonItems`) would still pass.\n\n**Suggested work:** The random source is seeded (1851), so the draws are deterministic. After the loop, fail if any two values in `drawn` are equal, e.g. `drawn[ids[0]].Equal(drawn[ids[1]]) || drawn[ids[1]].Equal(drawn[ids[2]]) || drawn[ids[0]].Equal(drawn[ids[2]])`. Update the TC-002 Then clauses in the change's `testcases.md` to match."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Style nit: `status := row.status` is not needed with Go 1.25 per-iteration loop variables, and the subtests run in sequence. Behaviour and assertions are correct either way.",
+    "title": "Use the loop variable consistently in TestBrowserEmptyErrorStatus_Issue185_TC003",
+    "todo": "**Problem:** `internal/amazon/browser_empty_status_test.go:26` copies `row.status` into `status`, but the subtest closure reads `row.unavailable` directly. Mixing the two forms reads unevenly, and the copy is not needed with Go 1.25 loop semantics.\n\n**Suggested work:** Drop the `status` copy and use `row.status` throughout the subtest, or copy both fields. This does not change behaviour."
+  }
+]
