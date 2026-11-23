@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: line 3 of technical.md still describes TS-TEST-HYG-022 as the manual close of #238 in the #241 entry, and only the #238 entry says TS-TEST-HYG-033 replaces it. The line is complete and not wrong, so this is a readability nit in documentation.",
+    "title": "Reword the test-suite-hygiene technical Status line for TS-TEST-HYG-022",
+    "todo": "**Problem:** In `doc/specifications/test-suite-hygiene/technical.md` line 3, the issue #241 entry still reads \"TS-TEST-HYG-022 is the manual close of issue #238 after the merge\". Only the issue #238 entry at the end of the line says TS-TEST-HYG-033 replaces it, so a reader who stops at the #241 entry sees the old manual step.\n\n**Suggested work:** Change the #241 parenthesis to \"TS-TEST-HYG-022, the manual close of issue #238, is replaced by TS-TEST-HYG-033\" and remove the repeat from the #238 entry. This matches the functional Status line, which already says FR-TEST-HYG-019 is \"closed by the merge of the issue #238 change\".\n\n**File:** `doc/specifications/test-suite-hygiene/technical.md:3`"
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: FR-TEST-HYG-027 repeats the guard and exact message of FR-TEST-HYG-020, and FR-TEST-HYG-029 partly repeats FR-TEST-HYG-019/021. The requirements agree with each other and the test file holds the guard (`case <-stopped:` before `cancel()`), so the duplication only risks future drift. It is a simplification, not a defect.",
+    "title": "Remove the repeated guard message from FR-TEST-HYG-027",
+    "todo": "**Problem:** In `doc/specifications/test-suite-hygiene/functional.md` line 103, FR-TEST-HYG-027 repeats the guard and the exact failure message of FR-TEST-HYG-020 (line 87). FR-TEST-HYG-029 (line 105) also mostly repeats FR-TEST-HYG-019 and FR-TEST-HYG-021. If the message changes later, two IDs must be updated and they can drift apart.\n\n**Suggested work:** Reword FR-TEST-HYG-027 to say that it keeps FR-TEST-HYG-020 and to add only the new detail (\"fails at once, without stopping the server\"), without repeating the message. Optionally make FR-TEST-HYG-029 point to FR-TEST-HYG-019/021 instead of restating them. Keep all IDs.\n\n**File:** `doc/specifications/test-suite-hygiene/functional.md:103`, `:105`"
+  }
+]

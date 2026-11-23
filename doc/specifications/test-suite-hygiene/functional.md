@@ -1,7 +1,7 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018, 020 and 021 implemented (issue #241); FR-TEST-HYG-019 waiting for the manual close of issue #238 (issue #241); FR-TEST-HYG-022–026 implemented (issue #185)
-Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`); issue #185 ("Tests missing from #168 (Amazon human-like checks)", from review comments R1-01, R1-03 and R4-01 on PR #179).
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018, 020 and 021 implemented (issue #241); FR-TEST-HYG-019 closed by the merge of the issue #238 change (issue #241); FR-TEST-HYG-022–026 implemented (issue #185); FR-TEST-HYG-027–029 implemented (issue #238, whose merge also settles FR-TEST-HYG-019)
+Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`); issue #185 ("Tests missing from #168 (Amazon human-like checks)", from review comments R1-01, R1-03 and R4-01 on PR #179); issue #238 ("TC-005: fail if the check ended before the server stop", from review comment R1-03 on PR #236, `doc/todo/issue-233-r1-03.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
 ## Purpose
@@ -12,6 +12,7 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Issue #251: the unit tests of the dependency check build small fixture modules (TC-003 of issue #244). Some fixtures that stand for valid code use a name (`DownloadMarker`) that the fixture's stub of the test helper does not declare, so those modules would not compile. The tests pass only because listing dependencies does not compile the code; they would break, or prove less than they claim, if the listing ever compiled it. Make the fixtures that stand for valid code compile.
 - Issue #241: the follow-up record `doc/todo/issue-233-r1-03.md` and its GitHub issue #238 still say "todo" for work that PR #236 already did: TC-005 (`internal/httpapi/amazon_browser_interrupted_test.go`) fails with a message when the check ended before the server stop. Close the record and the issue so they no longer list finished work.
 - Issue #185: three behaviours of [Amazon human-like checks](../amazon-human-checks/functional.md) (issue #168) shipped without a test that proves them: a scheduled Amazon check whose window has passed is not sent (FR-AMZ-HCHK-004, FR-AMZ-HCHK-009), every Amazon item gets its own window time at the first start after the upgrade (FR-AMZ-HCHK-004, FR-AMZ-HCHK-005, FR-AMZ-HCHK-010), and an empty-body error response is classified by its HTTP status (FR-AMZ-HCHK-012). Add these tests, and keep `internal/amazon/browser_test.go` formatted with `gofmt`.
+- Issue #238: TC-005 (`internal/httpapi/amazon_browser_interrupted_test.go`) must fail with a message when the check has already ended at the moment the server is stopped, so that a faster check cannot turn the server stop into a no-op that still passes. PR #236 already added this guard (see issue #241), so issue #238 keeps it and is closed as completed by its own change.
 
 ## Actors
 
@@ -41,6 +42,8 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Excluded (issue #251): the dependency check itself, its failure messages and when it passes or fails (FR-TEST-HYG-009–013 are unchanged); the real test helper package; the fixtures whose purpose is to make the listing fail, which stay invalid.
 - In scope (issue #241): the follow-up record `doc/todo/issue-233-r1-03.md` and GitHub issue #238.
 - Excluded (issue #241): any change to TC-005 or to other test or production code, to the issue #233 technical specification and test cases, and to other follow-up records, including `doc/todo/issue-233-r3-01.md` (the record of issue #241 itself, which stays as the trace of this issue, as the follow-up records of earlier done issues do).
+- In scope (issue #238): the "check still running" guard of TC-005 and the closing of GitHub issue #238.
+- Excluded (issue #238): production code, the rest of TC-005 and other tests, the issue #233 technical specification and test cases, and the follow-up records under `doc/todo/` (`doc/todo/issue-233-r1-03.md` was already deleted by issue #241).
 - In scope (issue #185): new or extended automated tests for the three behaviours above, and the `gofmt` formatting of `internal/amazon/browser_test.go`.
 - Excluded (issue #185): any change to the application's behaviour, including the window rules, the upgrade restart and redraw, and the classification of HTTP statuses. If a new test shows that the application does not behave as FR-AMZ-HCHK-004, -009, -010 or -012 and the requirements below state, that is a defect to report, not something this issue changes.
 - Excluded: the other rules of the no-download check (which names and contents count as a download, missing folders, symbolic links), which stay as they are.
@@ -80,7 +83,7 @@ Scope: repository maintenance. Application behaviour is not affected.
 ### Finished TC-005 follow-up closed (issue #241)
 
 - **FR-TEST-HYG-018** The follow-up record `doc/todo/issue-233-r1-03.md` no longer exists in the repository.
-- **FR-TEST-HYG-019** GitHub issue #238 is closed with the reason "completed" (not "not planned"), as the work it asks for was done by PR #236.
+- **FR-TEST-HYG-019** GitHub issue #238 is closed with the reason "completed" (not "not planned"), as the work it asks for was done by PR #236. The merge of the issue #238 change closes it (FR-TEST-HYG-029).
 - **FR-TEST-HYG-020** TC-005 still fails the test, with the message "the check ended before the server stop: the interruption point was missed", when the check has already ended at the moment the server is stopped; `internal/httpapi/amazon_browser_interrupted_test.go` is unchanged.
 - **FR-TEST-HYG-021** No other file under `doc/todo/` is deleted or changed, the change's diff outside `doc/` is empty, `go vet ./...` and `go test ./...` pass, and the operator observes no change in the application.
 
@@ -94,6 +97,12 @@ Scope: repository maintenance. Application behaviour is not affected.
   The test fails if any of the four statuses gives another result, records another HTTP status, or (503, 429) gives another failure cause.
 - **FR-TEST-HYG-025** `gofmt -l internal/amazon` lists no file: `internal/amazon/browser_test.go` and every test file added or changed by issue #185 are formatted with `gofmt`.
 - **FR-TEST-HYG-026** The tests of FR-TEST-HYG-022–024 run in the existing unit-test gate (`go vet ./...`, `go test ./...`) with no separate command, and pass on the repository as changed. The change's diff outside `doc/` is limited to Go test files (`*_test.go`), and the operator observes no change in the application.
+
+### TC-005 fails when the interruption point is missed (issue #238)
+
+- **FR-TEST-HYG-027** After the product page has been answered with the download and before the server is stopped, TC-005 checks whether the check has already ended. If it has, the test fails at once, without stopping the server, with the message "the check ended before the server stop: the interruption point was missed".
+- **FR-TEST-HYG-028** When the check is still running at that moment, TC-005 stops the server and goes on as before: the stopped check returns within 20 s, no download file and no new data file are written, and the next Refresh price of each owner records the normal page. On a normal run it passes.
+- **FR-TEST-HYG-029** Merging the issue #238 change closes GitHub issue #238 as completed. The change touches no production code: its diff outside `doc/` is either empty or limited to `internal/httpapi/amazon_browser_interrupted_test.go`. `go vet ./...` and `go test ./...` pass, and the operator observes no change in the application.
 
 ## States
 
@@ -145,6 +154,13 @@ Issue #185:
 - `gofmt -l internal/amazon` prints nothing (FR-TEST-HYG-025).
 - `go vet ./...` succeeds, and `git diff --name-only origin/master` outside `doc/` lists only `*_test.go` files (FR-TEST-HYG-026).
 
+Issue #238:
+
+- Between the wait for the download answer and `cancel()`, `internal/httpapi/amazon_browser_interrupted_test.go` checks whether the check goroutine has ended and fails with the message of FR-TEST-HYG-027 if it has (FR-TEST-HYG-027).
+- If the check is temporarily made to end before the server stop (for example, the collector returns as soon as the download answer is sent), TC-005 fails with that message. Without the temporary change, TC-005 passes (FR-TEST-HYG-027, FR-TEST-HYG-028).
+- After the merge, `gh issue view 238 --json state,stateReason` shows `CLOSED` and `COMPLETED` (FR-TEST-HYG-019, FR-TEST-HYG-029).
+- Outside `doc/`, `git diff --name-only origin/master` lists nothing or only `internal/httpapi/amazon_browser_interrupted_test.go`. `go vet ./...` and `go test ./...` succeed (FR-TEST-HYG-029).
+
 ## Open questions
 
-None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice. Issue #241 accepts either deleting the record or marking it done; deletion is chosen, as no follow-up record uses a "done" status and the Git history keeps the file. Issue #185 needed no question: it states each scenario and its expected result, which match FR-AMZ-HCHK-004, -009, -010 and -012 and the behaviour shipped by PR #179; whether a case extends an existing test or is a new test is a technical choice.
+None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice. Issue #241 accepts either deleting the record or marking it done; deletion is chosen, as no follow-up record uses a "done" status and the Git history keeps the file. Issue #185 needed no question: it states each scenario and its expected result, which match FR-AMZ-HCHK-004, -009, -010 and -012 and the behaviour shipped by PR #179; whether a case extends an existing test or is a new test is a technical choice. Issue #238 states the guard and its expected failure. PR #236 already added the guard, so the change keeps it and closes the issue as completed, which also settles FR-TEST-HYG-019.

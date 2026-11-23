@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 3,
+    "category": "nit",
+    "body": "The Status line still says \"TS-TEST-HYG-022 is the manual close of issue #238 after the merge\" for issue #241, and only at the end of the line says TS-TEST-HYG-033 replaces it. A reader who stops at the #241 entry gets the old manual step. The functional Status line was already reworded for FR-TEST-HYG-019 (\"closed by the merge of the issue #238 change\"). Suggested fix: change the #241 parenthesis to \"TS-TEST-HYG-022, the manual close of issue #238, is replaced by TS-TEST-HYG-033\" and drop the repeat in the #238 entry."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 226,
+    "category": "simplify",
+    "body": "FR-TEST-HYG-027 restates FR-TEST-HYG-020 (same guard, same exact message, same test file). FR-TEST-HYG-029 also mostly repeats FR-TEST-HYG-019 and 021 (issue #238 closed as completed, nothing outside doc/ changes, vet/test pass). Two IDs for one rule can drift apart later: if the message changes, both need updating. This is acceptable as the trace for issue #238, but FR-TEST-HYG-027 could simply say it keeps FR-TEST-HYG-020, adding only the new detail (\"fails at once, without stopping the server\"), rather than repeating the message."
+  }
+]
