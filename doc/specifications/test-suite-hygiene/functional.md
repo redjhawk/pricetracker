@@ -1,6 +1,6 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 specified (issue #244)
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244)
 Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
