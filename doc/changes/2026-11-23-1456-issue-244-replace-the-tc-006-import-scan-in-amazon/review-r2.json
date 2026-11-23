@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 162,
+    "category": "nit",
+    "body": "The fixtures `helperMain` and the renamed-import row of TC-003 (line 235) use `amazontest.DownloadMarker` / `helper.DownloadMarker`, but the stub helper written by `writeModule` is only `package amazontest\\n`, so it has no `DownloadMarker` and these fixture modules would not compile. The tests pass only because `go list` does not type-check. A reader may take the fixtures for buildable programs, and they would break if the listing ever gained a flag that compiles or type-checks (for example `-export` or `-compiled`). Fix: add `const DownloadMarker = \"\"` to the stub in `writeModule`, or use blank imports in these fixtures as `helperTest` already does."
+  }
+]
