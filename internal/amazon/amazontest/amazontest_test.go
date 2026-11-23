@@ -374,28 +374,6 @@ func TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched(t *testing.T) {
 		t.Errorf("%s exists or cannot be checked: %v", scratch, err)
 	}
 
-	// The application never imports the test helper, so changing it does not change the server.
-	const importPath = `"pricefollower.local/internal/amazon/amazontest"`
-	for _, tree := range []string{"cmd", "internal"} {
-		root := filepath.Join("..", "..", "..", tree)
-		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			data, err := os.ReadFile(path) // #nosec G304 -- Go file of the repository
-			if err != nil {
-				return err
-			}
-			if strings.Contains(string(data), importPath) {
-				t.Errorf("%s imports the test helper %s", path, importPath)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("list the Go files of %s: %v", root, err)
-		}
-	}
+	// Issue #244: whether the server depends on the test helper is checked from the Go tool's
+	// dependency listing by TestServerDoesNotDependOnTestHelper, not by a search of the source.
 }
