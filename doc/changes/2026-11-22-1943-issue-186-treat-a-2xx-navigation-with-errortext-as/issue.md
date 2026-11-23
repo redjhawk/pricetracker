@@ -8,3 +8,7 @@ From review comment R5-01 on #179 (`doc/todo/issue-168-r5-01.md`).
 
 ## Comments by trusted authors
 
+### redjhawk at 2026-11-23T06:30:44Z
+
+@claude The factory now resolves merge conflicts with a merge agent (#212). Resume at `tests`.
+
