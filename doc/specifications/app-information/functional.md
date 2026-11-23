@@ -29,11 +29,13 @@ Excluded: email or any other account data, changelogs, release notes, update che
 | FR-APP-INFO-011 | The modal is open. | Close via a Close button, the modal close icon, or Escape; closing has no other effect. Focus then returns to the header menu control. | After closing by any of these means, the modal is gone, nothing else changed, and focus is on the header menu control. |
 | FR-APP-INFO-012 | Keyboard or assistive technology use. | The entry is reachable and selectable with the keyboard; the modal follows Carbon modal accessibility (focus moved into the modal, focus kept inside while open, accessible title, labelled values). | The entry can be reached with arrow keys/Tab and selected with Enter/Space; on opening, focus is inside the modal; Tab does not leave the modal while open. |
 | FR-APP-INFO-013 | Viewport about 400 px wide. | The entry and modal remain usable. | At about 400 px, the modal fits on screen without horizontal scrolling; long usernames and the version wrap or stay readable without overlap. |
+| FR-APP-INFO-014 | The modal is open and the operator presses Tab or Shift+Tab, at any speed. | Focus never leaves the modal, not even momentarily: right after each key press focus is on a control inside the modal, wrapping from the last control to the first (Tab) and from the first to the last (Shift+Tab) (issue #215). | Checked right after each of several consecutive Tab presses, and right after Shift+Tab from the first control, with no wait between presses, the focused element is inside the modal every time. |
 
 ## States and corner cases
 
 - Loading and error states apply to the version only (FR-APP-INFO-009/010); the username comes from the current session.
 - Opening and closing repeatedly has no side effect.
+- Focus stays inside the modal however fast keys are pressed (FR-APP-INFO-014).
 - If the session has ended when the modal is opened, the existing multi-user login behavior for an ended session applies; no stale username is shown.
 - The modal cannot be stacked over another open modal (as FR-APP-MENU-006).
 
