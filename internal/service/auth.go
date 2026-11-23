@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -27,7 +27,7 @@ const SessionDuration = 30 * 24 * time.Hour
 const (
 	maxFailedLogins = 5
 	loginLockTime   = time.Minute
-	// failureMemory is how long an unlocked username's failures are remembered.
+	// failureMemory is how long an unlocked pair's failures are remembered.
 	failureMemory = time.Hour
 )
 
@@ -43,25 +43,34 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 // maxWaitingLoginChecks is the most logins that may wait for the password-check slot.
 const maxWaitingLoginChecks = 4
 
+// waitingLoginChecks counts the logins waiting for the password-check slot.
+var waitingLoginChecks atomic.Int32
+
 // WaitingLoginChecks returns the number of logins waiting for the password-check slot (tests).
 func WaitingLoginChecks() int {
-	return 0 // not implemented (issue #266)
+	return int(waitingLoginChecks.Load())
 }
 
 // loginKey identifies the failures of one client address and lowercased username.
 type loginKey struct{ client, username string }
 
-// loginFailures counts consecutive failed logins of one lowercased username.
+// loginFailures counts consecutive failed logins of one client address and username.
 type loginFailures struct {
 	count       int
 	lockedUntil time.Time
 	lastFailure time.Time
 }
 
-var (
-	dummyHashOnce sync.Once
-	dummyHash     string
-)
+func loginBusyError() error {
+	return &Error{Status: 429, Code: "LOGIN_BUSY", Message: "Too many login attempts are being checked. Try again in a moment."}
+}
+
+// dummyPasswordHash is checked for unknown usernames, so they cost the same hash check and timing
+// does not reveal them. It is built without a computation; no password matches it in practice.
+func dummyPasswordHash() string {
+	encoding := base64.RawStdEncoding
+	return fmt.Sprintf("pbkdf2-sha256$%d$%s$%s", passwordIterations, encoding.EncodeToString(make([]byte, 16)), encoding.EncodeToString(make([]byte, 32)))
+}
 
 func pbkdf2Key(ctx context.Context, password string, salt []byte, iterations, length int) ([]byte, error) {
 	select {
@@ -109,8 +118,30 @@ func HashPassword(ctx context.Context, password string) (string, error) {
 	return fmt.Sprintf("pbkdf2-sha256$%d$%s$%s", passwordIterations, encoding.EncodeToString(salt), encoding.EncodeToString(key)), nil
 }
 
-// passwordMatches reports whether password matches the stored hash; err is only a cancelled wait.
-func passwordMatches(ctx context.Context, stored, password string) (bool, error) {
+// acquireLoginCheck takes the password-check slot for a login. When maxWaitingLoginChecks logins
+// already wait for it, the login is refused busy at once instead of waiting.
+func acquireLoginCheck(ctx context.Context) error {
+	select {
+	case hashSlot <- struct{}{}:
+		return nil
+	default:
+	}
+	if waitingLoginChecks.Add(1) > maxWaitingLoginChecks {
+		waitingLoginChecks.Add(-1)
+		return loginBusyError()
+	}
+	defer waitingLoginChecks.Add(-1)
+	select {
+	case hashSlot <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// checkPassword reports whether password matches the stored hash of a login; err is only a
+// cancelled wait or the busy refusal.
+func (s *Service) checkPassword(ctx context.Context, stored, password string) (bool, error) {
 	parts := strings.Split(stored, "$")
 	if len(parts) != 4 || parts[0] != "pbkdf2-sha256" {
 		return false, nil
@@ -121,7 +152,14 @@ func passwordMatches(ctx context.Context, stored, password string) (bool, error)
 	if err != nil || saltErr != nil || keyErr != nil || iterations < 1 {
 		return false, nil
 	}
-	got, err := pbkdf2Key(ctx, password, salt, iterations, len(want))
+	if err := acquireLoginCheck(ctx); err != nil {
+		return false, err
+	}
+	defer func() { <-hashSlot }()
+	if s.beforePasswordCheck != nil {
+		s.beforePasswordCheck(ctx)
+	}
+	got, err := pbkdf2.Key(sha256.New, password, salt, iterations, len(want))
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
@@ -189,14 +227,13 @@ func (s *Service) ProtectedMode(ctx context.Context) (bool, error) {
 	return s.store.HasRegularUser(ctx)
 }
 
-// Login checks the credentials and returns a new session token. After 5 consecutive
-// failures for a username, attempts are refused for 1 minute without checking the password.
+// Login checks the credentials and returns a new session token. After 5 consecutive failures of
+// a client address for a username, that pair is refused for 1 minute without a password check.
 func (s *Service) Login(ctx context.Context, client, username, password string) (string, store.User, error) {
-	key := loginKey{username: strings.ToLower(username)}
+	key := loginKey{client: client, username: strings.ToLower(username)}
 	now := s.now()
 	s.mu.Lock()
-	failures := s.loginFailures[key]
-	locked := now.Before(failures.lockedUntil)
+	locked := now.Before(s.loginFailures[key].lockedUntil)
 	s.mu.Unlock()
 	if locked {
 		return "", store.User{}, &Error{Status: 429, Code: "LOGIN_LOCKED", Message: "Too many failed attempts. Wait one minute and try again."}
@@ -207,16 +244,16 @@ func (s *Service) Login(ctx context.Context, client, username, password string) 
 	}
 	stored := user.PasswordHash
 	if err != nil {
-		// Unknown usernames cost the same hash check, so timing does not reveal them.
-		dummyHashOnce.Do(func() { dummyHash, _ = HashPassword(context.Background(), "not a password") })
-		stored = dummyHash
+		stored = dummyPasswordHash()
 	}
-	matches, cancelled := passwordMatches(ctx, stored, password)
-	if cancelled != nil {
-		return "", store.User{}, cancelled
+	matches, checkErr := s.checkPassword(ctx, stored, password)
+	if checkErr != nil {
+		// Cancelled and busy logins are not counted.
+		return "", store.User{}, checkErr
 	}
 	if err != nil || !matches {
-		s.recordLoginFailure(key, now)
+		// Time after the check, so the lock lasts 1 minute from the failure even when the check waited.
+		s.recordLoginFailure(key, s.now())
 		return "", store.User{}, &Error{Status: 401, Code: "INVALID_CREDENTIALS", Message: "Incorrect username or password."}
 	}
 	s.mu.Lock()

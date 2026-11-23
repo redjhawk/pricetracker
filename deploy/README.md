@@ -32,6 +32,8 @@ Installing the release on the server is outside this repository: the server chec
 
 The service user must be able to write the data directory (`PRICEFOLLOWER_DATA_DIR`). It holds the SQLite database and the browser profile used for Amazon checks, `amazon-browser/`.
 
+Login limits count failed attempts per client address, which the server takes from the `CF-Connecting-IP` header when present, so the server must only be reachable through Cloudflare.
+
 ### Browser for Amazon checks
 
 Amazon prices are read through a headless web browser, so the server needs Chromium or Google Chrome. On Debian:
