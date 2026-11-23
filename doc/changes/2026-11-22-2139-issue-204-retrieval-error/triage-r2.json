@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "reason": "Confirmed and unchanged since round 1. exitError (internal/amazon/cdp.go:111-112) appends up to 2,048 bytes of stderr tail (stderrTailBytes, cdp.go:40). requestFailure (browser.go:174) passes the reason through logText (browser.go:93-111), which keeps the first 1,024 bytes and cuts the end. When Chromium writes more than about 1 KB before its fatal line, that newest line is lost, which breaks FR-AMZ-BRET-005 ('with the browser's own reason') and TS-AMZ-BRET-005. The TC-006 multi-line subtest only checks for 'stub line', so it does not prove the case.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R2-02",
+    "blocking": true,
+    "reason": "Confirmed: src/components/InformationModal.tsx.new still exists. It is a 35-line fragment starting at `return (` with no imports or function header, nothing imports it, and it is not part of the issue #204 specification. It is unrelated stray work mixed into this PR and must be deleted.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R2-03",
+    "blocking": false,
+    "reason": "Accurate: deploy/README.md:52 documents `Amazon request failed url=… at=… status=… cause=…`, but amazon_gate.go:64 also appends ` response=%s` (the page excerpt). The technical specification already defines the response field, and the documented prefix and cause are correct, so this is a documentation gap, not a defect.",
+    "title": "Document the response field of the Amazon failure log line",
+    "todo": "**Problem:** `deploy/README.md` line 52 documents the failure line as `Amazon request failed url=… at=… status=… cause=…`. `amazonGate.do` (`internal/service/amazon_gate.go:64`) logs `… cause=%s response=%s`, where `response` is the start of the page Amazon returned (`result.ResponseExcerpt`). An operator parsing the documented form may read the HTML excerpt as part of the cause.\n\n**Suggested work:** Change the documented line to `Amazon request failed url=… at=… status=… cause=… response=…` and add one sentence saying that `response` is the start of the page Amazon returned (it can be empty). File: `deploy/README.md:52`."
+  }
+]
