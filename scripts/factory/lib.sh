@@ -126,8 +126,38 @@ $extra"
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
-    --output-format text >"$LOG_DIR/$name.log" 2>&1 \
-    || agent_failed "$name"
+    --output-format json >"$LOG_DIR/$name.json" 2>"$LOG_DIR/$name.err" \
+    || { agent_log "$name"; agent_failed "$name"; }
+  agent_log "$name"
+}
+
+# agent_log <prompt name>: $LOG_DIR/<name>.log holds the agent's final answer, followed by every tool call
+# the permissions refused (tool and input), so a stage that could not write its file shows why.
+# Output that is not the JSON result (a usage limit message, a crash) is kept as is.
+agent_log() {
+  local name=$1
+  if jq -e 'type == "object" and has("result")' "$LOG_DIR/$name.json" >/dev/null 2>&1; then
+    jq -r '.result + (if (.permission_denials // []) == [] then "" else
+      "\n\n## Permission denials\n" + ([.permission_denials[] |
+        "- \(.tool_name): \(.tool_input | tostring | .[0:300])"] | join("\n")) end)' "$LOG_DIR/$name.json" >"$LOG_DIR/$name.log"
+  else
+    cat "$LOG_DIR/$name.json" >"$LOG_DIR/$name.log"
+  fi
+  cat "$LOG_DIR/$name.err" >>"$LOG_DIR/$name.log" 2>/dev/null || true
+  if grep -q '^## Permission denials' "$LOG_DIR/$name.log"; then
+    log "agent $name: tool calls refused by its permissions:"; sed -n '/^## Permission denials/,$p' "$LOG_DIR/$name.log" | tail -n +2 >&2
+  fi
+}
+
+# json_from_log <prompt name> <file>: when an agent could not write its JSON file but printed it, take the
+# last ```json block of its answer. Leaves the file alone when it already holds valid JSON.
+json_from_log() {
+  local name=$1 file=$2 block
+  ! jq -e . "$file" >/dev/null 2>&1 || return 0
+  block=$(awk '/^```json[[:space:]]*$/ {b=""; on=1; next} on && /^```[[:space:]]*$/ {last=b; on=0; next} on {b=b $0 "\n"} END {printf "%s", last}' "$LOG_DIR/$name.log")
+  [ -n "$block" ] && jq -e . >/dev/null 2>&1 <<<"$block" || return 0
+  printf '%s\n' "$block" >"$file"
+  log "agent $name did not write $file; taken from the JSON block of its answer"
 }
 
 # agent_failed <prompt name>: report a failed agent, telling a usage limit apart from an agent error.
