@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/amazon-human-checks/technical.md",
+    "line": 205,
+    "category": "spec",
+    "body": "The technical spec states that \"a failed download leaves nothing for the next check\", but nothing in the change or its tests proves it. With `--headless=new` (full Chromium), a navigation answered with `Content-Disposition: attachment` ends with `net::ERR_ABORTED` because the response is handed to the download manager. Depending on the Chromium version and the profile's download settings, the file may then be written to disk (profile or default Downloads directory) on every such check, so an Amazon-controlled body could pile up on the server. The check result is now correct; the open point is the claim and the side effect. Suggested fix: either verify the claim (for example, assert in TC-001 that no file appears in the profile directory and in `$HOME/Downloads`, or confirm that this headless mode denies downloads) or drop the sentence and open a follow-up issue to call `Browser.setDownloadBehavior{behavior: \"deny\"}` when the browser starts. The 'Refactoring' section already lists that call as out of scope."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/httpapi/amazon_browser_navigation_test.go",
+    "line": 128,
+    "category": "refactor-pr",
+    "body": "`captureCheckOutput` is the third copy of the same log + `os.Stdout` pipe capture helper. The other two are `captureOutput` in `internal/amazon/browser_test.go:157` and the one in `internal/service/amazon_browser_profile_test.go:184`. It is acceptable here because test helpers cannot be shared across packages without an exported helper. Suggested follow-up (separate PR): move one implementation into `internal/amazon/amazontest` (for example `amazontest.CaptureOutput(t) func() string`) and use it from the three packages."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/amazon/browser_navigation_test.go",
+    "line": 89,
+    "category": "nit",
+    "body": "The check `got.Result == \"price_not_found\" || got.Result == \"success\" || got.Result == \"unavailable\"` (here and at line 124 in TC-002) is redundant: `assertNavigationFailure` right after it already requires `Result == \"request_error\"`. It only gives a more specific failure message. Optional: drop it, or keep a single check inside `assertNavigationFailure` that names the Amazon answer that was wrongly given."
+  }
+]
