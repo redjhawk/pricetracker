@@ -44,8 +44,6 @@ On Ubuntu and other amd64 systems: `wget https://dl.google.com/linux/direct/goog
 
 The application uses `PRICEFOLLOWER_BROWSER_PATH` (full path to the browser executable) when it is set, otherwise the first of `chromium`, `chromium-browser`, `google-chrome-stable`, `google-chrome` found on the service's `PATH`. It looks for the browser again at each check, so a browser installed later is used without a restart.
 
-When a Chromium snap is installed (usual on Ubuntu, where `chromium` and `chromium-browser` lead to it), snap confinement can stop it from starting for the service and every Amazon check then fails with "browser could not start", so set `PRICEFOLLOWER_BROWSER_PATH` to the Google Chrome executable, for example `/usr/bin/google-chrome-stable`.
-
 In a container or for a service running as root, the browser cannot use its sandbox: set `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true`. In Docker, also give the container enough shared memory (`--shm-size=1g`).
 
 What the server log shows:

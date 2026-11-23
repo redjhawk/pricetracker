@@ -239,6 +239,7 @@ No e2e test: the interface does not change. The whole suite must keep passing: `
 | `internal/service/amazon_browser_snap_docs_test.go` (new) | TC-001, TC-002 |
 | `internal/amazon/browser_snap_test.go` (new) | TC-003 |
 | `internal/service/amazon_browser_snap_test.go` (new) | TC-004 |
+| `internal/service/amazon_browser_retrieval_test.go` | Formatting only, required by `gofmt`: the one-line `B0CAUSEG01` func literal of #204 TC-007 is wrapped over three lines. The master form is not gofmt-clean (`git show master:internal/service/amazon_browser_retrieval_test.go \| gofmt -l` prints `<standard input>`, because `gofmt` keeps a func literal body on one line only when it is short). The red gate checks `gofmt -l` on the changed test files, the implementation stage needs `gofmt -l .` empty, and `repair.sh` checks `gofmt -l cmd internal`. Reverting the hunk would break those checks. The test does not change in any other way. |
 
 ### Refactoring
 
