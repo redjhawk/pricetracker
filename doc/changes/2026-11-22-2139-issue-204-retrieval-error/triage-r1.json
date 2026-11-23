@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: exitError (internal/amazon/cdp.go:112) appends up to 2,048 bytes of stderr tail (stderrTailBytes, cdp.go:40), and logText (internal/amazon/browser.go:93) keeps only the first 1,024 bytes, so the newest stderr lines (normally the fatal reason) are dropped when earlier output exceeds about 1 KB. That breaks FR-AMZ-BRET-005 ('with the browser's own reason'). The TC-006 multi-line subtest (browser_retrieval_test.go:604-615) writes 40 lines of about 85 bytes but only checks for 'stub line', so it passes while losing the last line and does not prove the case.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "reason": "Confirmed: src/components/InformationModal.tsx.new was added in commit 64f47f6 (implement round 0). It is a headless fragment starting at `return (`, imported nowhere, and not part of the specification. It is a stray artifact mixed into this PR and must be deleted.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Confirmed: internal/service/zz_scratch_docs_test.go holds only `package service` and a comment. It compiles, tests nothing and changes no behaviour. It is a locked test-stage file (tests.lock), so the developer cannot remove it in this round. It is cleanup, not a defect.",
+    "title": "Remove leftover empty test file zz_scratch_docs_test.go",
+    "todo": "**Problem:** `internal/service/zz_scratch_docs_test.go` (line 3) is an empty leftover of the issue #204 test stage. It holds only a comment saying it is safe to delete and adds noise to the `service` package.\n\n**Suggested work:** Delete `internal/service/zz_scratch_docs_test.go` and remove its entry from `doc/changes/2026-11-22-2139-issue-204-retrieval-error/tests.lock` (if the lock is still checked), then run `go test ./internal/service/...`."
+  }
+]
