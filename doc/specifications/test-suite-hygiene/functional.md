@@ -1,13 +1,14 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232)
-Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`).
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 specified (issue #244)
+Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
 ## Purpose
 
 - Issue #208: remove the empty leftover test file `internal/service/zz_scratch_docs_test.go`, left by the issue #204 test stage. It holds only a package clause and a comment saying it is safe to delete, tests nothing, and adds noise to the `service` package.
 - Issue #232: make the test check "no file left by a download" (`AssertNoDownload` in `internal/amazon/amazontest`) fail closed. Today a file it cannot read is taken as "not a download", even if it holds the downloaded body, so the tests that prove FR-AMZ-HCHK-014 and FR-AMZ-HCHK-015 ([Amazon human-like checks](../amazon-human-checks/functional.md)) can pass when they should not.
+- Issue #244: the guarantee "the server never uses the test helper package" is checked today by a text search in the helper's own unit tests (`TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched`). The search fails on any non-test Go file under `cmd/` or `internal/` that names the helper, even a future test-support package the server never uses, and it does not show what the server binary really depends on. Replace it with a check of the server's actual dependencies.
 
 ## Actors
 
@@ -17,12 +18,17 @@ Scope: repository maintenance. Application behaviour is not affected.
 
 - **No-download check:** the test helper `AssertNoDownload`, which looks through given folders (the Amazon browser profile, the home folder of the account running the browser) after the browser has closed and fails the test when a file left by a download remains.
 - **Content rule:** the part of the no-download check that reads a file to see whether it holds the downloaded body (`DownloadMarker`). It applies to a regular file whose name does not already identify it as a download.
+- **Test helper package:** the Go package `pricefollower.local/internal/amazon/amazontest`, which holds the no-download check.
+- **Server dependencies:** the Go packages that a program under `cmd/` is built from, directly or indirectly, as the Go tool reports them for a normal (non-test) build. Test files (`_test.go`) are not part of them.
+- **Dependency check:** the repository check of issue #244 that fails when the test helper package is one of the server dependencies.
 
 ## Scope and exclusions
 
 - In scope (issue #208): deleting `internal/service/zz_scratch_docs_test.go`.
 - In scope (issue #232): what the no-download check does when a file cannot be read.
+- In scope (issue #244): removing the text search for the test helper's import path from the helper's unit tests, and adding the dependency check in its place.
 - Excluded: production code, API, database and user interface changes.
+- Excluded (issue #244): the issue #208 check in the same unit test that the leftover scratch file stays absent, which stays as it is, and the no-download check itself.
 - Excluded: the other rules of the no-download check (which names and contents count as a download, missing folders, symbolic links), which stay as they are.
 - Excluded: the issue #204 change records under `doc/changes/2026-11-22-2139-issue-204-retrieval-error/`. The factory checks a `tests.lock` only for the issue it is running, and issue #204 is merged, so its lock is no longer checked and stays unchanged as the historical record of that issue.
 
@@ -41,6 +47,14 @@ Scope: repository maintenance. Application behaviour is not affected.
 - **FR-TEST-HYG-006** A file that is listed but no longer exists when the check reads it (it disappeared in between) is ignored: it does not fail the test and is not reported as a download.
 - **FR-TEST-HYG-007** Readable files are judged as before: a file whose name identifies it as a download (attachment name, uniquified attachment name, `download` prefix, partial-download name) is reported as a download whatever its content, a readable file holding `DownloadMarker` is reported as a download, and any other readable file passes. Missing folders are still ignored and symbolic links are still not followed.
 - **FR-TEST-HYG-008** The tests that use the no-download check still pass on a normal run, `go vet ./...` and `go test ./...` pass, and the operator observes no change in the application.
+
+### Server dependency check (issue #244)
+
+- **FR-TEST-HYG-009** The unit tests of the test helper package no longer search the source text of `cmd/` and `internal/` for the test helper's import path. A non-test Go file that imports the test helper package and is not a server dependency (for example a future test-support package such as `internal/httpapi/httpapitest`) makes no test fail.
+- **FR-TEST-HYG-010** The dependency check fails when the test helper package is among the server dependencies of any program under `cmd/`, whether that program imports it directly or through another package.
+- **FR-TEST-HYG-011** The failure message of FR-TEST-HYG-010 names the import path `pricefollower.local/internal/amazon/amazontest` and says that the server depends on it.
+- **FR-TEST-HYG-012** The dependency check passes when the test helper package is imported only by test files (`_test.go`) or by packages that are not server dependencies. When the server dependencies cannot be listed, the check fails with a message holding the Go tool's error; it never passes without having listed them.
+- **FR-TEST-HYG-013** The dependency check runs automatically in the existing unit-test gate (`go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`) on every run, with no separate command to remember. On the repository as changed it passes, `go vet ./...` and `go test ./...` pass, the issue #208 scratch-file check still runs, and the operator observes no change in the application.
 
 ## States
 
@@ -61,6 +75,14 @@ Issue #232:
 - With readable files only, the check gives the same result as before for each rule of FR-TEST-HYG-007: a file named after the attachment fails, a file holding `DownloadMarker` fails, a missing folder and an unrelated readable file pass.
 - `go vet ./...` and `go test ./...` succeed, and the change's diff outside `doc/` is limited to test code (FR-TEST-HYG-008).
 
+Issue #244:
+
+- No unit test of the test helper package reads the Go source files of `cmd/` or `internal/` looking for the import path `pricefollower.local/internal/amazon/amazontest` (FR-TEST-HYG-009).
+- With a temporary non-test file importing the test helper package in a package the server does not depend on, the unit-test gate passes (FR-TEST-HYG-009, FR-TEST-HYG-012).
+- With a temporary non-test import of the test helper package in a server dependency (for example a file of `cmd/pricefollower`), the unit-test gate fails, and the message names `pricefollower.local/internal/amazon/amazontest` (FR-TEST-HYG-010, FR-TEST-HYG-011, FR-TEST-HYG-013).
+- When the Go tool cannot list the server dependencies, the dependency check fails with the tool's error (FR-TEST-HYG-012).
+- On the repository as changed, `go vet ./...` and `go test ./...` succeed, and the diff outside `doc/` changes no production code (FR-TEST-HYG-013).
+
 ## Open questions
 
-None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading.
+None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step.
