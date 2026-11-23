@@ -12,6 +12,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 // cdpBrowser is a Chromium process driven through the Chrome DevTools Protocol over
@@ -109,9 +110,27 @@ func (b *cdpBrowser) exitError() error {
 	}
 	status := b.cmd.ProcessState.String() // set by Wait before exited is closed
 	if tail := strings.TrimSpace(b.stderr.String()); tail != "" {
-		return fmt.Errorf("%w (%s): %s", errBrowserExited, status, tail)
+		return fmt.Errorf("%w (%s): %s", errBrowserExited, status, lastBytes(tail, exitReasonBytes))
 	}
 	return fmt.Errorf("%w (%s)", errBrowserExited, status)
+}
+
+// exitReasonBytes bounds the error output in an exit error so that, with the cause prefixes, it fits
+// in the 1,024 bytes of the logged cause: the browser usually prints its fatal reason last.
+const exitReasonBytes = 768
+
+// lastBytes returns the end of text in at most limit bytes, starting on a rune boundary and marked
+// with a leading ellipsis when the start was dropped.
+func lastBytes(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	const ellipsis = "…"
+	start := len(text) - (limit - len(ellipsis))
+	for start < len(text) && !utf8.RuneStart(text[start]) {
+		start++
+	}
+	return ellipsis + text[start:]
 }
 
 // readMessages dispatches the browser's messages: responses to their call, events to the handler of
