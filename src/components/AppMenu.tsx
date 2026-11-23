@@ -9,12 +9,25 @@ interface Props {
   triggerRef?: RefObject<HTMLButtonElement | null>;
 }
 
+// Moves focus as an arrow key would once focus is on the first entry, where Carbon puts it.
+function focusEntryFromTrigger(trigger: HTMLElement, step: 1 | -1) {
+  const menuId = trigger.getAttribute("aria-controls");
+  const menu = menuId ? document.getElementById(menuId) : null;
+  if (!menu) return false;
+  const entries = Array.from(menu.querySelectorAll<HTMLElement>("[role=menuitem]:not([disabled])"));
+  if (entries.length === 0) return false;
+  entries[(step + entries.length) % entries.length].focus();
+  return true;
+}
+
 export default function AppMenu({ onOpenInformation, onOpenSettings, onLogout, triggerRef }: Props) {
   const [open, setOpen] = useState(false);
 
-  // Carbon moves focus into the menu only once it is placed; Escape pressed earlier reaches the trigger.
-  function closeOnEscape(event: KeyboardEvent) {
+  // Carbon moves focus into the menu only once it is placed; keys pressed earlier reach the trigger.
+  function handleTriggerKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") setOpen(false);
+    const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+    if (step !== 0 && focusEntryFromTrigger(event.currentTarget, step)) event.preventDefault();
   }
 
   return (
@@ -29,7 +42,7 @@ export default function AppMenu({ onOpenInformation, onOpenSettings, onLogout, t
       open={open}
       onOpen={() => setOpen(true)}
       onClose={() => setOpen(false)}
-      onKeyDown={closeOnEscape}
+      onKeyDown={handleTriggerKeyDown}
     >
       {onOpenInformation && <OverflowMenuItem itemText="Information" onClick={onOpenInformation} />}
       {onOpenSettings && <OverflowMenuItem itemText="Settings" onClick={onOpenSettings} />}

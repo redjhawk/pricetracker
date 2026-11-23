@@ -14,7 +14,7 @@ Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.
 | TS-APP-MENU-002 | MENU-002, MENU-003, MENU-004 | Carbon `OverflowMenu` with `UserAvatar` icon and one `OverflowMenuItem` “Settings”; selecting it opens `SettingsModal` | same | Playwright: click and Enter/Space open; Escape/outside click close; one item; selection opens modal |
 | TS-APP-MENU-003 | MENU-004 | Focus return to the trigger via a ref passed to the modal's `launcherButtonRef` | `src/App.tsx`, `src/components/SettingsModal.tsx` | Playwright: focus on trigger after Escape and after modal close |
 | TS-APP-MENU-004 | MENU-006 | Carbon modals are focus-trapped and cover the header; no extra code | — | Playwright: with Add item modal open, the trigger is not focusable/clickable |
-| TS-APP-MENU-005 | MENU-007, MENU-004 | `AppMenu` controls the `OverflowMenu` `open` prop with its own state and closes the menu from an `onKeyDown` handler on the trigger when Escape is pressed before focus has moved into the menu | `src/components/AppMenu.tsx` (already on master, PR #214) | Playwright TC-001, TC-002, TC-003 (issue #215) |
+| TS-APP-MENU-005 | MENU-007, MENU-004 | `AppMenu` controls the `OverflowMenu` `open` prop with its own state; an `onKeyDown` handler on the trigger closes the menu on Escape and moves focus on ArrowDown/ArrowUp when these keys are pressed before focus has moved into the menu | `src/components/AppMenu.tsx` (Escape already on master, PR #214; arrow keys added by issue #215) | Playwright TC-001, TC-002, TC-003 (issue #215) |
 
 ## Frontend
 
@@ -65,19 +65,20 @@ No unresolved question.
 
 ### Cause
 
-In the installed `@carbon/react` (1.117), `OverflowMenu` handles Escape and Tab (`handleKeyPress`) only on the menu body (`ul role="menu"`). Focus moves into the menu only after `FloatingMenu` has placed it. An Escape pressed in between targets the trigger button, which had no Escape handling, so the menu stayed open. Under load (full e2e suite) this showed up as intermittent failures of the existing "header menu: …" test.
+In the installed `@carbon/react` (1.117), `OverflowMenu` handles Escape and Tab (`handleKeyPress`) only on the menu body (`ul role="menu"`), and arrow keys only on the menu body and its entries. Focus moves into the menu only after `FloatingMenu` has placed it, and only if focus is not already inside the menu. An Escape pressed in between targets the trigger button, which had no Escape handling, so the menu stayed open. An ArrowDown pressed in between is lost the same way: focus then lands on the first entry, and a following Enter selects **Information** instead of the second entry (review R1-01). Under load (full e2e suite) this showed up as intermittent failures of the existing "header menu: …" test.
 
 ### Frontend (TS-APP-MENU-005)
 
-The fix is already on master (PR #214, commit `542bedc`, merged 2026-11-23) in `src/components/AppMenu.tsx`:
+The Escape fix is already on master (PR #214, commit `542bedc`, merged 2026-11-23) in `src/components/AppMenu.tsx`; issue #215 adds the arrow keys to the same handler:
 
 - `const [open, setOpen] = useState(false)` passed as `open={open}`, with `onOpen={() => setOpen(true)}` and `onClose={() => setOpen(false)}`. Carbon keeps its internal state, syncs it from the prop in an effect, and reports its own changes (click, outside click, item selection, Escape inside the menu) through `onOpen`/`onClose`, so both stay equal.
-- `onKeyDown={closeOnEscape}`: Carbon spreads unknown props onto the trigger `IconButton` (before its own `onClick`, so the handler is not overridden). `closeOnEscape` sets `open` to `false` when `event.key === "Escape"`. Focus is already on the trigger, so it stays there; `aria-expanded` follows Carbon's state and becomes `false`.
+- `onKeyDown={handleTriggerKeyDown}`: Carbon spreads unknown props onto the trigger `IconButton` (before its own `onClick`, so the handler is not overridden). On Escape it sets `open` to `false`. Focus is already on the trigger, so it stays there; `aria-expanded` follows Carbon's state and becomes `false`.
+- ArrowDown/ArrowUp on the trigger while the menu is rendered (found through the trigger's `aria-controls`): focus moves to the entry the key would reach from the first entry, where Carbon puts focus, so the result matches the same keys pressed slowly. That is the second entry for ArrowDown and the last entry for ArrowUp (wrapping, disabled entries skipped). `FloatingMenu` then finds focus inside the menu and leaves it there. While the menu is closed these keys keep their default behaviour.
 - Escape once focus is inside the menu: unchanged Carbon path (`closeMenuOnEscape` closes and focuses the trigger, then `onClose` updates the state). Escape while the menu is closed is a no-op.
 - Quick succession: Enter/Space on the trigger is a discrete event. React 19 renders it synchronously and flushes its passive effects (Carbon's `onOpen` call, then the prop sync) before the next key event, so each key acts on the state the previous one left. A focus move that `FloatingMenu` scheduled for a menu closed in the meantime targets an unmounted element and has no effect.
 - No route, URL, server request or browser storage; accessibility attributes, focus ring and entries unchanged.
 
-Expected developer work: none, unless a new test fails. Any fix stays inside `src/components/AppMenu.tsx`: no change to Carbon, no new dependency. Residual risk: the fix depends on Carbon forwarding `onKeyDown` to the trigger; TC-001 guards it on Carbon upgrades.
+Developer work: the arrow keys on the trigger (review R1-01). Any fix stays inside `src/components/AppMenu.tsx`: no change to Carbon, no new dependency. Residual risk: the fix depends on Carbon forwarding `onKeyDown` to the trigger; TC-001 guards it on Carbon upgrades.
 
 ### Backend and API
 
@@ -103,4 +104,4 @@ The source fix reached master before this change. The new tests are therefore ex
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
 
-2026-11-23, issue #215: TS-APP-MENU-005 added for FR-APP-MENU-007 (Escape right after opening). The code was already on master (PR #214).
+2026-11-23, issue #215: TS-APP-MENU-005 added for FR-APP-MENU-007 (Escape right after opening). The Escape code was already on master (PR #214); review R1-01 added ArrowDown/ArrowUp on the trigger.
