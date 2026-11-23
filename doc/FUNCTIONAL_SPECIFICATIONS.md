@@ -118,6 +118,8 @@ Failed Amazon requests are logged with the server's response. After 5 consecutiv
 
 To look less like a bot (issue #168), Amazon pages are requested through a real web browser, and each tracked Amazon item is checked once at a random time between 06:00 and 09:00 and once between 19:00 and 23:00, drawn anew every day and independently for each item; manual refreshes stay immediate. LeBoncoin is unchanged. Amazon items stopped before this change are restarted once automatically. Details: [Amazon human-like checks](specifications/amazon-human-checks/functional.md).
 
+A success response that the browser does not open as a page (file download, no content) is an Amazon failure counted toward the stop, not "price not found" (issue #186). Details: [FR-AMZ-HCHK-011–012](specifications/amazon-human-checks/functional.md).
+
 Lock marks left in the Amazon browser's persistent profile by a browser that ended abruptly, including marks naming another machine after the data directory was moved, no longer make Amazon checks fail; cookies are kept (issue #180). Details: [Amazon browser profile recovery](specifications/amazon-browser-profile/functional.md).
 
 ### 5.7 Users and login
@@ -222,7 +224,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-34 | Superseded by FR-32 (issue #111). | — |
 | FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
 | FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; below 1056 px (phone and tablet) every page drops its lateral margins (at most 16 px between screen edge and content), lists shown as cards (tracked items, administrator users) span the full screen width, and each card places its values side by side as far as they fit (issue #165); desktop layout and modals unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
-| FR-37 | Amazon checks are made through a real web browser, and each Amazon item is checked at a random time, drawn daily and per item, within 06:00–09:00 and within 19:00–23:00; manual refreshes stay immediate; items stopped before the change are restarted once ([FR-AMZ-HCHK-*](specifications/amazon-human-checks/functional.md)). | Must |
+| FR-37 | Amazon checks are made through a real web browser, and each Amazon item is checked at a random time, drawn daily and per item, within 06:00–09:00 and within 19:00–23:00; manual refreshes stay immediate; items stopped before the change are restarted once; a success response the browser does not open as a page is a failure (issue #186) ([FR-AMZ-HCHK-*](specifications/amazon-human-checks/functional.md)). | Must |
 | FR-38 | An Amazon check starts its browser normally, keeping the profile's cookies, when the persistent browser profile holds lock marks left by an earlier browser that ended abruptly, on this machine or another one ([FR-AMZ-BPROF-*](specifications/amazon-browser-profile/functional.md)). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
@@ -335,7 +337,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | superseded (issue #111) |
 | Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
-| Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168) |
+| Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168); FR-AMZ-HCHK-011–012 specified (issue #186) |
 | Amazon browser profile recovery | [amazon-browser-profile](specifications/amazon-browser-profile/functional.md) | specified (issue #180) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
 | Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140); FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165) |
