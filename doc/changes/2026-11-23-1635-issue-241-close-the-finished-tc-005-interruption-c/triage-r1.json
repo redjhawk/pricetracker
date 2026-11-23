@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Correct that #238 stays open: the factory PR body only says `Closes #$ISSUE` (scripts/factory/factory.sh:448). But the spec records this on purpose as a manual follow-up (TS-TEST-HYG-022, 'Manual follow-ups' in technical.md), FR-TEST-HYG-019 is marked as waiting, and no development stage can change the PR body or reach GitHub. Sending it back to development would change nothing, so the owner action becomes a task.",
+    "title": "Close issue #238 as completed after PR #255 merges",
+    "todo": "**Problem:** FR-TEST-HYG-019 (doc/specifications/test-suite-hygiene/functional.md, status line 3) requires issue #238 to be closed as completed. PR #255 closes only #241 (`Closes #$ISSUE` in scripts/factory/factory.sh:448), so #238 stays open after the merge.\n\n**Suggested work:**\n- After PR #255 merges, run `gh issue close 238 --reason completed --comment \"Done by PR #236; its follow-up record doc/todo/issue-233-r1-03.md is removed by the pull request of #241.\"` (TS-TEST-HYG-022 in doc/specifications/test-suite-hygiene/technical.md).\n- Verify TC-002 with `gh issue view 238 --json state,stateReason` (expect `CLOSED` / `COMPLETED`).\n- Set FR-TEST-HYG-019 to implemented in the status line of doc/specifications/test-suite-hygiene/functional.md.\n- Optionally: let the factory add extra `Closes #N` lines to the PR body when a change closes other issues as well."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Wording nit: testcases.md line 39 says '(or the issue closed by the change's pull request)', but TS-TEST-HYG-022 says the owner closes #238 by hand. The expected result of TC-002 (CLOSED/COMPLETED) is still correct, so this is only a wording inconsistency.",
+    "title": "Align TC-002 precondition with the manual close of #238",
+    "todo": "**Problem:** In doc/changes/2026-11-23-1635-issue-241-close-the-finished-tc-005-interruption-c/testcases.md line 39, TC-002's precondition 'Given the change merged (or the issue closed by the change's pull request)' suggests that PR #255 closes #238. TS-TEST-HYG-022 (doc/specifications/test-suite-hygiene/technical.md) says the owner closes it by hand.\n\n**Suggested work:** Change the precondition to 'Given the change merged and issue #238 closed by the owner (TS-TEST-HYG-022)'."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Correct: the development-stage bullet in technical.md (line 78) lists four gates and leaves out `node --test scripts/*.test.mjs`, which the issue #241 test case mapping and TC-004 include. This is a documentation inconsistency only. The change touches nothing outside doc/, so no gate result depends on it.",
+    "title": "Add `node --test` to the issue #241 development-stage gate list",
+    "todo": "**Problem:** In doc/specifications/test-suite-hygiene/technical.md line 78, the 'Development stage' bullet for issue #241 lists the gates `go vet ./...`, `go test ./...`, `npm run build` and `npx playwright test`. The issue #241 test case mapping (TC-004) in the same file and TC-004 in testcases.md also list `node --test scripts/*.test.mjs`.\n\n**Suggested work:** Add `node --test scripts/*.test.mjs` to the development-stage gate list so it matches TC-004."
+  }
+]
