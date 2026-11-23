@@ -1,8 +1,0 @@
-# Blocking review comments (round 3)
-
-## R3-02 `src/components/AppMenu.tsx:13`
-
-Unrelated changes in this PR: `AppMenu` now controls `open` and closes the menu on Escape, and `InformationModal` (line 42) is wrapped in `FeatureFlags enableFocusWrapWithoutSentinels`. Both fix existing Playwright keyboard races and have nothing to do with issue #204. The functional spec puts the interface out of scope ('item states, labels and messages in the interface ... unchanged'), and the technical spec's Frontend section originally said 'No file in `src/` changes'. That sentence was replaced during implementation (64f47f6) to record these fixes. The code looks correct with Carbon 1.117: `open` is re-synced only when the prop changes, and `onOpen`/`onClose` keep the parent state aligned. Still, AGENTS.md asks for such fixes in their own PR, and here they make the frontend part of a backend bug fix that is harder to review and revert. Suggestion: move the two frontend changes and their technical-spec paragraph into a separate PR (or a follow-up issue if the gate needs them here), and say so in the PR description.
-
-Triage: Confirmed against master: src/components/AppMenu.tsx now controls `open` with useState, onOpen/onClose and an Escape onKeyDown handler, and src/components/InformationModal.tsx:42-71 adds a `FeatureFlags enableFocusWrapWithoutSentinels` wrapper. Issue #204 is a backend retrieval bug, and its test cases state there is no interface change. These are unrelated frontend fixes for Playwright races mixed into this PR (the same changes were ruled blocking in the issue #180 triage). Move them to their own PR or issue.
-
