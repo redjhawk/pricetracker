@@ -178,7 +178,7 @@ func lookedUpNamesError(deployment string) error {
 	return nil
 }
 
-// TC-002
+// TC-002; it also runs the checks of #204 TC-011 (assertInstallationDocumentation) on the changed file.
 func TestAmazonBrowserSnapDocs_TC002_DocumentedNamesAreThoseOfTheCodeInOrder(t *testing.T) {
 	if want := []string{"chromium", "chromium-browser", "google-chrome-stable", "google-chrome"}; !slices.Equal(amazon.BrowserNames, want) {
 		t.Fatalf("amazon.BrowserNames is %v, want %v", amazon.BrowserNames, want)
