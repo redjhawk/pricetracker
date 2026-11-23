@@ -88,7 +88,13 @@ jobs:
         run: sleep 780
       - name: Lanzar la siguiente
         run: |
-          newer=$(gh run list --workflow supervisor.yml --limit 20 --json databaseId,conclusion \
-            --jq "[.[] | select(.databaseId > $GITHUB_RUN_ID and (.conclusion | IN(\"cancelled\", \"skipped\", \"startup_failure\") | not))] | length")
-          if [ "$newer" -gt 0 ]; then echo "A newer supervisor run carries the loop."; exit 0; fi
+          # A newer run carries the loop only once its supervisor job runs or ran. A run without a conclusion
+          # yet may still end skipped (fabrica runs skipped on comments start one each), so it does not count:
+          # in doubt, dispatch. Two loops end in one, since the older run's next job then finds the newer one.
+          for id in $(gh run list --workflow supervisor.yml --limit 20 --json databaseId \
+              --jq ".[] | select(.databaseId > $GITHUB_RUN_ID) | .databaseId"); do
+            live=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" \
+              --jq '[.jobs[] | select(.name == "supervisor" and (.conclusion | IN("skipped", "cancelled") | not))] | length')
+            if [ "$live" -gt 0 ]; then echo "Supervisor run $id carries the loop."; exit 0; fi
+          done
           GH_TOKEN=$DEV_TOKEN gh api "repos/$GH_REPO/dispatches" -f event_type=supervisor-loop
