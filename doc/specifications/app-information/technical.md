@@ -51,6 +51,7 @@ Unresolved: none.
 | Technical ID | Functional IDs | Technical solution | Files | Verification |
 | --- | --- | --- | --- | --- |
 | TS-APP-INFO-001 | FR-APP-INFO-014, FR-APP-INFO-012, FR-APP-INFO-011 | The Carbon `Modal` is wrapped in `<FeatureFlags enableFocusWrapWithoutSentinels>`, as in `SettingsModal`: Tab and Shift+Tab are wrapped synchronously in the modal's `keydown` handler | `src/components/InformationModal.tsx` (already on master, PR #214) | Playwright TC-004 – TC-007 |
+| TS-APP-INFO-002 | FR-APP-INFO-011 | Escape handled in the capture phase on the `Modal` (`onKeyDownCapture`), so the close icon's tooltip cannot swallow it | `src/components/InformationModal.tsx` | Playwright TC-007 |
 
 ### Cause
 
@@ -63,10 +64,11 @@ The fix is already on master (PR #214, commit `542bedc`, merged 2026-11-23):
 - With the `enable-focus-wrap-without-sentinels` flag, Carbon renders no sentinels. Its `keydown` handler calls `wrapFocusWithoutSentinels`: on Tab from the last tabbable element of the dialog (or Shift+Tab from the first) it calls `preventDefault()` and focuses the opposite end in the same event. Tabs between controls are native moves inside the dialog. Focus is therefore inside the dialog right after every key press, with no timer.
 - Initial focus: no element in the body has `data-modal-primary-focus`, so Carbon focuses the primary **Close** button on opening, a tabbable control inside the dialog.
 - Tab order: close icon and **Close** button. `InlineLoading` and the error `InlineNotification` (`hideCloseButton`) add no tabbable element, so the loading, error and loaded states share the same order, and the version arriving during tabbing changes nothing (TC-006). If the body scrolls (400 px), Carbon makes `.cds--modal-content` tabbable; the wrap uses the current tabbable list, so it stays correct.
-- Closing (Escape, **Close**, close icon) is unchanged: `launcherButtonRef` puts focus back on the "Application menu" trigger.
+- Closing (Escape, **Close**, close icon): `launcherButtonRef` puts focus back on the "Application menu" trigger.
+- Escape on the close icon (TS-APP-INFO-002): the icon's Carbon tooltip opens on keyboard focus, and its `keydown` handler stops the propagation of Escape, so Carbon's document-level Escape listener of the modal never runs and the first Escape only hid the tooltip (TC-007 lands on the icon after N + 1 Tabs). `InformationModal` passes `onKeyDownCapture` to the `Modal` (spread onto its outer element): on Escape it stops propagation and calls `onClose`, so Escape closes the modal from any control inside it. Escape with focus outside the modal still goes through Carbon's listener.
 - Accessibility: same dialog role, title and labels; only the trap mechanism changes.
 
-Expected developer work: none, unless a new test fails. Any fix stays inside `src/components/InformationModal.tsx`: no change to Carbon, no new dependency.
+Developer work: only the Escape handling of TS-APP-INFO-002, inside `src/components/InformationModal.tsx`; no change to Carbon, no new dependency.
 
 Residual, outside FR-APP-INFO-014's key-only scope and not covered by the test cases: if a pointer click on a non-interactive part of the dialog focuses the dialog container (`tabIndex=-1`, not tabbable), a following Shift+Tab is a native move to the page behind it. This can be filed as an issue if wanted.
 
@@ -91,4 +93,4 @@ Pipeline note: as for the header menu ([technical.md](../app-header-menu/technic
 
 ## Revision note
 
-2026-11-23, issue #215: TS-APP-INFO-001 added for FR-APP-INFO-014. The code was already on master (PR #214).
+2026-11-23, issue #215: TS-APP-INFO-001 added for FR-APP-INFO-014. The code was already on master (PR #214). TS-APP-INFO-002 added during implementation: TC-007 showed that Escape on the close icon only hid its tooltip.
