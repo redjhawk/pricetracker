@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/FUNCTIONAL_SPECIFICATIONS.md",
+    "line": 342,
+    "category": "nit",
+    "body": "The specification index lists 'Login attempt limits' as 'specified (issue #266)', but this PR also implements it (service, HTTP layer and tests). Other implemented rows say 'implemented', so the status will be stale once this merges. Suggested fix: change it to 'implemented (issue #266)'."
+  }
+]
