@@ -1,6 +1,6 @@
 # Test suite hygiene: functional specification
 
-Status: specified
+Status: implemented
 Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
