@@ -52,3 +52,10 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 
 - [UC-AMZ-BPROF-001 — Amazon check after the browser ended abruptly](amazon-browser-profile/UC-AMZ-BPROF-001-amazon-check-after-browser-ended-abruptly.md)
 - [UC-AMZ-BPROF-002 — Amazon checks after the data directory is moved to another machine](amazon-browser-profile/UC-AMZ-BPROF-002-amazon-checks-after-data-directory-moved.md)
+
+## Amazon browser retrieval
+
+- [UC-AMZ-BRET-001 — Amazon check of an available listing returns its price](amazon-browser-retrieval/UC-AMZ-BRET-001-amazon-check-of-available-listing-returns-price.md)
+- [UC-AMZ-BRET-002 — Understand a failed Amazon check from the server log](amazon-browser-retrieval/UC-AMZ-BRET-002-understand-failed-amazon-check-from-server-log.md)
+- [UC-AMZ-BRET-003 — Install or update the server so that Amazon checks work](amazon-browser-retrieval/UC-AMZ-BRET-003-install-server-for-amazon-checks.md)
+- [UC-AMZ-BRET-004 — Restart an Amazon item stopped by the retrieval errors](amazon-browser-retrieval/UC-AMZ-BRET-004-restart-amazon-item-stopped-by-retrieval-errors.md)

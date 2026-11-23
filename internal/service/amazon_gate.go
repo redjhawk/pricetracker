@@ -52,9 +52,17 @@ func (g *amazonGate) do(ctx context.Context, id string, manual bool, request fun
 		return model.CollectionResult{}, err
 	}
 	now := g.now().UTC()
+	cause := result.FailureCause
+	if cause == "" {
+		cause = result.Message // collectors without failure causes
+	}
+	if result.Result == "price_not_found" {
+		log.Printf("Amazon check found no price url=%s at=%s status=%d cause=%s",
+			result.RequestURL, now.Format(time.RFC3339), result.HTTPStatus, cause)
+	}
 	if result.Result == "request_error" {
-		log.Printf("Amazon request failed url=%s at=%s status=%d error=%s response=%s",
-			result.RequestURL, now.Format(time.RFC3339), result.HTTPStatus, result.Message, result.ResponseExcerpt)
+		log.Printf("Amazon request failed url=%s at=%s status=%d cause=%s response=%s",
+			result.RequestURL, now.Format(time.RFC3339), result.HTTPStatus, cause, result.ResponseExcerpt)
 		g.failures++
 		if g.failures >= amazonFailureLimit {
 			// On a persistence error the count stays at the limit, so the next failure retries the stop.

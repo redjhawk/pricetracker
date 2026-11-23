@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R4-01",
+    "file": "deploy/README.md",
+    "line": 45,
+    "category": "nit",
+    "body": "Ubuntu pitfall that can bring back the issue #204 symptom. The doc tells Ubuntu operators to install the Google Chrome .deb, but the lookup order prefers `chromium` and `chromium-browser` over `google-chrome-stable`. On Ubuntu those names are usually the snap Chromium (`/snap/bin/chromium`, or the `chromium-browser` transitional wrapper). A server that already has it will therefore use the snap and not the Chrome the operator just installed. Snap confinement usually stops it from using `--user-data-dir` under a system data directory such as `/var/lib/...`, or from running for a system service user. Every check then fails with `browser could not start`. The documented steps assume 'a server without a browser', so FR-AMZ-BRET-006 is still met. Suggestion: add one sentence saying that when a Chromium snap is installed, `PRICEFOLLOWER_BROWSER_PATH` should point to the Chrome executable (for example `/usr/bin/google-chrome-stable`). Keep that path out of a bare-name backtick token so TC-011's executable-name check still passes."
+  }
+]

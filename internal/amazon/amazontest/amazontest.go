@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -64,6 +65,27 @@ func Fixture(t testing.TB, name string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// paddingParagraph is neutral product-description markup: no price, product block, robot-check or
+// availability text.
+const paddingParagraph = `<p class="a-spacing-small"><span class="a-text-bold">Caractéristiques :</span> brosse latérale, réservoir de 450 ml, batterie 5200 mAh, autonomie de 180 minutes.</p>` + "\n"
+
+// Expand replaces the <!--PADDING--> mark of page with about 210 kB of neutral product-description
+// markup, so that what follows the mark lies beyond the first 200 kB of the page.
+func Expand(page string) string {
+	padding := strings.Repeat(paddingParagraph, 210_000/len(paddingParagraph)+1)
+	return strings.Replace(page, "<!--PADDING-->", padding, 1)
+}
+
+// ExpandedFixture returns Fixture(t, name) with its <!--PADDING--> mark expanded (Expand).
+func ExpandedFixture(t testing.TB, name string) string {
+	t.Helper()
+	page := Fixture(t, name)
+	if !strings.Contains(page, "<!--PADDING-->") {
+		t.Fatalf("fixture %s has no <!--PADDING--> mark", name)
+	}
+	return Expand(page)
 }
 
 // Request is one request received by a Server.

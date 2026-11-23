@@ -1,0 +1,14 @@
+[
+  {
+    "id": "R3-01",
+    "blocking": false,
+    "reason": "The fix is correct: exitError (internal/amazon/cdp.go:113) now keeps the last 768 bytes via lastBytes (cdp.go:124-134), so the fatal stderr line fits in the 1,024-byte logged cause (FR-AMZ-BRET-005). The locked TC-006 subtest proves what TC-006 specifies for several lines (one log line, bounded length). It does not check that the last line is kept, so a regression test is worth adding, but no requirement is unmet now.",
+    "title": "Add regression tests for keeping the browser's last stderr line in the failure cause",
+    "todo": "**Problem:** `lastBytes` and `exitReasonBytes` (`internal/amazon/cdp.go:113-134`) keep the newest stderr line of a browser that cannot start (FR-AMZ-BRET-005), but no test checks this. The TC-006 subtest 'browser writing several lines' (`internal/amazon/browser_retrieval_test.go:604-615`) only checks that `stub line` appears, so it would also pass if the end were cut again by a later change to `exitReasonBytes` or `logText` (`internal/amazon/browser.go`).\n\n**Suggested work:** In a new test file (for example `internal/amazon/cdp_exit_reason_test.go`):\n1. Unit test `lastBytes`: short text comes back unchanged; long text keeps its last line; the result is at most `limit` bytes, starts with `…`, and is valid UTF-8 when the cut falls inside a multi-byte rune.\n2. A stub-browser run like the TC-006 one that writes 40 long stderr lines and requires `stub line 40` (the last line) in `FailureCause`."
+  },
+  {
+    "id": "R3-02",
+    "blocking": true,
+    "reason": "Confirmed against master: src/components/AppMenu.tsx now controls `open` with useState, onOpen/onClose and an Escape onKeyDown handler, and src/components/InformationModal.tsx:42-71 adds a `FeatureFlags enableFocusWrapWithoutSentinels` wrapper. Issue #204 is a backend retrieval bug, and its test cases state there is no interface change. These are unrelated frontend fixes for Playwright races mixed into this PR (the same changes were ruled blocking in the issue #180 triage). Move them to their own PR or issue."
+  }
+]

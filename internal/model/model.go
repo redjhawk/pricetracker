@@ -80,6 +80,7 @@ type CollectionResult struct {
 	RequestURL      string
 	HTTPStatus      int // 0 when no response was received
 	ResponseExcerpt string
+	FailureCause    string // one-line cause of a request_error or price_not_found, for the operator
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.

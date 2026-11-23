@@ -71,8 +71,9 @@ func parseProductPage(result model.CollectionResult, page string) (model.Collect
 		return result, ""
 	}
 	result.Result, result.Message, result.SecondHandStatus = "price_not_found", "Amazon did not show a detectable euro price.", "check_error"
+	result.FailureCause = "Amazon page showed no detectable euro price"
 	if amount, ok := productPrice(page); ok {
-		result.Result, result.Message = "success", ""
+		result.Result, result.Message, result.FailureCause = "success", "", ""
 		result.AmountCents = amount
 	}
 	result.Title = productTitle(page)
@@ -535,10 +536,12 @@ type priceCandidate struct {
 	priority int
 }
 
+// productPriceRegions are the ids of the product page blocks holding its price, by priority.
+var productPriceRegions = []string{"corePriceDisplay_desktop_feature_div", "corePrice_feature_div", "price_inside_buybox", "apex_desktop", "desktop_buybox"}
+
 func productPrice(page string) (int64, bool) {
-	regions := []string{"corePriceDisplay_desktop_feature_div", "corePrice_feature_div", "price_inside_buybox", "apex_desktop", "desktop_buybox"}
 	candidates := make([]priceCandidate, 0)
-	for priority, id := range regions {
+	for priority, id := range productPriceRegions {
 		start := strings.Index(page, `id="`+id+`"`)
 		if start < 0 {
 			start = strings.Index(page, `id='`+id+`'`)

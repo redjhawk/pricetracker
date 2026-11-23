@@ -122,6 +122,8 @@ A success response that the browser does not open as a page (file download, no c
 
 Lock marks left in the Amazon browser's persistent profile by a browser that ended abruptly, including marks naming another machine after the data directory was moved, no longer make Amazon checks fail; cookies are kept (issue #180). Details: [Amazon browser profile recovery](specifications/amazon-browser-profile/functional.md).
 
+Amazon checks through the browser work again (issue #204): an available listing gives its price and second-hand offer as before the browser change, page content that merely mentions "captcha" or "robot" is not taken for a robot check, each failure cause is logged distinctly, and the installation documentation lists what the server needs for the browser. Stopped items are restarted by **Refresh price** as before. Details: [Amazon browser retrieval](specifications/amazon-browser-retrieval/functional.md).
+
 ### 5.7 Users and login
 
 Phase 1 of [multi-user login](specifications/multi-user-login/functional.md), as defined in its [delivery plan](specifications/multi-user-login/delivery-plan.md), which prevails where it differs from the full specification.
@@ -226,6 +228,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; below 1056 px (phone and tablet) every page drops its lateral margins (at most 16 px between screen edge and content), lists shown as cards (tracked items, administrator users) span the full screen width, and each card places its values side by side as far as they fit (issue #165); desktop layout and modals unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
 | FR-37 | Amazon checks are made through a real web browser, and each Amazon item is checked at a random time, drawn daily and per item, within 06:00–09:00 and within 19:00–23:00; manual refreshes stay immediate; items stopped before the change are restarted once; a success response the browser does not open as a page is a failure (issue #186) ([FR-AMZ-HCHK-*](specifications/amazon-human-checks/functional.md)). | Must |
 | FR-38 | An Amazon check starts its browser normally, keeping the profile's cookies, when the persistent browser profile holds lock marks left by an earlier browser that ended abruptly, on this machine or another one ([FR-AMZ-BPROF-*](specifications/amazon-browser-profile/functional.md)). | Must |
+| FR-39 | On a documented installation, Amazon checks of available listings succeed with the same price and offer results as before the browser change; mentions of "captcha" or "robot" in a product page are not a robot check; failure causes are logged distinctly; the installation documentation lists the server's browser needs ([FR-AMZ-BRET-*](specifications/amazon-browser-retrieval/functional.md)). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -339,5 +342,6 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
 | Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168); FR-AMZ-HCHK-011–012 specified (issue #186) |
 | Amazon browser profile recovery | [amazon-browser-profile](specifications/amazon-browser-profile/functional.md) | specified (issue #180) |
+| Amazon browser retrieval | [amazon-browser-retrieval](specifications/amazon-browser-retrieval/functional.md) | specified (issue #204) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
 | Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140); FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165) |

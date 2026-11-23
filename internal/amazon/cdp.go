@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 // cdpBrowser is a Chromium process driven through the Chrome DevTools Protocol over
@@ -27,6 +29,31 @@ type cdpBrowser struct {
 	handlers map[string]func(method string, params json.RawMessage) // by session ID
 	read     chan struct{}                                          // closed when the reader stops
 	exited   chan struct{}                                          // closed when the process has exited
+	stderr   *tailBuffer                                            // end of the browser's error output
+}
+
+// tailBuffer keeps the last bytes written to it.
+type tailBuffer struct {
+	mu   sync.Mutex
+	data []byte
+}
+
+const stderrTailBytes = 2048
+
+func (t *tailBuffer) Write(data []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.data = append(t.data, data...)
+	if len(t.data) > stderrTailBytes {
+		t.data = append([]byte(nil), t.data[len(t.data)-stderrTailBytes:]...)
+	}
+	return len(data), nil
+}
+
+func (t *tailBuffer) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return string(t.data)
 }
 
 type cdpMessage struct {
@@ -56,6 +83,9 @@ func launchBrowser(executable string, args []string) (*cdpBrowser, error) {
 	cmd := exec.Command(executable, args...) // #nosec G204 -- executable from the configuration, arguments built by the code
 	cmd.ExtraFiles = []*os.File{browserInput, browserOutput}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	stderr := &tailBuffer{}
+	cmd.Stderr = stderr
+	cmd.WaitDelay = time.Second // child processes keeping the error output open delay Wait at most this long
 	err = cmd.Start()
 	// The browser has its own copies of these ends; failing to close the parent's changes nothing.
 	_ = browserInput.Close()
@@ -64,10 +94,43 @@ func launchBrowser(executable string, args []string) (*cdpBrowser, error) {
 		return nil, errors.Join(err, input.Close(), output.Close())
 	}
 	b := &cdpBrowser{cmd: cmd, input: input, output: output, pending: map[int64]chan cdpMessage{},
-		handlers: map[string]func(string, json.RawMessage){}, read: make(chan struct{}), exited: make(chan struct{})}
-	go func() { _ = cmd.Wait(); close(b.exited) }() // only the exit matters, not its status
+		handlers: map[string]func(string, json.RawMessage){}, read: make(chan struct{}), exited: make(chan struct{}), stderr: stderr}
+	go func() { _ = cmd.Wait(); close(b.exited) }() // the exit status is read from cmd.ProcessState
 	go b.readMessages()
 	return b, nil
+}
+
+// exitError returns errBrowserExited with the browser's exit status and the end of its error output,
+// waiting up to 2 s for the process to exit.
+func (b *cdpBrowser) exitError() error {
+	select {
+	case <-b.exited:
+	case <-time.After(2 * time.Second):
+		return errBrowserExited
+	}
+	status := b.cmd.ProcessState.String() // set by Wait before exited is closed
+	if tail := strings.TrimSpace(b.stderr.String()); tail != "" {
+		return fmt.Errorf("%w (%s): %s", errBrowserExited, status, lastBytes(tail, exitReasonBytes))
+	}
+	return fmt.Errorf("%w (%s)", errBrowserExited, status)
+}
+
+// exitReasonBytes bounds the error output in an exit error so that, with the cause prefixes, it fits
+// in the 1,024 bytes of the logged cause: the browser usually prints its fatal reason last.
+const exitReasonBytes = 768
+
+// lastBytes returns the end of text in at most limit bytes, starting on a rune boundary and marked
+// with a leading ellipsis when the start was dropped.
+func lastBytes(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	const ellipsis = "…"
+	start := len(text) - (limit - len(ellipsis))
+	for start < len(text) && !utf8.RuneStart(text[start]) {
+		start++
+	}
+	return ellipsis + text[start:]
 }
 
 // readMessages dispatches the browser's messages: responses to their call, events to the handler of
@@ -135,7 +198,7 @@ func (b *cdpBrowser) call(ctx context.Context, sessionID, method string, params,
 	_, err = b.input.Write(append(data, 0))
 	b.writeMu.Unlock()
 	if err != nil {
-		return errBrowserExited
+		return b.exitError()
 	}
 	select {
 	case message := <-response:
@@ -147,7 +210,7 @@ func (b *cdpBrowser) call(ctx context.Context, sessionID, method string, params,
 		}
 		return json.Unmarshal(message.Result, result)
 	case <-b.read:
-		return errBrowserExited
+		return b.exitError()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
