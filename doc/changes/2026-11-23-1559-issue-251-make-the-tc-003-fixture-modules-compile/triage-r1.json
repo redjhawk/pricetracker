@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Accurate: rows f and g of TestFixtureModulesBuild_Issue251_TC001 only check err != nil (server_dependencies_test.go:323-326). Still, TC-001 is proved: an environment or cache failure would also fail every valid fixture in the same test, and the control subtest (line 337) checks that its failure names DownloadMarker. Checking the message too would make the test stronger but is not needed.",
+    "title": "Check the build failure message of fixture rows f and g",
+    "todo": "**Problem:** In `internal/amazon/amazontest/server_dependencies_test.go:323-326`, the `default` branch of `TestFixtureModulesBuild_Issue251_TC001` accepts any `go build ./...` failure for the invalid fixtures (rows f and g). A failure unrelated to the fixture would be accepted as well.\n\n**Suggested work:** In that branch, also require `strings.Contains(err.Error(), tc.fails)` (`pricefollower.local/internal/nope` for f, `main.go` for g), as the control subtest already does for `DownloadMarker`. Confirm that `go build` prints these texts, then run `go test -count=1 ./internal/amazon/amazontest/...`."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Accurate: `go build ./...` does not compile `_test.go` files, so the row d test files are not built. FR-TEST-HYG-014 defines the check as `go build ./...`, so the requirement is met. Those files hold only blank imports of a package that exists.",
+    "title": "Type-check fixture test files in buildModule or document the scope",
+    "todo": "**Problem:** `buildModule` in `internal/amazon/amazontest/server_dependencies_test.go:302-310` runs `go build ./...`, which skips `_test.go` files. The test files of row d (`cmd/app/main_test.go`, `internal/service/service_test.go`) are never compiled.\n\n**Suggested work:** Also run `go vet ./...` (which type-checks test files) in the fixture module inside `buildModule`. Otherwise, state in the comment above `buildModule` / `TestFixtureModulesBuild_Issue251_TC001` (line 312) that fixture test files are out of scope."
+  }
+]
