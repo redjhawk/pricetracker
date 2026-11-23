@@ -19,6 +19,10 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+  # The loop of the `next` job. DEV_TOKEN can send it with the Contents permission it already has; a
+  # workflow_dispatch needs Actions: write, and one sent by GITHUB_TOKEN ended in startup_failure.
+  repository_dispatch:
+    types: [supervisor-loop]
 jobs:
   supervisor:
     # fabrica.yml and repair.yml skip their job on most comments; those runs decide nothing.
@@ -70,12 +74,11 @@ jobs:
     needs: supervisor
     if: ${{ !cancelled() && needs.supervisor.result != 'skipped' && vars.FACTORY_SUPERVISOR != 'off' }}
     runs-on: ubuntu-latest
-    # For DEV_TOKEN: a run dispatched by GITHUB_TOKEN (github-actions[bot]) ended in startup_failure every
-    # time, so the next run is dispatched as the owner, with GITHUB_TOKEN only as a fallback.
+    # For DEV_TOKEN: the next run is started as the owner, through a repository_dispatch event (see `on`).
     environment: dev
     timeout-minutes: 20
     permissions:
-      actions: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       DEV_TOKEN: ${{ secrets.DEV_TOKEN }}
@@ -88,5 +91,4 @@ jobs:
           newer=$(gh run list --workflow supervisor.yml --limit 20 --json databaseId,conclusion \
             --jq "[.[] | select(.databaseId > $GITHUB_RUN_ID and (.conclusion | IN(\"cancelled\", \"skipped\", \"startup_failure\") | not))] | length")
           if [ "$newer" -gt 0 ]; then echo "A newer supervisor run carries the loop."; exit 0; fi
-          GH_TOKEN=$DEV_TOKEN gh workflow run supervisor.yml --ref master ||
-            gh workflow run supervisor.yml --ref master
+          GH_TOKEN=$DEV_TOKEN gh api "repos/$GH_REPO/dispatches" -f event_type=supervisor-loop
