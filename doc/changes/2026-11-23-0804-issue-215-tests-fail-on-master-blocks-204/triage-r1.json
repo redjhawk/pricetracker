@@ -1,0 +1,21 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed in @carbon/react 1.117: arrow keys are handled only by the menu items and the `ul` (`OverflowMenu.js` line 278), and `FloatingMenu` focuses the first entry only in an effect after placement (`FloatingMenu.js` lines 150-156). So an ArrowDown pressed right after Enter reaches the trigger, which ignores it. The new TC-003 test (`tests/leboncoin-session-settings.spec.ts` lines 622-624) can then open Information instead of Settings, which is the same load-dependent race this issue is meant to remove. It also contradicts the new FR-APP-MENU-007 corner case, \"keys pressed in quick succession give the same result as the same keys pressed slowly\"."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "`tests/app-information.spec.ts` line 378 behaves as intended: the `for` body is the single Tab press, and `await close()` runs once after the loop. Only the formatting is misleading.",
+    "title": "Put `await close()` on its own line in the TC-007 Information modal test",
+    "todo": "**Problem:** In `tests/app-information.spec.ts` line 378, the Tab loop and `await close();` are on one line, separated by stray spaces: `for (...) await page.keyboard.press(\"Tab\");      await close();`. This makes `close()` look like part of the loop body.\n\n**Suggested work:** Move `await close();` to its own line after the loop, at the same indentation. Do not change behaviour."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "The subject index in `doc/FUNCTIONAL_SPECIFICATIONS.md` lines 324-325 still calls FR-APP-MENU-007 and FR-APP-INFO-014 \"specified\", but their code is on master (PR #214, plus TS-APP-INFO-002 in this PR). The status is inaccurate, but it is a documentation nit, not a behaviour, contract or test defect.",
+    "title": "Mark the header menu and application information subjects as implemented in the subject index",
+    "todo": "**Problem:** In `doc/FUNCTIONAL_SPECIFICATIONS.md` lines 324-325, the subject index lists the header menu as \"implemented; FR-APP-MENU-007 specified (issue #215)\" and application information as \"specified (issue #115); FR-APP-INFO-014 specified (issue #215)\". Both subjects are implemented on master: `src/components/AppMenu.tsx` and `src/components/InformationModal.tsx`, both covered by e2e tests.\n\n**Suggested work:** Set both rows to `implemented`. Drop the stale \"specified (issue #115)\". Check whether the `Status:` line in `doc/specifications/app-information/functional.md` should also move from `ready` to implemented."
+  }
+]
