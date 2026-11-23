@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 3,
+    "category": "nit",
+    "body": "Status mismatch: this file says `Status: implemented`, but its index row in `doc/FUNCTIONAL_SPECIFICATIONS.md` (line 347) says `specified (issue #208, ...)`, and `technical.md` says `Status: ready`. Other specs use `Status: ready` here (e.g. `amazon-browser-retrieval/functional.md`, `github-release/functional.md`). Pick one status and use it in both the spec and the index row, e.g. `Status: ready (issue #208)` to follow the existing convention."
+  }
+]
