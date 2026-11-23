@@ -1,7 +1,7 @@
 # Technical specification: application header menu
 
 Status: ready (frontend-only subject; implemented together with the settings subject; API approved by the user 2026-10-03 (proposal revision 1 unchanged; see the change index and api-step.md); implementation authorized)\
-Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 006 (ready)\
+Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 007 (FR-APP-MENU-007 added by issue #215; see [Issue #215](#issue-215-escape-right-after-opening-fr-app-menu-007))\
 Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.md) (the modal this menu opens)
 
 ## Requirement mapping
@@ -14,6 +14,7 @@ Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.
 | TS-APP-MENU-002 | MENU-002, MENU-003, MENU-004 | Carbon `OverflowMenu` with `UserAvatar` icon and one `OverflowMenuItem` “Settings”; selecting it opens `SettingsModal` | same | Playwright: click and Enter/Space open; Escape/outside click close; one item; selection opens modal |
 | TS-APP-MENU-003 | MENU-004 | Focus return to the trigger via a ref passed to the modal's `launcherButtonRef` | `src/App.tsx`, `src/components/SettingsModal.tsx` | Playwright: focus on trigger after Escape and after modal close |
 | TS-APP-MENU-004 | MENU-006 | Carbon modals are focus-trapped and cover the header; no extra code | — | Playwright: with Add item modal open, the trigger is not focusable/clickable |
+| TS-APP-MENU-005 | MENU-007, MENU-004 | `AppMenu` controls the `OverflowMenu` `open` prop with its own state and closes the menu from an `onKeyDown` handler on the trigger when Escape is pressed before focus has moved into the menu | `src/components/AppMenu.tsx` (already on master, PR #214) | Playwright TC-001, TC-002, TC-003 (issue #215) |
 
 ## Frontend
 
@@ -60,6 +61,46 @@ Files: new `src/components/AppMenu.tsx`; edits in `src/App.tsx`; optionally one 
 
 No unresolved question.
 
+## Issue #215: Escape right after opening (FR-APP-MENU-007)
+
+### Cause
+
+In the installed `@carbon/react` (1.117), `OverflowMenu` handles Escape and Tab (`handleKeyPress`) only on the menu body (`ul role="menu"`). Focus moves into the menu only after `FloatingMenu` has placed it. An Escape pressed in between targets the trigger button, which had no Escape handling, so the menu stayed open. Under load (full e2e suite) this showed up as intermittent failures of the existing "header menu: …" test.
+
+### Frontend (TS-APP-MENU-005)
+
+The fix is already on master (PR #214, commit `542bedc`, merged 2026-11-23) in `src/components/AppMenu.tsx`:
+
+- `const [open, setOpen] = useState(false)` passed as `open={open}`, with `onOpen={() => setOpen(true)}` and `onClose={() => setOpen(false)}`. Carbon keeps its internal state, syncs it from the prop in an effect, and reports its own changes (click, outside click, item selection, Escape inside the menu) through `onOpen`/`onClose`, so both stay equal.
+- `onKeyDown={closeOnEscape}`: Carbon spreads unknown props onto the trigger `IconButton` (before its own `onClick`, so the handler is not overridden). `closeOnEscape` sets `open` to `false` when `event.key === "Escape"`. Focus is already on the trigger, so it stays there; `aria-expanded` follows Carbon's state and becomes `false`.
+- Escape once focus is inside the menu: unchanged Carbon path (`closeMenuOnEscape` closes and focuses the trigger, then `onClose` updates the state). Escape while the menu is closed is a no-op.
+- Quick succession: Enter/Space on the trigger is a discrete event. React 19 renders it synchronously and flushes its passive effects (Carbon's `onOpen` call, then the prop sync) before the next key event, so each key acts on the state the previous one left. A focus move that `FloatingMenu` scheduled for a menu closed in the meantime targets an unmounted element and has no effect.
+- No route, URL, server request or browser storage; accessibility attributes, focus ring and entries unchanged.
+
+Expected developer work: none, unless a new test fails. Any fix stays inside `src/components/AppMenu.tsx`: no change to Carbon, no new dependency. Residual risk: the fix depends on Carbon forwarding `onKeyDown` to the trigger; TC-001 guards it on Carbon upgrades.
+
+### Backend and API
+
+Not affected: the menu calls no endpoint. `API_SPECIFICATION.md` is unchanged.
+
+### Tests
+
+New Playwright specs would need an entry in `testMatch` in `playwright.config.ts`, which this pipeline cannot change. The cases therefore go into specs that already run:
+
+| Test case | Test file |
+| --- | --- |
+| TC-001 | `tests/leboncoin-session-settings.spec.ts` (open mode; the existing `gets` counter and unexpected-request check prove that no request is made); the protected-mode corner case (regular user) in `tests/app-information.spec.ts`, whose `mockApi` serves user and admin sessions |
+| TC-002 | `tests/leboncoin-session-settings.spec.ts` |
+| TC-003 | `tests/leboncoin-session-settings.spec.ts`: the existing "header menu: …" test plus a new test for the cases it lacks (Escape after the first entry is focused, click then Escape, Escape while closed) |
+
+Test names start with the TC ID and `(#215)`, for example `TC-001 (#215) Escape at once after Enter closes the menu`, so they are not confused with other issues' `TC-001`. Slow-machine cases use `const cdp = await context.newCDPSession(page); await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 })`, which works in Chromium (the only project). Key sequences with "no wait" are consecutive `page.keyboard.press` calls; assertions come after the last key.
+
+### Pipeline note
+
+The source fix reached master before this change. The new tests are therefore expected to pass on the base branch, and the TDD red gate ("the tests pass before implementing") may stop the run. The owner decides how to proceed, for example by merging the regression tests by hand. Tests must not be weakened or made to fail on purpose to satisfy the gate.
+
 ## Revision note
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
+
+2026-11-23, issue #215: TS-APP-MENU-005 added for FR-APP-MENU-007 (Escape right after opening). The code was already on master (PR #214).
