@@ -41,6 +41,15 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-LOGIN-LIM-002 — Log in while another client is locked out for the same username](login-attempt-limits/UC-LOGIN-LIM-002-log-in-while-another-client-is-locked-out.md)
 - [UC-LOGIN-LIM-003 — Log in when too many password checks are waiting](login-attempt-limits/UC-LOGIN-LIM-003-log-in-when-too-many-password-checks-are-waiting.md)
 
+## Masked secrets in Settings
+
+- [UC-SECRET-001 — See which secrets are saved in Settings](settings-secret-masking/UC-SECRET-001-see-which-secrets-are-saved.md)
+- [UC-SECRET-002 — Replace the LeBoncoin session without touching the Claude token](settings-secret-masking/UC-SECRET-002-replace-leboncoin-session-only.md)
+- [UC-SECRET-003 — Replace the Claude token without touching the LeBoncoin session](settings-secret-masking/UC-SECRET-003-replace-claude-token-only.md)
+- [UC-SECRET-004 — Remove a saved secret](settings-secret-masking/UC-SECRET-004-remove-a-saved-secret.md)
+- [UC-SECRET-005 — Change the LeBoncoin session after it changed since Settings opened](settings-secret-masking/UC-SECRET-005-change-session-after-it-changed-since-opening.md)
+- [UC-SECRET-006 — Follow the operator guide to renew or remove the session](settings-secret-masking/UC-SECRET-006-follow-operator-guide-for-settings-secrets.md)
+
 ## Price collection
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)
