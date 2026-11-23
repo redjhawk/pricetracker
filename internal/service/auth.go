@@ -40,6 +40,17 @@ var hashSlot = make(chan struct{}, 1)
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
 
+// maxWaitingLoginChecks is the most logins that may wait for the password-check slot.
+const maxWaitingLoginChecks = 4
+
+// WaitingLoginChecks returns the number of logins waiting for the password-check slot (tests).
+func WaitingLoginChecks() int {
+	return 0 // not implemented (issue #266)
+}
+
+// loginKey identifies the failures of one client address and lowercased username.
+type loginKey struct{ client, username string }
+
 // loginFailures counts consecutive failed logins of one lowercased username.
 type loginFailures struct {
 	count       int
@@ -180,8 +191,8 @@ func (s *Service) ProtectedMode(ctx context.Context) (bool, error) {
 
 // Login checks the credentials and returns a new session token. After 5 consecutive
 // failures for a username, attempts are refused for 1 minute without checking the password.
-func (s *Service) Login(ctx context.Context, username, password string) (string, store.User, error) {
-	key := strings.ToLower(username)
+func (s *Service) Login(ctx context.Context, client, username, password string) (string, store.User, error) {
+	key := loginKey{username: strings.ToLower(username)}
 	now := s.now()
 	s.mu.Lock()
 	failures := s.loginFailures[key]
@@ -227,7 +238,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (string,
 	return token, user, nil
 }
 
-func (s *Service) recordLoginFailure(key string, now time.Time) {
+func (s *Service) recordLoginFailure(key loginKey, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Forget expired locks and old failures, so the map cannot grow without bound.

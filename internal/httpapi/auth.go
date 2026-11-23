@@ -116,7 +116,7 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		if !decodeCredentials(w, r, &body) {
 			return
 		}
-		token, user, err := s.service.Login(r.Context(), body.Username, body.Password)
+		token, user, err := s.service.Login(r.Context(), "", body.Username, body.Password)
 		if err != nil {
 			serviceError(w, err)
 			return
