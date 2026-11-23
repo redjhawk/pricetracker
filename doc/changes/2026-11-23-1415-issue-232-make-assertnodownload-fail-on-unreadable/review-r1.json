@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/amazontest_test.go",
+    "line": 378,
+    "category": "test",
+    "body": "TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched goes against the technical specification. The spec maps TC-006 to a repository diff check plus the gates, not to a unit test in this package. The test is also brittle: it walks ../../../cmd and ../../../internal and fails if any non-_test.go file imports amazontest. A test-support package elsewhere (for example a future internal/httpapi/httpapitest helper file) could import amazontest without changing the server binary, and this test would still fail. A text search for the import string also does not show what actually reaches the binary. To prove that the server does not depend on amazontest, use `go list -deps ./cmd/...` in the gate/repository check, or drop the scan and rely on the TC-006 diff check as specified."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/amazontest/amazontest_test.go",
+    "line": 372,
+    "category": "refactor-pr",
+    "body": "The amazontest unit tests check that internal/service/zz_scratch_docs_test.go is absent (issue #208, FR-TEST-HYG-003). This has nothing to do with the amazontest package or with issue #232. It also ties this package's tests to an unrelated file path through ../../service. The technical specification lists the issue #208 cases as repository checks ('unchanged record'). Remove this assertion from the package test and keep it as the repository check the spec describes."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 75,
+    "category": "nit",
+    "body": "The test case mapping names the tests TestAssertNoDownloadFailsOnUnreadableFile, TestAssertNoDownloadReportsUnreadableDownloadByName, TestDownloadFileIgnoresRemovedFile, TestAssertNoDownloadJudgesReadableFiles and TestAssertNoDownloadPassesOnBrowserProfile (lines 75-79). The test file declares TestAssertNoDownload_TC001_FailsOnUnreadableFile, TestAssertNoDownload_TC002_..., TestDownloadFile_TC003_..., TestAssertNoDownload_TC004_... and TestAssertNoDownload_TC005_... instead, plus a TC-006 unit test that the mapping does not mention. Update the mapping to the real names so a reader can run them with -run."
+  }
+]
