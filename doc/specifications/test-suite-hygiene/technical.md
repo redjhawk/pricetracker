@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 ready (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238.
 
 ## Design
 
@@ -98,6 +98,23 @@ Afterwards, `git diff --name-only master -- . ':!doc'` must list only the two ne
 
 Refactoring: none. The new tests reuse the existing test helpers of their packages (`openHumanStore`, `startHuman`, `insertAt`, `nextCheck`, `newClock`, `amazonRecorder`, `captureLog`, `scheduleDay`, `windowOf`, `localDate`, `paris` in `internal/service`; `errorPageServer`, `amazonUsedOffer`, `testBrowserOptions`, `browserCheck`, `captureOutput`, `fixtureItem`, `unavailableMessage`, `amazonCheckFailedMessage` in `internal/amazon`) without changing them. Existing test files are not edited. `TestBrowserErrorPage_TC001_EmptyUnavailablePageSendsNoUsedOfferRequest` is not extended: the four statuses go in one new table, so the issue #187 test stays as it is.
 
+### TC-005 guard kept and issue #238 closed (issue #238)
+
+No code changes. On `master`, `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` (`internal/httpapi/amazon_browser_interrupted_test.go`) already holds the guard that the issue asks for, added by PR #236:
+
+- lines 35–39: wait on `api.fixture.flushed` (60 s limit, message unchanged);
+- lines 40–44: `select { case <-stopped: t.Fatal("the check ended before the server stop: the interruption point was missed"); default: }`, the exact message of FR-TEST-HYG-027, with a `default` branch so it never waits;
+- line 45: the first `cancel()` (the server stop), followed by the unchanged 20 s wait, the cache-clear log check, the download and data-file checks and the two Refresh price checks.
+
+`stopped` is closed only by the goroutine that runs `api.items.Collect`, after `Collect` returns, so the guard reads exactly "the check has ended". The draft wording of the issue ("interruption point missed") is not used. The file is not edited.
+
+- **Closing issue #238.** The factory's pull request body holds `Closes #238` (`scripts/factory/factory.sh` writes `Closes #$ISSUE` for the running issue), so the merge into `master` closes #238 with the reason "completed". This settles FR-TEST-HYG-019 and replaces the manual close planned by issue #241 (TS-TEST-HYG-022). No stage needs GitHub credentials. If the issue is already closed as completed, the merge leaves it so.
+- **Tests stage.** No test code is written: the guard exists and the change must not touch TC-005. The stage writes `<change folder>/no-tests.md` giving that reason and where each TC is proved (see the mapping below); the red gate is then skipped. It runs the missed-interruption mutation check (below) and records the command and the failure output in `no-tests.md`.
+- **Missed-interruption mutation (tests stage, never committed).** In TC-005, right after the `flushed` wait and before the guard, insert `cancel(); <-stopped`, so the check has really ended (stopped with the context, which TC-005 already proves happens within 20 s) when the guard runs. Run `go test -count=1 -run TestAmazonBrowserInterrupted_TC005 ./internal/httpapi/`: it must fail with `the check ended before the server stop: the interruption point was missed` and with none of `the stopped check did not return within 20 s`, `cache clear failure logged` or a download or data-file message. Then restore the file with `Edit` and check `git diff --quiet master -- internal/httpapi/amazon_browser_interrupted_test.go`. A collector change that returns once the download is answered is rejected as the mutation: the guard runs right after `flushed`, so whether the check has ended by then depends on timing, and the check would be flaky. The test-side mutation is deterministic and leaves no `Collect` goroutine running after the failure.
+- **Development stage.** No code. It sets FR-TEST-HYG-027–029 and TS-TEST-HYG-031–034 to implemented, and FR-TEST-HYG-019 to "closed by the merge of the issue #238 change". It runs the gates and the repository checks of TC-001 and TC-004, and restores any file outside `doc/` that differs from `master`.
+
+Refactoring: none.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -106,6 +123,7 @@ Refactoring: none. The new tests reuse the existing test helpers of their packag
 - Issue #251 touches only a `_test.go` file and the temporary modules it writes under `t.TempDir()`. No frontend, backend, API, database or migration change, and the server binary is the same.
 - Issue #241 deletes one file under `doc/todo/` and closes a GitHub issue. Frontend, backend and API: not affected, as no file outside `doc/` changes; `API_SPECIFICATION.md` is unchanged.
 - Issue #185 adds two `_test.go` files. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change; the tests run the existing code on a temporary SQLite file and a local `amazontest` server. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
+- Issue #238 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (TC-005 is kept as it is on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -132,7 +150,7 @@ Refactoring: none. The new tests reuse the existing test helpers of their packag
 | TS-TEST-HYG-019 | FR-TEST-HYG-017 | The diff outside `doc/` is `internal/amazon/amazontest/server_dependencies_test.go` only. `go vet ./...` and `go test ./...` run the new build test with no flag, skip or build tag. |
 | TS-TEST-HYG-020 | FR-TEST-HYG-014–016 (testability) | `buildModule` runs `go build ./...` offline on each fixture of the shared `fixtureCases` and on the `plainMain` module. Valid fixtures must build and rows f and g must not. A control module (stub as on `master`, `helperMain`) must fail with `DownloadMarker` in the output. |
 | TS-TEST-HYG-021 | FR-TEST-HYG-018 | The technical specification stage lists `doc/todo/issue-233-r1-03.md` in `delete.txt`; the pipeline deletes it (docs profile, `Edit(doc/**)`). No `Status: done` variant. |
-| TS-TEST-HYG-022 | FR-TEST-HYG-019 | Manual follow-up: the owner runs `gh issue close 238 --reason completed` after the merge; the factory cannot, as no stage has GitHub credentials and its pull request closes only #241. |
+| TS-TEST-HYG-022 | FR-TEST-HYG-019 | Manual follow-up: the owner runs `gh issue close 238 --reason completed` after the merge; the factory cannot, as no stage has GitHub credentials and its pull request closes only #241. Replaced by TS-TEST-HYG-033 (issue #238). |
 | TS-TEST-HYG-023 | FR-TEST-HYG-020 | `internal/httpapi/amazon_browser_interrupted_test.go` is not edited: its `select` on `stopped` with a `default` branch and the exact message stays before `cancel()`. |
 | TS-TEST-HYG-024 | FR-TEST-HYG-021 | The only change outside the change folder and the specifications is the deletion of the record; no file outside `doc/`, no other `doc/todo/` file and no test file changes. |
 | TS-TEST-HYG-025 | FR-TEST-HYG-022 | `TestAmazonMissedWindow_Issue185_TC001_SkippedRedrawnAndLogged` runs `collectDue` at 20:00 on a missed item due at 07:30 and a control item due at 19:30. It asserts no collector call for the missed item, a next check in the morning window of the next day, and the exact `missed its window` log line naming that time. |
@@ -141,6 +159,10 @@ Refactoring: none. The new tests reuse the existing test helpers of their packag
 | TS-TEST-HYG-028 | FR-TEST-HYG-025 | The tests stage runs `gofmt -l internal/amazon` and `gofmt -w` on any listed test file before the files are locked. `browser_test.go` is already formatted on `master` and stays unchanged unless `gofmt` lists it. |
 | TS-TEST-HYG-029 | FR-TEST-HYG-026 | The tests are ordinary tests (no build tag, flag or `t.Parallel`). The browser test skips only through `amazontest.Browser` when no Chromium is found, which does not happen in the gate. The diff outside `doc/` is the two new `_test.go` files. |
 | TS-TEST-HYG-030 | FR-TEST-HYG-022–024 (proof of failure) | The tests stage writes `no-tests.md` (the red phase cannot run on existing behaviour) and runs the three mutation checks, reverted before the stage ends, recording their failures there. |
+| TS-TEST-HYG-031 | FR-TEST-HYG-027 | TC-005 keeps, after the `flushed` wait and before the first `cancel()`, the non-blocking `select` on `stopped` (closed only after `Collect` returns) that calls `t.Fatal("the check ended before the server stop: the interruption point was missed")`. Proved by the reverted `cancel(); <-stopped` mutation. |
+| TS-TEST-HYG-032 | FR-TEST-HYG-028 | The guard's `default` branch goes on to the unchanged `cancel()`, 20 s wait and assertions; TC-005 passes on repeated runs. |
+| TS-TEST-HYG-033 | FR-TEST-HYG-019, FR-TEST-HYG-029 | The factory's pull request body `Closes #238` closes the issue as completed at the merge; no manual close. |
+| TS-TEST-HYG-034 | FR-TEST-HYG-029 | No file outside `doc/` changes; `internal/httpapi/amazon_browser_interrupted_test.go` is not edited, and the mutation is never committed. |
 
 ## Files to change
 
@@ -166,8 +188,21 @@ Refactoring: none. The new tests reuse the existing test helpers of their packag
 | `internal/amazon/browser_test.go` | tests (issue #185) | only if `gofmt -l internal/amazon` lists it: `gofmt -w` (expected: unchanged) |
 | `doc/changes/2026-11-23-1706-issue-185-tests-missing-from-168-amazon-human-like/no-tests.md` | tests (issue #185) | explain why the red phase is skipped (tests of existing behaviour); record the three mutation checks and their failure messages; where TC-004 and TC-005 are proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #185) | set the status of FR-TEST-HYG-022–026 and TS-TEST-HYG-025–030 to implemented |
+| `doc/changes/2026-11-23-2118-issue-238-tc-005-fail-if-the-check-ended-before-th/no-tests.md` | tests (issue #238) | explain why no test is written (the guard exists on `master`); record the mutation run and its failure output; where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #238) | set the status of FR-TEST-HYG-027–029 and TS-TEST-HYG-031–034 to implemented; FR-TEST-HYG-019 closed by the merge |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. No test file is deleted.
+
+## Test case mapping (issue #238)
+
+No test file is added or changed: the tests stage writes `no-tests.md`, and the cases run the existing TC-005 or check the repository.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Repository check of `internal/httpapi/amazon_browser_interrupted_test.go`: the `select` on `stopped` with a `default` branch and the exact message sits after the `api.fixture.flushed` wait and before the first `cancel()`; the 60 s message is unchanged. Integration run with the reverted `cancel(); <-stopped` mutation (tests stage, recorded in `no-tests.md`): `go test -count=1 -run TestAmazonBrowserInterrupted_TC005 ./internal/httpapi/` fails with only the guard's message |
+| TC-002 | Integration run of the unchanged test: `go test -count=3 -run TestAmazonBrowserInterrupted_TC005 ./internal/httpapi/` passes; `git diff --quiet master -- internal/httpapi/amazon_browser_interrupted_test.go` shows no assertion removed or weakened |
+| TC-003 | Repository check after the merge: `gh issue view 238 --json state,stateReason` shows `CLOSED` and `COMPLETED`; the pull request body holds `Closes #238` |
+| TC-004 | Repository check: `git diff --name-only master -- . ':!doc'` is empty. Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`) |
 
 ## Test design (issue #232)
 
@@ -310,5 +345,6 @@ Issue #208 cases (unchanged record):
 ## Manual follow-ups
 
 - Issues #208 to #251: none. The checks run in the existing `go test ./...` gate, so no CI or `scripts/` change is needed.
-- Issue #241: after the merge, the owner closes issue #238 as completed (`gh issue close 238 --reason completed`, see TS-TEST-HYG-022). No test depends on it; TC-002 checks it afterwards.
+- Issue #241: after the merge, the owner closes issue #238 as completed (`gh issue close 238 --reason completed`, see TS-TEST-HYG-022). No test depends on it; TC-002 checks it afterwards. Replaced by issue #238: its own merge closes it (TS-TEST-HYG-033).
+- Issue #238: none. The pull request closes the issue at the merge; no CI or `scripts/` change is needed.
 - Issue #185: none. The tests run in `go test ./...`, and the gate environment already has Chromium for the browser test.
