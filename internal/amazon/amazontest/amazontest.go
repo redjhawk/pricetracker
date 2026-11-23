@@ -185,7 +185,8 @@ func downloadNamePattern(name string) *regexp.Regexp {
 // a regular file whose base name is one of names, or that name uniquified by Chromium ("page (1).html"),
 // or that starts with "download"; a partial download (suffix ".crdownload", prefix "Unconfirmed ",
 // ".com.google.Chrome." or ".org.chromium.Chromium."); or a regular file containing DownloadMarker.
-// Missing roots are ignored; symbolic links are not followed.
+// A file that cannot be read fails t with the read error; a file that disappears before it is read is
+// ignored. Missing roots are ignored; symbolic links are not followed.
 func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 	t.Helper()
 	patterns := make([]*regexp.Regexp, 0, len(names))
@@ -204,7 +205,11 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 			if !entry.Type().IsRegular() {
 				return nil
 			}
-			if reason, _ := downloadFile(path, entry.Name(), patterns); reason != "" {
+			reason, err := downloadFile(path, entry.Name(), patterns)
+			if err != nil {
+				return err
+			}
+			if reason != "" {
 				found = append(found, path+" ("+reason+")")
 			}
 			return nil
@@ -219,7 +224,7 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 }
 
 // downloadFile returns why the regular file at path with base name looks left by a download, or "".
-// Stub (issue #232): the read error is not returned yet.
+// It returns the error of reading a file that no name rule matches, unless the file no longer exists.
 func downloadFile(path, name string, patterns []*regexp.Regexp) (string, error) {
 	for _, pattern := range patterns {
 		if pattern.MatchString(name) {
@@ -238,7 +243,13 @@ func downloadFile(path, name string, patterns []*regexp.Regexp) (string, error) 
 		}
 	}
 	data, err := os.ReadFile(path) // #nosec G304 -- file of a test directory
-	if err == nil && bytes.Contains(data, []byte(DownloadMarker)) {
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if bytes.Contains(data, []byte(DownloadMarker)) {
 		return "holds the downloaded body", nil
 	}
 	return "", nil
