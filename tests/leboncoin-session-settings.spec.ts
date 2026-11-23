@@ -451,3 +451,178 @@ test("QA-SET-F02: header controls are unreachable behind Settings; no stacked mo
   }
   await expect(page.locator("[role=dialog]:visible")).toHaveCount(1);
 });
+
+// Issue #215 (FR-APP-MENU-007): keys pressed without waiting act as the same keys pressed slowly.
+async function throttleCpu(page: Page, context: BrowserContext) {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+}
+
+// Loads the list page, then records every API request made afterwards.
+async function listReady(page: Page) {
+  await page.goto("/");
+  await expect(page.getByText(/^1 item tracked/)).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) requests.push(`${request.method()} ${url.pathname}`);
+  });
+  return requests;
+}
+
+async function expectMenuClosed(page: Page) {
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+  await expect(menuTrigger(page)).toBeFocused();
+  await expect(menuTrigger(page)).toHaveAttribute("aria-expanded", "false");
+}
+
+async function expectMenuOpen(page: Page) {
+  await expect(page.getByRole("menuitem")).toHaveText(["Information", "Settings"]);
+  await expect(menuTrigger(page)).toHaveAttribute("aria-expanded", "true");
+}
+
+async function expectMenuState(page: Page, open: boolean) {
+  if (open) await expectMenuOpen(page);
+  else await expectMenuClosed(page);
+}
+
+test("TC-001 (#215) Escape at once after Enter or Space closes the menu", async ({ page, context }) => {
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  await menuTrigger(page).focus();
+  for (const open of ["Enter", "Space"]) {
+    await page.keyboard.press(open);
+    await page.keyboard.press("Escape");
+    await expectMenuClosed(page);
+  }
+  await page.keyboard.press("Enter");
+  await expectMenuOpen(page);
+  await expect(page.getByRole("menuitem", { name: "Information", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Settings", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+  await expect(page).toHaveURL("/");
+  await expect(page.locator("[role=dialog]:visible")).toHaveCount(0);
+  expect(requests).toEqual([]);
+  expect(api.gets).toBe(0);
+});
+
+test("TC-001 (#215) slow machine: Enter or Space then Escape closes the menu each time", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  await throttleCpu(page, context);
+  await menuTrigger(page).focus();
+  for (let round = 0; round < 5; round += 1) {
+    for (const open of ["Enter", "Space"]) {
+      await page.keyboard.press(open);
+      await page.keyboard.press("Escape");
+      await expectMenuClosed(page);
+    }
+  }
+  await page.keyboard.press("Enter");
+  await expectMenuOpen(page);
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+  await expect(page).toHaveURL("/");
+  expect(requests).toEqual([]);
+  expect(api.gets).toBe(0);
+});
+
+// Each sequence alternates opening and closing keys; `open` is the state it leaves.
+const quickSequences = [
+  { keys: ["Enter", "Escape", "Enter"], open: true },
+  { keys: ["Enter", "Escape", "Space"], open: true },
+  { keys: ["Enter", "Escape", "Enter", "Escape"], open: false },
+];
+
+async function runQuickSequences(page: Page) {
+  for (const { keys, open } of quickSequences) {
+    for (const key of keys) await page.keyboard.press(key);
+    await expectMenuState(page, open);
+    if (open) {
+      await page.keyboard.press("Escape");
+      await expectMenuClosed(page);
+    }
+    for (const [index, key] of keys.entries()) {
+      await page.keyboard.press(key);
+      await expectMenuState(page, index % 2 === 0);
+      if (index % 2 === 0) await expect(page.getByRole("menuitem", { name: "Information", exact: true })).toBeFocused();
+    }
+    await expectMenuState(page, open);
+    if (open) {
+      await page.keyboard.press("Escape");
+      await expectMenuClosed(page);
+    }
+  }
+}
+
+test("TC-002 (#215) keys pressed in quick succession give the same result as slow keys", async ({ page, context }) => {
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  await menuTrigger(page).focus();
+  await runQuickSequences(page);
+  await expect(page).toHaveURL("/");
+  expect(requests).toEqual([]);
+  expect(api.gets).toBe(0);
+});
+
+test("TC-002 (#215) slow machine: keys pressed in quick succession give the same result as slow keys", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  await mockApi(context);
+  await listReady(page);
+  await throttleCpu(page, context);
+  await menuTrigger(page).focus();
+  await runQuickSequences(page);
+});
+
+test("TC-003 (#215) Escape after a pause, click then Escape, Escape while closed and the other ways to close are unchanged", async ({ page, context }) => {
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  const trigger = menuTrigger(page);
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "Information", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+
+  await trigger.click();
+  await expectMenuOpen(page);
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+  await expect(page.locator("[role=dialog]:visible")).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expectMenuOpen(page);
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+
+  await trigger.click();
+  await expectMenuOpen(page);
+  await trigger.click();
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page).toHaveURL("/");
+  expect(requests).toEqual([]);
+  expect(api.gets).toBe(0);
+
+  await page.goto(`/items/${item.id}`);
+  const heading = page.getByRole("heading", { name: "LeBoncoin bicycle" });
+  await expect(heading).toBeVisible();
+  await menuTrigger(page).click();
+  await expectMenuOpen(page);
+  await heading.click();
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+  await expect(menuTrigger(page)).toHaveAttribute("aria-expanded", "false");
+  await menuTrigger(page).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(heading).toBeAttached();
+  await expect(page).toHaveURL(`/items/${item.id}`);
+});

@@ -22,10 +22,12 @@ Excluded: user accounts, login/logout, user names or avatars, per-user preferenc
 | FR-APP-MENU-004 | The operator uses keyboard or assistive technology. | Follow the Carbon header/menu accessibility patterns. | The control has an accessible name describing that it opens the application menu (it must not claim a signed-in user), exposes its expanded/collapsed state, and shows a visible focus indicator. Menu entries are reachable with the keyboard. Escape closes the menu and returns focus to the control. After the settings modal closes, focus returns to the control. |
 | FR-APP-MENU-005 | The viewport is narrow (about 400 px wide). | Keep the control visible and usable. | At about 400 px width, the control remains visible in the header, does not overlap the brand or **Add item** control, and opens a menu that fits on screen. |
 | FR-APP-MENU-006 | The settings modal or another modal (add item, delete) is open. | Do not open a second modal on top of an open modal through the menu. | While a modal is open the header control is not reachable behind the modal; the menu cannot be used to stack the settings modal over another modal. |
+| FR-APP-MENU-007 | The menu has just been opened with the keyboard (Enter or Space on the focused control) and Escape is pressed at once, with no wait. | Escape closes the menu however short the delay since it opened, including before focus has moved into the menu (issue #215). | When Escape is pressed immediately after Enter opens the menu, the menu is closed, focus is on the control and the control reports the collapsed state; a following Enter or Space on the control opens the menu again. |
 
 ## States and corner cases
 
 - The control does not depend on any server data, so it is available while the item list is loading, after a load error, and on a missing-item page.
+- Keys pressed in quick succession give the same result as the same keys pressed slowly (FR-APP-MENU-007).
 - Repeated opening/closing of the menu has no side effect and makes no server request; the settings modal's own loading is defined by FR-LBC-SET-002.
 - Browser navigation (back/forward) while the menu is open closes it or leaves it harmless; no route or URL is created for the menu or the settings modal.
 

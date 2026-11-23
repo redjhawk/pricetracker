@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "file": "src/components/AppMenu.tsx",
+    "line": 29,
+    "category": "test",
+    "body": "No test proves the new arrow-key handling on the trigger. ArrowUp on the trigger (focus to the last entry, step -1) is not pressed in any spec: grep ArrowUp tests/ finds nothing. ArrowDown is pressed only in unthrottled Enter, ArrowDown, Enter sequences (tests/leboncoin-session-settings.spec.ts lines 164, 432, 623). These pass on master without this change whenever Carbon has already moved focus into the menu, so they do not show that ArrowDown reaches handleTriggerKeyDown. Code review confirms the fix: Carbon 1.117 spreads onKeyDown onto the trigger button before the Tooltip onKeyDown on its ancestor, aria-controls is set only while the menu is open, and FloatingMenu skips focusMenuContent when focus is already inside the menu. The test files are locked for this round, so this is not blocking. Suggested follow-up: add a test that throttles the CPU (rate 6, as TC-001 does) and repeats both Enter, ArrowDown, Enter (expects the Settings dialog) and Enter, ArrowUp (expects the last entry focused: Settings in open mode, Log out as a regular user) with no wait, 5 times each."
+  }
+]

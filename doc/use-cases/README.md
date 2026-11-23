@@ -27,6 +27,14 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-RL-01 — Use the full screen width on every page below desktop width](responsive-layout/UC-RL-01-use-full-width-on-every-page-below-desktop.md)
 - [UC-RL-02 — Review the users list edge to edge below desktop width](responsive-layout/UC-RL-02-review-users-list-edge-to-edge-below-desktop.md)
 
+## Application header menu
+
+- [UC-APP-MENU-001 — Close the header menu with Escape right after opening it](app-header-menu/UC-APP-MENU-001-close-menu-with-escape-right-after-opening.md)
+
+## Application information
+
+- [UC-APP-INFO-001 — Keep keyboard focus inside the Information modal](app-information/UC-APP-INFO-001-keep-focus-inside-information-modal.md)
+
 ## Price collection
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)

@@ -211,7 +211,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-20 | The item details view shows every successful item-price observation for the full tracking period; Amazon details also show every successful Amazon-sold second-hand offer observation. | Must |
 | FR-21 | The tracked-items list is split into Amazon and LeBoncoin tabs; search applies to the selected tab; the count and refresh cover all items ([FR-PLATFORM-TABS-*](specifications/platform-tabs/functional.md)). | Must |
 | FR-22 | The Item column shows the marketplace and listing ID below the title; there is no separate Marketplace column ([FR-TI-IDENTITY-*](specifications/tracked-items-identity/functional.md)). | Must |
-| FR-23 | A header icon menu on every page opens the Settings modal ([FR-APP-MENU-*](specifications/app-header-menu/functional.md)). | Must |
+| FR-23 | A header icon menu on every page opens the Settings modal; Escape closes the menu even when pressed at once after opening (issue #215) ([FR-APP-MENU-*](specifications/app-header-menu/functional.md)). | Must |
 | FR-24 | The operator can view, set, replace, and clear the LeBoncoin session in Settings; it is stored in the database ([FR-LBC-SET-*](specifications/leboncoin-session-settings/functional.md)). | Must |
 | FR-25 | LeBoncoin collection uses, renews, and stops using the saved session as specified, and records session-assisted outcomes ([FR-LBC-COL-*](specifications/leboncoin-session-collection/functional.md)). | Must |
 | FR-26 | A desktop helper captures a verified LeBoncoin session and prints it for pasting into Settings ([FR-LBC-CAP-*](specifications/leboncoin-session-capture/functional.md)); no session file is used ([FR-LBC-RM-*](specifications/leboncoin-session-file-removal/functional.md)). | Must |
@@ -222,7 +222,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-32 | Removed (issue #111): no Amazon searches; search-only items and Amazon AI reviews are deleted ([FR-AMZ-SRCH-DEL-*](specifications/amazon-searches-removal/functional.md)). | Must |
 | FR-33 | After 5 consecutive Amazon failures each tracked Amazon item is stopped, skipped by scheduled and all-item refresh, warned in the Amazon tab, and restarted individually by a successful Refresh price ([FR-AMZ-STOP-*](specifications/amazon-request-stop/functional.md)). | Must |
 | FR-34 | Superseded by FR-32 (issue #111). | — |
-| FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
+| FR-35 | An **Information** entry in the header menu (regular user, administrator, open mode) opens a modal showing the logged-in username (not in open mode) and the running release version, or the latest tag + `-dev` in development; Tab and Shift+Tab never move focus out of the modal, at any typing speed (issue #215) ([FR-APP-INFO-*](specifications/app-information/functional.md)). | Must |
 | FR-36 | Every screen and modal is usable on a phone (360 px reference, 320 px minimum) without horizontal page scrolling and with all desktop information and actions; below 1056 px (phone and tablet) every page drops its lateral margins (at most 16 px between screen edge and content), lists shown as cards (tracked items, administrator users) span the full screen width, and each card places its values side by side as far as they fit (issue #165); desktop layout and modals unchanged ([FR-RESPONSIVE-*](specifications/responsive-layout/functional.md)). | Must |
 | FR-37 | Amazon checks are made through a real web browser, and each Amazon item is checked at a random time, drawn daily and per item, within 06:00–09:00 and within 19:00–23:00; manual refreshes stay immediate; items stopped before the change are restarted once; a success response the browser does not open as a page is a failure (issue #186) ([FR-AMZ-HCHK-*](specifications/amazon-human-checks/functional.md)). | Must |
 | FR-38 | An Amazon check starts its browser normally, keeping the profile's cookies, when the persistent browser profile holds lock marks left by an earlier browser that ended abruptly, on this machine or another one ([FR-AMZ-BPROF-*](specifications/amazon-browser-profile/functional.md)). | Must |
@@ -321,8 +321,8 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Item refresh | [item-refresh](specifications/item-refresh/functional.md) | implemented |
 | Platform tabs | [platform-tabs](specifications/platform-tabs/functional.md) | implemented |
 | Tracked item identity | [tracked-items-identity](specifications/tracked-items-identity/functional.md) | implemented |
-| Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented |
-| Application information | [app-information](specifications/app-information/functional.md) | specified (issue #115) |
+| Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented; FR-APP-MENU-007 specified (issue #215) |
+| Application information | [app-information](specifications/app-information/functional.md) | specified (issue #115); FR-APP-INFO-014 specified (issue #215) |
 | LeBoncoin session settings | [leboncoin-session-settings](specifications/leboncoin-session-settings/functional.md) | implemented |
 | LeBoncoin session collection | [leboncoin-session-collection](specifications/leboncoin-session-collection/functional.md) | implemented |
 | LeBoncoin session capture | [leboncoin-session-capture](specifications/leboncoin-session-capture/functional.md) | implemented |
