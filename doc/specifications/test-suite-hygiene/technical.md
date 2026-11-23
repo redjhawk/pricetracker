@@ -1,6 +1,6 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 ready (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022)
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022)
 Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238.
 
 ## Design
