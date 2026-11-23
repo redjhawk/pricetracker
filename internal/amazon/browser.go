@@ -426,8 +426,9 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 	}
 	if navigation.ErrorText != "" {
 		// A non-2xx answer with an empty body also ends with an error text (Chromium then shows its own
-		// error page): its status still classifies the page, so only a navigation without an answer fails.
-		if page, found := awaitDocument(loadContext, document, responded); found {
+		// error page): its status still classifies the page. A 2xx answer the browser did not open as a
+		// page (a download, no content) fails like a navigation without an answer.
+		if page, found := awaitDocument(loadContext, document, responded); found && (page.status < 200 || page.status >= 300) {
 			return page, nil
 		}
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)

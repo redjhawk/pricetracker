@@ -109,6 +109,8 @@ run_agent() {
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
     review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
+    # Exactly the files of a failed merge (MERGE_FILES, set by resolve_conflicts in factory.sh).
+    merge)  tools="Read,Glob,Grep$(printf ',Edit(%s)' $MERGE_FILES),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*)" ;;
     *) die "unknown tool profile $profile" ;;
   esac
   prompt="$(cat "$FACTORY_DIR/prompts/common.md" "$FACTORY_DIR/prompts/$name.md")

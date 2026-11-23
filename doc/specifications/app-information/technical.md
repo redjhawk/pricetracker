@@ -1,7 +1,7 @@
 # Technical specification: application information
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-APP-INFO-001..013, issue #115)
+Functional specification: [functional.md](functional.md) (FR-APP-INFO-001..013, issue #115; FR-APP-INFO-014, issue #215, see [Issue #215](#issue-215-focus-kept-inside-at-any-speed-fr-app-info-014))
 
 ## Requirement mapping
 
@@ -45,3 +45,52 @@ Change boundary: the files listed above plus tests (`internal/httpapi/auth_test.
 - Manual: `PRICEFOLLOWER_VERSION=v20261109200945 ./scripts/build-release.sh amd64` then run and query the session (007); `npm run dev:api` shows `<tag>-dev` (008).
 
 Unresolved: none.
+
+## Issue #215: focus kept inside at any speed (FR-APP-INFO-014)
+
+| Technical ID | Functional IDs | Technical solution | Files | Verification |
+| --- | --- | --- | --- | --- |
+| TS-APP-INFO-001 | FR-APP-INFO-014, FR-APP-INFO-012, FR-APP-INFO-011 | The Carbon `Modal` is wrapped in `<FeatureFlags enableFocusWrapWithoutSentinels>`, as in `SettingsModal`: Tab and Shift+Tab are wrapped synchronously in the modal's `keydown` handler | `src/components/InformationModal.tsx` (already on master, PR #214) | Playwright TC-004 – TC-007 |
+| TS-APP-INFO-002 | FR-APP-INFO-011 | Escape handled in the capture phase on the `Modal` (`onKeyDownCapture`), so the close icon's tooltip cannot swallow it | `src/components/InformationModal.tsx` | Playwright TC-007 |
+
+### Cause
+
+By default the Carbon `Modal` (1.117) traps focus with two sentinel spans (`tabIndex=0`) around the dialog and a `blur` handler that moves focus back inside after a `setTimeout`. A Tab from the last control first lands on the end sentinel, outside the dialog, and comes back only after the timeout. Under load (full e2e suite) the existing test "keyboard opens the entry and focus stays inside the modal" saw focus outside the dialog.
+
+### Frontend
+
+The fix is already on master (PR #214, commit `542bedc`, merged 2026-11-23):
+
+- With the `enable-focus-wrap-without-sentinels` flag, Carbon renders no sentinels. Its `keydown` handler calls `wrapFocusWithoutSentinels`: on Tab from the last tabbable element of the dialog (or Shift+Tab from the first) it calls `preventDefault()` and focuses the opposite end in the same event. Tabs between controls are native moves inside the dialog. Focus is therefore inside the dialog right after every key press, with no timer.
+- Initial focus: no element in the body has `data-modal-primary-focus`, so Carbon focuses the primary **Close** button on opening, a tabbable control inside the dialog.
+- Tab order: close icon and **Close** button. `InlineLoading` and the error `InlineNotification` (`hideCloseButton`) add no tabbable element, so the loading, error and loaded states share the same order, and the version arriving during tabbing changes nothing (TC-006). If the body scrolls (400 px), Carbon makes `.cds--modal-content` tabbable; the wrap uses the current tabbable list, so it stays correct.
+- Closing (Escape, **Close**, close icon): `launcherButtonRef` puts focus back on the "Application menu" trigger.
+- Escape on the close icon (TS-APP-INFO-002): the icon's Carbon tooltip opens on keyboard focus, and its `keydown` handler stops the propagation of Escape, so Carbon's document-level Escape listener of the modal never runs and the first Escape only hid the tooltip (TC-007 lands on the icon after N + 1 Tabs). `InformationModal` passes `onKeyDownCapture` to the `Modal` (spread onto its outer element): on Escape it stops propagation and calls `onClose`, so Escape closes the modal from any control inside it. Escape with focus outside the modal still goes through Carbon's listener.
+- Accessibility: same dialog role, title and labels; only the trap mechanism changes.
+
+Developer work: only the Escape handling of TS-APP-INFO-002, inside `src/components/InformationModal.tsx`; no change to Carbon, no new dependency.
+
+Residual, outside FR-APP-INFO-014's key-only scope and not covered by the test cases: if a pointer click on a non-interactive part of the dialog focuses the dialog container (`tabIndex=-1`, not tabbable), a following Shift+Tab is a native move to the page behind it. This can be filed as an issue if wanted.
+
+### Backend and API
+
+Not affected: no endpoint, request or response changes. `API_SPECIFICATION.md` is unchanged.
+
+### Tests
+
+All in `tests/app-information.spec.ts` (already in `testMatch`; its `mockApi` serves open, user and admin sessions, delayed replies and failures):
+
+| Test case | Notes |
+| --- | --- |
+| TC-004 | Count N tabbable controls in the dialog, press Tab 2×N + 1 times; after each press a single synchronous `dialog.evaluate(el => el.contains(document.activeElement))` (no `expect.poll`) |
+| TC-005 | Shift+Tab from the first control lands on the last control, then N more presses stay inside |
+| TC-006 | Session reply delayed (`delayMs`) and failing (500), set after the page has loaded (`state.replies`, `state.sessionCalls = 0`) |
+| TC-007 | Escape, **Close** and the close icon after fast tabbing; focus on "Application menu"; 3 repetitions |
+
+Shared helpers inside the spec: CPU throttling through `context.newCDPSession(page)` and `Emulation.setCPUThrottlingRate` (rate 6), and a `focusin` recorder installed with `page.evaluate` once the dialog has focus. The recorder pushes every focus target outside `[role="dialog"]` of the visible modal into a `window` array, which must stay empty. Test names start with the TC ID and `(#215)`. The existing test "keyboard opens the entry and focus stays inside the modal" stays and must pass in the full run.
+
+Pipeline note: as for the header menu ([technical.md](../app-header-menu/technical.md#pipeline-note)), the fix was already on master, so the TDD red gate may report that the tests pass before implementation. That is for the owner to decide; tests must not be made to fail on purpose.
+
+## Revision note
+
+2026-11-23, issue #215: TS-APP-INFO-001 added for FR-APP-INFO-014. The code was already on master (PR #214). TS-APP-INFO-002 added during implementation: TC-007 showed that Escape on the close icon only hid its tooltip.

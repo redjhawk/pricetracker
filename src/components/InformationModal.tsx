@@ -1,5 +1,5 @@
-import { useEffect, useState, type RefObject } from "react";
-import { InlineLoading, InlineNotification, Modal } from "@carbon/react";
+import { useEffect, useState, type KeyboardEvent, type RefObject } from "react";
+import { FeatureFlags, InlineLoading, InlineNotification, Modal } from "@carbon/react";
 import { getSession } from "../api/auth";
 import { authRequiredEvent } from "../api/client";
 
@@ -36,34 +36,47 @@ export default function InformationModal({ open, username, onClose, launcherButt
     };
   }, [open]);
 
+  // The close icon's tooltip, shown on keyboard focus, stops the first Escape before Carbon's modal
+  // handler sees it. Handling Escape in the capture phase closes the modal from any control.
+  function closeOnEscape(event: KeyboardEvent) {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    onClose();
+  }
+
   return (
-    <Modal
-      open={open}
-      modalHeading="Information"
-      primaryButtonText="Close"
-      onRequestSubmit={onClose}
-      onRequestClose={onClose}
-      launcherButtonRef={launcherButtonRef}
-      size="sm"
-    >
-      <dl className="information-list">
-        {username && !sessionEnded && (
-          <>
-            <dt>Username</dt>
-            <dd>{username}</dd>
-          </>
-        )}
-        <dt>Version</dt>
-        <dd>
-          {versionState === "loading" ? (
-            <InlineLoading description="Loading version" />
-          ) : versionState === "error" ? (
-            <InlineNotification kind="error" title="The version could not be loaded." lowContrast hideCloseButton />
-          ) : (
-            versionState.version
+    // Carbon's keyboard-based focus wrap (no sentinel spans) keeps Tab/Shift+Tab inside this modal
+    // synchronously, as in the Settings modal.
+    <FeatureFlags enableFocusWrapWithoutSentinels>
+      <Modal
+        open={open}
+        modalHeading="Information"
+        primaryButtonText="Close"
+        onRequestSubmit={onClose}
+        onRequestClose={onClose}
+        onKeyDownCapture={closeOnEscape}
+        launcherButtonRef={launcherButtonRef}
+        size="sm"
+      >
+        <dl className="information-list">
+          {username && !sessionEnded && (
+            <>
+              <dt>Username</dt>
+              <dd>{username}</dd>
+            </>
           )}
-        </dd>
-      </dl>
-    </Modal>
+          <dt>Version</dt>
+          <dd>
+            {versionState === "loading" ? (
+              <InlineLoading description="Loading version" />
+            ) : versionState === "error" ? (
+              <InlineNotification kind="error" title="The version could not be loaded." lowContrast hideCloseButton />
+            ) : (
+              versionState.version
+            )}
+          </dd>
+        </dl>
+      </Modal>
+    </FeatureFlags>
   );
 }

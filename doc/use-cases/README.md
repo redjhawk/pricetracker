@@ -27,6 +27,14 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-RL-01 — Use the full screen width on every page below desktop width](responsive-layout/UC-RL-01-use-full-width-on-every-page-below-desktop.md)
 - [UC-RL-02 — Review the users list edge to edge below desktop width](responsive-layout/UC-RL-02-review-users-list-edge-to-edge-below-desktop.md)
 
+## Application header menu
+
+- [UC-APP-MENU-001 — Close the header menu with Escape right after opening it](app-header-menu/UC-APP-MENU-001-close-menu-with-escape-right-after-opening.md)
+
+## Application information
+
+- [UC-APP-INFO-001 — Keep keyboard focus inside the Information modal](app-information/UC-APP-INFO-001-keep-focus-inside-information-modal.md)
+
 ## Price collection
 
 - [UC-PC-01 — Collect and record prices](price-collection/UC-PC-01-collect-and-record-prices.md)
@@ -38,6 +46,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-HCHK-002 — Add an Amazon item and start its random schedule](amazon-human-checks/UC-AMZ-HCHK-002-add-amazon-item-and-start-random-schedule.md)
 - [UC-AMZ-HCHK-003 — Refresh Amazon prices immediately](amazon-human-checks/UC-AMZ-HCHK-003-refresh-amazon-prices-immediately.md)
 - [UC-AMZ-HCHK-004 — Restart stopped Amazon items once after the upgrade](amazon-human-checks/UC-AMZ-HCHK-004-restart-stopped-amazon-items-once-after-upgrade.md)
+- [UC-AMZ-HCHK-005 — Amazon check answered with a page the browser does not open](amazon-human-checks/UC-AMZ-HCHK-005-amazon-check-answered-with-page-the-browser-does-not-open.md)
 
 ## Amazon browser profile recovery
 

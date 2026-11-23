@@ -1,8 +1,8 @@
 # Functional specification: Amazon human-like checks
 
-Status: ready (issue #168)
+Status: ready (issue #168); FR-AMZ-HCHK-011–012 ready (issue #186)
 Owner: functional specification agent
-User decision/reference: GitHub issue #168 ("Amazon checks were stopped on 20 Nov 2026, 07:26 UTC after repeated failures") and the answers by redjhawk on 2026-11-20 to the questions of the change: (1) windows 06:00–09:00 and 19:00–23:00; (2) Amazon only; (3) each item its own random time; (4) stopped items restarted once automatically.
+User decision/reference: GitHub issue #168 ("Amazon checks were stopped on 20 Nov 2026, 07:26 UTC after repeated failures") and the answers by redjhawk on 2026-11-20 to the questions of the change: (1) windows 06:00–09:00 and 19:00–23:00; (2) Amazon only; (3) each item its own random time; (4) stopped items restarted once automatically. GitHub issue #186 ("Treat a 2xx navigation with errorText as a failed Amazon check", from review comment R5-01 on #179) for FR-AMZ-HCHK-011–012.
 
 ## Purpose and scope
 
@@ -35,6 +35,8 @@ Terms:
 | FR-AMZ-HCHK-008 | Stopped Amazon items. | Stopped items are skipped at their scheduled time (FR-AMZ-STOP-004); a stop during a window prevents the remaining scheduled checks of all stopped items. | After the 5th failure, no Amazon request is sent for stopped items at their later scheduled times. |
 | FR-AMZ-HCHK-009 | Application restart. | A scheduled check whose time has not yet passed still happens within its window; a scheduled check already made in a window is not repeated in that window because of the restart. | Restarting at 07:00 after the item's morning check gives no second morning check; restarting at 06:30 before it still gives one morning check. |
 | FR-AMZ-HCHK-010 | First start after this change is installed, with Amazon items stopped (such as on 20 Nov 2026). | Every stopped Amazon item is restarted once automatically: stopped state cleared, failure count reset to 0, price history kept. Each is then checked at its next scheduled time (answer 4). This happens only once; later stops follow [Amazon request stop](../amazon-request-stop/functional.md). | After installation, the Amazon tab warning is gone, no item shows as stopped, and each item gets its next scheduled check in the next window. A stop occurring after installation is not cleared by a later restart of the application. |
+| FR-AMZ-HCHK-011 | An Amazon check gets a success response (HTTP 200–299) that the browser does not open as a page, such as a response offered as a file download or a response without content (HTTP 204, 205) (issue #186). | It is a failure, as in FR-AMZ-HCHK-003: logged with the request URL and the browser's error, counted toward the 5 consecutive failures, never recorded as "price not found" or as another Amazon answer, so it does not reset the failure count. The item's last successful price and second-hand offer are kept. | A listing answered with HTTP 200 `text/html` and `Content-Disposition: attachment` gives a logged, counted failure (retrieval issue, second-hand check error), not "price not found"; 4 earlier failures followed by this check stop every tracked Amazon item. |
+| FR-AMZ-HCHK-012 | An Amazon check gets a non-success response (outside HTTP 200–299) that the browser does not open as a page (for example an error status with an empty body). | Unchanged: the response status decides the result: 404 or 410 → listing unavailable (an Amazon answer); any other status → failure logged with that HTTP status and counted. | A 404 with an empty body shows the listing as unavailable and resets the count; a 503 with an empty body is a counted failure logged with status 503. |
 
 ## States and corner cases
 
@@ -47,7 +49,7 @@ Terms:
 
 ## Open questions
 
-None. Answers recorded in FR-AMZ-HCHK-004, -005, -010 and in the scope (LeBoncoin excluded).
+None. Answers recorded in FR-AMZ-HCHK-004, -005, -010 and in the scope (LeBoncoin excluded). Issue #186 needed no question: it states the expected result (FR-AMZ-HCHK-011); FR-AMZ-HCHK-012 keeps the current behaviour.
 
 ## Traceability
 

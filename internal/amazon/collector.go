@@ -420,7 +420,7 @@ func isAmazonSeller(value string) bool {
 }
 
 func printRequestError(item model.Listing, reason string) {
-	fmt.Printf("Amazon collection failed for %s/%s: %s\n", item.Marketplace, item.ASIN, reason)
+	fmt.Printf("Amazon collection failed for %s/%s: %s url=%s\n", item.Marketplace, item.ASIN, reason, item.URL)
 }
 
 func locale(marketplace string) string {
