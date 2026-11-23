@@ -1,6 +1,6 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018–021 specified (issue #241)
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018, 020 and 021 implemented (issue #241); FR-TEST-HYG-019 waiting for the manual close of issue #238 (issue #241)
 Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
