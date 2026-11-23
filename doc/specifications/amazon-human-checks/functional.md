@@ -1,14 +1,14 @@
 # Functional specification: Amazon human-like checks
 
-Status: ready (issue #168); FR-AMZ-HCHK-011–012 ready (issue #186); FR-AMZ-HCHK-013 ready (issue #187)
+Status: ready (issue #168); FR-AMZ-HCHK-011–012 ready (issue #186); FR-AMZ-HCHK-013 ready (issue #187); FR-AMZ-HCHK-014 ready (issue #217)
 Owner: functional specification agent
-User decision/reference: GitHub issue #168 ("Amazon checks were stopped on 20 Nov 2026, 07:26 UTC after repeated failures") and the answers by redjhawk on 2026-11-20 to the questions of the change: (1) windows 06:00–09:00 and 19:00–23:00; (2) Amazon only; (3) each item its own random time; (4) stopped items restarted once automatically. GitHub issue #186 ("Treat a 2xx navigation with errorText as a failed Amazon check", from review comment R5-01 on #179) for FR-AMZ-HCHK-011–012. GitHub issue #187 ("Skip used-offer requests when the product page is Chromium's error page", from review comment R5-02 on #179) for FR-AMZ-HCHK-013.
+User decision/reference: GitHub issue #168 ("Amazon checks were stopped on 20 Nov 2026, 07:26 UTC after repeated failures") and the answers by redjhawk on 2026-11-20 to the questions of the change: (1) windows 06:00–09:00 and 19:00–23:00; (2) Amazon only; (3) each item its own random time; (4) stopped items restarted once automatically. GitHub issue #186 ("Treat a 2xx navigation with errorText as a failed Amazon check", from review comment R5-01 on #179) for FR-AMZ-HCHK-011–012. GitHub issue #187 ("Skip used-offer requests when the product page is Chromium's error page", from review comment R5-02 on #179) for FR-AMZ-HCHK-013. GitHub issue #217 ("Deny downloads in the Amazon browser and make the technical spec precise about it", from review comment R1-01 on #216) for FR-AMZ-HCHK-014.
 
 ## Purpose and scope
 
 Amazon stopped answering the tracked-item checks, probably because it detects them as a bot. The user asks that Amazon pages be requested by a real web browser and that checks no longer happen at the same time every day, so that requests look like a person's.
 
-Included: how tracked Amazon item pages are requested; when scheduled Amazon checks happen; a one-time restart of the Amazon items stopped before this change.
+Included: how tracked Amazon item pages are requested; when scheduled Amazon checks happen; a one-time restart of the Amazon items stopped before this change; files offered as downloads during an Amazon check (issue #217).
 
 Excluded: LeBoncoin items, which keep their current requests and schedule (08:00 and 20:00 by default); the failure count, stop, warning and restart rules ([Amazon request stop](../amazon-request-stop/functional.md)), which stay unchanged; price and second-hand offer detection; AI reviews.
 
@@ -38,6 +38,7 @@ Terms:
 | FR-AMZ-HCHK-011 | An Amazon check gets a success response (HTTP 200–299) that the browser does not open as a page, such as a response offered as a file download or a response without content (HTTP 204, 205) (issue #186). | It is a failure, as in FR-AMZ-HCHK-003: logged with the request URL and the browser's error, counted toward the 5 consecutive failures, never recorded as "price not found" or as another Amazon answer, so it does not reset the failure count. The item's last successful price and second-hand offer are kept. | A listing answered with HTTP 200 `text/html` and `Content-Disposition: attachment` gives a logged, counted failure (retrieval issue, second-hand check error), not "price not found"; 4 earlier failures followed by this check stop every tracked Amazon item. |
 | FR-AMZ-HCHK-012 | An Amazon check gets a non-success response (outside HTTP 200–299) that the browser does not open as a page (for example an error status with an empty body). | Unchanged: the response status decides the result: 404 or 410 → listing unavailable (an Amazon answer); any other status → failure logged with that HTTP status and counted. | A 404 with an empty body shows the listing as unavailable and resets the count; a 503 with an empty body is a counted failure logged with status 503. |
 | FR-AMZ-HCHK-013 | An Amazon check gets HTTP 404 or 410 for the product page and the browser does not open it as a page (for example an empty body), so the listing is unavailable (FR-AMZ-HCHK-012) (issue #187). | The listing is shown as unavailable as in FR-AMZ-HCHK-012. No second-hand (used-offer) request is sent for this check, since it cannot succeed from the browser's error page; the check's second-hand result is a check error and no used-offer failure is logged. The item's last detected second-hand offer is kept. | A listing answered with an empty-body 404 shows **Listing unavailable**, resets the failure count and records a second-hand check error; Amazon receives no used-offer request during that check and the server log has no used-offer failure for it. A 404 or 410 product page that the browser opens (with content) still gets its used-offer requests as before. |
+| FR-AMZ-HCHK-014 | During an Amazon check, the browser receives a response offered as a file download, such as a product page answered with `Content-Disposition: attachment` (issue #217). | The browser refuses the download: no file from that response is written on the server's disk, neither in the Amazon browser's persistent profile nor in the Downloads folder of the account running the server, including partial files. The check result is unchanged: a product page offered as a download is a failure as in FR-AMZ-HCHK-011. The next check of the same or another item behaves as if the download had never been offered. | After a check whose product page is answered with HTTP 200 `text/html` and `Content-Disposition: attachment`, the browser profile directory has no file holding that response and the Downloads folder of the account running the server has no new file (and is not created if it did not exist); repeating the check adds no file; the check is a counted failure as in FR-AMZ-HCHK-011, and a following check answered with the normal page records its price. |
 
 ## States and corner cases
 
@@ -50,7 +51,7 @@ Terms:
 
 ## Open questions
 
-None. Answers recorded in FR-AMZ-HCHK-004, -005, -010 and in the scope (LeBoncoin excluded). Issue #186 needed no question: it states the expected result (FR-AMZ-HCHK-011); FR-AMZ-HCHK-012 keeps the current behaviour. Issue #187 needed no question: it states the expected result (FR-AMZ-HCHK-013).
+None. Answers recorded in FR-AMZ-HCHK-004, -005, -010 and in the scope (LeBoncoin excluded). Issue #186 needed no question: it states the expected result (FR-AMZ-HCHK-011); FR-AMZ-HCHK-012 keeps the current behaviour. Issue #187 needed no question: it states the expected result (FR-AMZ-HCHK-013). Issue #217 needed no question: it asks that downloads be refused and that no file appear in the profile or the Downloads folder (FR-AMZ-HCHK-014).
 
 ## Traceability
 

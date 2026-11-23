@@ -48,6 +48,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-HCHK-004 — Restart stopped Amazon items once after the upgrade](amazon-human-checks/UC-AMZ-HCHK-004-restart-stopped-amazon-items-once-after-upgrade.md)
 - [UC-AMZ-HCHK-005 — Amazon check answered with a page the browser does not open](amazon-human-checks/UC-AMZ-HCHK-005-amazon-check-answered-with-page-the-browser-does-not-open.md)
 - [UC-AMZ-HCHK-006 — Unavailable listing page the browser does not open sends no used-offer request](amazon-human-checks/UC-AMZ-HCHK-006-unavailable-listing-page-the-browser-does-not-open-sends-no-used-offer-request.md)
+- [UC-AMZ-HCHK-007 — Amazon answer offered as a file download is not saved on the server's disk](amazon-human-checks/UC-AMZ-HCHK-007-amazon-answer-offered-as-download-is-not-saved.md)
 
 ## Amazon browser profile recovery
 

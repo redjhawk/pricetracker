@@ -337,6 +337,10 @@ func (t *browserTab) setUp(ctx context.Context, acceptLanguage string) error {
 	if err := t.browser.call(ctx, "", "Browser.getVersion", nil, &version); err != nil {
 		return err
 	}
+	// Amazon answers offered as a file must never be saved on the server's disk (issue #217).
+	if err := t.browser.call(ctx, "", "Browser.setDownloadBehavior", map[string]any{"behavior": "deny"}, nil); err != nil {
+		return err
+	}
 	var target struct {
 		TargetID string `json:"targetId"`
 	}
@@ -434,9 +438,15 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		// A non-2xx answer with an empty body also ends with an error text (Chromium then shows its own
 		// error page): its status still classifies the page. A 2xx answer the browser did not open as a
 		// page (a download, no content) fails like a navigation without an answer.
-		if page, found := awaitDocument(loadContext, document, responded); found && (page.status < 200 || page.status >= 300) {
+		page, found := awaitDocument(loadContext, document, responded)
+		if found && (page.status < 200 || page.status >= 300) {
 			page.errorPage = true
 			return page, nil
+		}
+		// A 2xx answer the browser did not open (a download, no content) may already be in the profile's
+		// HTTP cache, also when its response event comes late: the answer must not stay on disk (issue #217).
+		if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
+			log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
 		}
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
 	}

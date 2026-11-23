@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": false,
+    "reason": "The race is real but needs the check's context to end inside the 1 s wait: manual refreshes run on `workerContext` (service.go:345), not the request context, so only server shutdown or the overall check timeout can trigger it. Even then `call` has already written the request before `Browser.close` (cdp.go:194-199). Cancellation during `Page.navigate` skips the clear in any case, so making the clear survive cancellation is a hardening follow-up on the cancel paths, not a gap in the normal-path guarantee that TC-001–004 prove.",
+    "title": "Clear the Amazon browser HTTP cache even when the check is cancelled",
+    "todo": "**Problem:** In `internal/amazon/browser.go` (around line 448), `browserTab.load` sends `Network.clearBrowserCache` with the check's `ctx`. If that context ends (server shutdown, `amazonCheckTimeout`) while `awaitDocument` waits, `cdpBrowser.call` (`internal/amazon/cdp.go:174-216`) writes the request but returns `ctx.Err()` without waiting for the reply. `close` then sends `Browser.close` right away, so the browser may exit before the cache is cleared, and the body of an attachment response may stay in `<profile>/Default/Cache` (FR-AMZ-HCHK-014). The log line also reports `context canceled` even though the request was sent. Also, when `ctx` ends while `Page.navigate` is still running, `load` returns through `loadError` and never clears the cache.\n\n**Suggested work:** Run the clear in its own bounded context that ignores cancellation, e.g. `clearContext, cancelClear := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)`. Consider also clearing on the cancelled `Page.navigate` path before returning. Update the TS-AMZ-HCHK-017 bullet \"The call uses the check's `ctx`\" in `doc/specifications/amazon-human-checks/technical.md` (around line 358) to match."
+  },
+  {
+    "id": "R2-02",
+    "blocking": false,
+    "reason": "The step 4 clause at technical.md:69 (\"with a 2xx response the HTTP cache is cleared first\") is incomplete: it leaves out the no-response case. It does not contradict the code. The TS-AMZ-HCHK-017 row (line 30) and the detailed bullets (around line 360) already describe the behaviour that browser.go:441-451 implements, so this is only a wording fix in a summary sentence.",
+    "title": "Align backend step 4 of the Amazon human-checks spec with TS-AMZ-HCHK-017",
+    "todo": "**Problem:** In `doc/specifications/amazon-human-checks/technical.md`, Backend `Collect` step 4 (around line 69) says the HTTP cache is cleared \"with a 2xx response\". `browserTab.load` (`internal/amazon/browser.go:441-451`) also clears it when no response was recorded within the 1 s wait, as the TS-AMZ-HCHK-017 table row (line 30) and the bullet around line 360 already say.\n\n**Suggested work:** Change the clause to \"with a 2xx response or none (a response may come after the 1 s wait), the HTTP cache is cleared first (issue #217, TS-AMZ-HCHK-017)\"."
+  }
+]
