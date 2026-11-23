@@ -29,8 +29,10 @@ jobs:
     concurrency:
       group: factory-supervisor
       cancel-in-progress: false
-    # The arc-dev image has the Claude CLI, and the probe must meet the sandbox the factory's agents meet.
-    runs-on: arc-dev
+    # A GitHub-hosted runner (free for a public repository): on arc-dev the supervisor waited for hours behind
+    # the factory run that held the only runner, so nothing supervised. The probe still checks that agents run
+    # (account, usage limit, Bash in the sandbox) with the Claude CLI version of the arc-dev image.
+    runs-on: ubuntu-latest
     environment: dev
     timeout-minutes: 20
     permissions:
@@ -46,6 +48,18 @@ jobs:
         with:
           ref: master
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Preparar
+        run: |
+          # The version of deploy/arc/Dockerfile.dev, and the sandbox dependencies of the Bash tool.
+          version=$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' deploy/arc/Dockerfile.dev)
+          npm install -g "@anthropic-ai/claude-code@${version:?}" >/dev/null
+          sudo apt-get install -y -qq bubblewrap socat >/dev/null
+          # Ubuntu's AppArmor forbids unprivileged user namespaces, which bubblewrap needs.
+          sudo sysctl -q -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          claude --version
       - name: Supervisar
         run: node scripts/factory/supervisor.mjs
   next:
