@@ -204,7 +204,7 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 			if !entry.Type().IsRegular() {
 				return nil
 			}
-			if reason := downloadFile(path, entry.Name(), patterns); reason != "" {
+			if reason, _ := downloadFile(path, entry.Name(), patterns); reason != "" {
 				found = append(found, path+" ("+reason+")")
 			}
 			return nil
@@ -219,28 +219,29 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 }
 
 // downloadFile returns why the regular file at path with base name looks left by a download, or "".
-func downloadFile(path, name string, patterns []*regexp.Regexp) string {
+// Stub (issue #232): the read error is not returned yet.
+func downloadFile(path, name string, patterns []*regexp.Regexp) (string, error) {
 	for _, pattern := range patterns {
 		if pattern.MatchString(name) {
-			return "named after the attachment"
+			return "named after the attachment", nil
 		}
 	}
 	if strings.HasPrefix(name, "download") {
-		return "default download name"
+		return "default download name", nil
 	}
 	if strings.HasSuffix(name, partialDownloadSuffix) {
-		return "partial download"
+		return "partial download", nil
 	}
 	for _, prefix := range partialDownloadPrefixes {
 		if strings.HasPrefix(name, prefix) {
-			return "partial download"
+			return "partial download", nil
 		}
 	}
 	data, err := os.ReadFile(path) // #nosec G304 -- file of a test directory
 	if err == nil && bytes.Contains(data, []byte(DownloadMarker)) {
-		return "holds the downloaded body"
+		return "holds the downloaded body", nil
 	}
-	return ""
+	return "", nil
 }
 
 // AssertDownloadsFolder fails t unless <home>/Downloads is absent (existed false) or an empty directory (existed true).
