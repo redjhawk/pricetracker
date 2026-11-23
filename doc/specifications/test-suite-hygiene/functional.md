@@ -1,7 +1,7 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251)
-Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`).
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018–021 specified (issue #241)
+Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`).
 Scope: repository maintenance. Application behaviour is not affected.
 
 ## Purpose
@@ -10,6 +10,7 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Issue #232: make the test check "no file left by a download" (`AssertNoDownload` in `internal/amazon/amazontest`) fail closed. Today a file it cannot read is taken as "not a download", even if it holds the downloaded body, so the tests that prove FR-AMZ-HCHK-014 and FR-AMZ-HCHK-015 ([Amazon human-like checks](../amazon-human-checks/functional.md)) can pass when they should not.
 - Issue #244: the guarantee "the server never uses the test helper package" is checked today by a text search in the helper's own unit tests (`TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched`). The search fails on any non-test Go file under `cmd/` or `internal/` that names the helper, even a future test-support package the server never uses, and it does not show what the server binary really depends on. Replace it with a check of the server's actual dependencies.
 - Issue #251: the unit tests of the dependency check build small fixture modules (TC-003 of issue #244). Some fixtures that stand for valid code use a name (`DownloadMarker`) that the fixture's stub of the test helper does not declare, so those modules would not compile. The tests pass only because listing dependencies does not compile the code; they would break, or prove less than they claim, if the listing ever compiled it. Make the fixtures that stand for valid code compile.
+- Issue #241: the follow-up record `doc/todo/issue-233-r1-03.md` and its GitHub issue #238 still say "todo" for work that PR #236 already did: TC-005 (`internal/httpapi/amazon_browser_interrupted_test.go`) fails with a message when the check ended before the server stop. Close the record and the issue so they no longer list finished work.
 
 ## Actors
 
@@ -23,6 +24,7 @@ Scope: repository maintenance. Application behaviour is not affected.
 - **Server dependencies:** the Go packages that a program under `cmd/` is built from, directly or indirectly, as the Go tool reports them for a normal (non-test) build. Test files (`_test.go`) are not part of them.
 - **Dependency check:** the repository check of issue #244 that fails when the test helper package is one of the server dependencies.
 - **Fixture module:** a small temporary Go module, with its own stub of the test helper package, that the unit tests of the dependency check build to run the check on a known set of imports.
+- **Follow-up record:** a file under `doc/todo/` that records a non-blocking review comment and the GitHub issue opened for it.
 - **Valid fixture:** a fixture module that stands for code the Go tool accepts: every fixture of the dependency check's unit tests except those whose purpose is to make the listing fail (a program importing a package that does not exist, a program with a syntax error).
 
 ## Scope and exclusions
@@ -34,6 +36,8 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Excluded (issue #244): the issue #208 check in the same unit test that the leftover scratch file stays absent, which stays as it is, and the no-download check itself.
 - In scope (issue #251): the fixture modules used by the unit tests of the dependency check, and their stub of the test helper package.
 - Excluded (issue #251): the dependency check itself, its failure messages and when it passes or fails (FR-TEST-HYG-009–013 are unchanged); the real test helper package; the fixtures whose purpose is to make the listing fail, which stay invalid.
+- In scope (issue #241): the follow-up record `doc/todo/issue-233-r1-03.md` and GitHub issue #238.
+- Excluded (issue #241): any change to TC-005 or to other test or production code, to the issue #233 technical specification and test cases, and to other follow-up records, including `doc/todo/issue-233-r3-01.md` (the record of issue #241 itself, which stays as the trace of this issue, as the follow-up records of earlier done issues do).
 - Excluded: the other rules of the no-download check (which names and contents count as a download, missing folders, symbolic links), which stay as they are.
 - Excluded: the issue #204 change records under `doc/changes/2026-11-22-2139-issue-204-retrieval-error/`. The factory checks a `tests.lock` only for the issue it is running, and issue #204 is merged, so its lock is no longer checked and stays unchanged as the historical record of that issue.
 
@@ -67,6 +71,13 @@ Scope: repository maintenance. Application behaviour is not affected.
 - **FR-TEST-HYG-015** Each valid fixture keeps the case it is named after: a program importing the test helper directly, a program importing it through another package, a second program being the only one to depend on it, only test files importing it, a test-support package no program imports using it, no import of it at all, a blank import of it in a program, and a renamed import of it in a server dependency. Each case gives the same dependency check result as before (fails as a server dependency, or passes).
 - **FR-TEST-HYG-016** The fixtures whose purpose is to make the listing fail (a missing package, a syntax error) and the case where the Go tool cannot be started keep failing the dependency check with the same messages as before.
 - **FR-TEST-HYG-017** On the repository as changed, `go vet ./...` and `go test ./...` pass, the diff outside `doc/` is limited to the test code of `internal/amazon/amazontest/`, and the operator observes no change in the application.
+
+### Finished TC-005 follow-up closed (issue #241)
+
+- **FR-TEST-HYG-018** The follow-up record `doc/todo/issue-233-r1-03.md` no longer exists in the repository.
+- **FR-TEST-HYG-019** GitHub issue #238 is closed with the reason "completed" (not "not planned"), as the work it asks for was done by PR #236.
+- **FR-TEST-HYG-020** TC-005 still fails the test, with the message "the check ended before the server stop: the interruption point was missed", when the check has already ended at the moment the server is stopped; `internal/httpapi/amazon_browser_interrupted_test.go` is unchanged.
+- **FR-TEST-HYG-021** No other file under `doc/todo/` is deleted or changed, the change's diff outside `doc/` is empty, `go vet ./...` and `go test ./...` pass, and the operator observes no change in the application.
 
 ## States
 
@@ -102,6 +113,13 @@ Issue #251:
 - The missing-package, syntax-error and go-command-not-found cases still fail with a message holding, respectively, the missing import path, the file name `main.go`, and the start error (FR-TEST-HYG-016).
 - `go vet ./...` and `go test ./...` succeed, and the diff outside `doc/` touches only `internal/amazon/amazontest/*_test.go` (FR-TEST-HYG-017).
 
+Issue #241:
+
+- `ls doc/todo/issue-233-r1-03.md` reports that the file does not exist (FR-TEST-HYG-018).
+- `gh issue view 238 --json state,stateReason` shows `CLOSED` and `COMPLETED` (FR-TEST-HYG-019).
+- `git diff origin/master -- internal/httpapi/amazon_browser_interrupted_test.go` is empty, and the file still holds the check on `stopped` before `cancel()` with the message of FR-TEST-HYG-020.
+- The change's diff touches only `doc/` and, under `doc/todo/`, only deletes `doc/todo/issue-233-r1-03.md`; `go vet ./...` and `go test ./...` succeed (FR-TEST-HYG-021).
+
 ## Open questions
 
-None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice.
+None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice. Issue #241 accepts either deleting the record or marking it done; deletion is chosen, as no follow-up record uses a "done" status and the Git history keeps the file.
