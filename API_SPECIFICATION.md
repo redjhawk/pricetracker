@@ -507,7 +507,8 @@ Agent-defined from [the technical specification](doc/specifications/multi-user-l
 | 401 | `AUTH_REQUIRED` | Session missing, expired or ended where one is required | "Log in to continue." |
 | 401 | `INVALID_CREDENTIALS` | Wrong username or password | "Incorrect username or password." |
 | 403 | `FORBIDDEN` | Role not allowed for the endpoint | "You do not have access to this page." |
-| 429 | `LOGIN_LOCKED` | 5 consecutive failed logins for the username (case-insensitive); refused for 1 minute without checking the password | "Too many failed attempts. Wait one minute and try again." |
+| 429 | `LOGIN_LOCKED` | 5 consecutive failed logins for the client address and username (case-insensitive); that pair is refused for 1 minute without checking the password (issue #266) | "Too many failed attempts. Wait one minute and try again." |
+| 429 | `LOGIN_BUSY` | Login only: the maximum number of password checks (4) are already waiting; answered at once, not counted as a failure (issue #266) | "Too many login attempts are being checked. Try again in a moment." |
 
 ### Get the session state
 
@@ -520,7 +521,14 @@ Since 2026-11-10 (issue #115, [technical spec](doc/specifications/app-informatio
 `POST /api/v1/auth/login` with `{ "username": "alice", "password": "..." }`; username matched case-insensitively.
 
 - `200 { "user": { "username": "alice", "role": "user" } }`, sets the cookie and records the last login time.
-- `400 INVALID_JSON`, `401 INVALID_CREDENTIALS`, `429 LOGIN_LOCKED`.
+- `400 INVALID_JSON`, `401 INVALID_CREDENTIALS`, `429 LOGIN_LOCKED`, `429 LOGIN_BUSY`. No error sets a cookie.
+
+Since 2026-11-23 (issue #266, [technical spec](doc/specifications/login-attempt-limits/technical.md)); request and success shapes unchanged:
+
+- Client address: the `CF-Connecting-IP` request header when it is a bare valid IPv4 or IPv6 address, else the host of the connection address (port ignored). The header is trusted because the application is reachable only through Cloudflare.
+- Failures (`401`) are counted per pair of client address and lowercased username; unknown usernames are counted too. A success clears its pair only. 5 consecutive failures lock the pair for 1 minute from the 5th failure: its attempts get `429 LOGIN_LOCKED` at once, without a password check, are not counted and do not extend the lock. Failures of an unlocked pair are forgotten after 1 hour without a new failure; ended locks are forgotten.
+- Password checks run one at a time. When 4 logins already wait for one, a further login that needs a check gets `429 LOGIN_BUSY` at once. The lock is checked first, so a locked pair gets `LOGIN_LOCKED`, never `LOGIN_BUSY`. Busy and cancelled logins are not counted.
+- `400 INVALID_JSON` is not counted.
 
 ### Log out
 

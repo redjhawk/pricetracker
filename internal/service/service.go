@@ -55,11 +55,13 @@ type Service struct {
 	stopWorkers   context.CancelFunc
 	workers       sync.WaitGroup
 	refreshSlots  chan struct{}
-	loginFailures map[string]loginFailures // by lowercased username
-	now           func() time.Time         // replaced by tests
-	random        func(n int64) int64      // draws the Amazon check times
+	loginFailures map[loginKey]loginFailures // by client address and lowercased username
+	now           func() time.Time           // replaced by tests
+	random        func(n int64) int64        // draws the Amazon check times
 	schedulePause func(context.Context) bool
 	amazonGate    *amazonGate // every Amazon request goes through it
+	// beforePasswordCheck is a test hook called while a login holds the password-check slot.
+	beforePasswordCheck func(context.Context)
 }
 
 // amazonCheckTimeout bounds one Amazon check: browser start, page and resources, reading pause and
@@ -83,6 +85,8 @@ type Options struct {
 	SchedulePause func(context.Context) bool // nil = 5–60 s pause between scheduled checks; false = cancelled
 	// AmazonBrowserOrigin is for tests only: BrowserOptions.Origin of the default browser collector.
 	AmazonBrowserOrigin string
+	// BeforePasswordCheck is for tests only: called while a login holds the password-check slot.
+	BeforePasswordCheck func(context.Context)
 }
 
 // browserNoSandboxVariable set to "true" starts the browser without its sandbox (containers, root).
@@ -110,8 +114,8 @@ func NewWithOptions(cfg config.Config, database *store.Store, options Options) *
 			"amazon": options.Amazon,
 		},
 		inFlight: make(map[string]time.Time), reviewing: make(map[string]bool), reviewAgain: make(map[string]bool), workerContext: workerContext, stopWorkers: stopWorkers,
-		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[string]loginFailures), now: options.Now, random: options.Random,
-		schedulePause: options.SchedulePause, amazonGate: newAmazonGate(database, options.Now),
+		refreshSlots: make(chan struct{}, 2), loginFailures: make(map[loginKey]loginFailures), now: options.Now, random: options.Random,
+		schedulePause: options.SchedulePause, amazonGate: newAmazonGate(database, options.Now), beforePasswordCheck: options.BeforePasswordCheck,
 	}
 	s.scheduleUnscheduledAmazonItems()
 	return s

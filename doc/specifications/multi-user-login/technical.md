@@ -58,7 +58,7 @@ Existing item, history, review, goal, settings functions gain an `ownerID int64`
 - Username rules (FR-ADMIN-003): `^[A-Za-z0-9._-]{3,32}$`; `admin` collides through NOCASE uniqueness (409). Password: at least 12 characters (Unicode code points), at most 256.
 - Generated admin password: 18 random bytes, base64url (24 characters).
 - Session token: 32 random bytes, base64url in cookie; only the SHA-256 hex is stored. Expiry `now + 30 days`, not extended.
-- Lockout: `map[lowercase username]{failures int; lockedUntil time.Time}` behind a mutex. Locked usernames are refused (429) without checking the password; the 5th consecutive failure sets `lockedUntil = now + 1 minute`; success or expiry of the lock resets. Unknown usernames are counted too (no enumeration). Unknown usernames still run one hash comparison against a fixed dummy hash.
+- Lockout: `map[lowercase username]{failures int; lockedUntil time.Time}` behind a mutex. Locked usernames are refused (429) without checking the password; the 5th consecutive failure sets `lockedUntil = now + 1 minute`; success or expiry of the lock resets. Unknown usernames are counted too (no enumeration). Unknown usernames still run one hash comparison against a fixed dummy hash. Superseded by [login attempt limits](../login-attempt-limits/technical.md) (issue #266): keyed by client address and username, with a bounded wait for password checks.
 - Context for request scope: `service.Principal{UserID int64; Role string}` stored in the request context by the middleware; open mode uses owner `0`.
 
 ### HTTP (`internal/httpapi/auth.go`, `admin.go`)

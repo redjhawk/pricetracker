@@ -1232,3 +1232,79 @@ test("TC-013 Information modal with a long username at 400px", async ({ page, co
   expect(layout.version.top, "version below the username").toBeGreaterThanOrEqual(layout.username.bottom - 0.5);
   await expectModalBaseline(page, "Information", 400);
 });
+
+// Issue #266: login attempt limits (FR-LOGIN-LIM-011). The locked and busy 429 answers of the API.
+const lockedLoginMessage = "Too many failed attempts. Wait one minute and try again.";
+const busyLoginMessage = "Too many login attempts are being checked. Try again in a moment.";
+const protectedNoUser = { mode: "protected", user: null, version: "v1" };
+
+test("TC-014 (#266) login screen shows the locked message", async ({ page, context }) => {
+  await mockApi(context, { session: protectedNoUser });
+  let logins = 0;
+  await page.route("**/api/v1/auth/login", (route) => {
+    logins += 1;
+    return route.fulfill({ status: 429, json: { error: { code: "LOGIN_LOCKED", message: lockedLoginMessage } } });
+  });
+  await page.goto("/");
+  const url = page.url();
+  const username = page.getByRole("textbox", { name: "Username" });
+  const password = page.locator("#login-password");
+  const button = page.getByRole("button", { name: "Log in", exact: true });
+  await username.fill("alice");
+  await password.fill("wrong-password-123");
+  await password.press("Enter");
+  const notification = page.locator(".cds--inline-notification").filter({ hasText: "Could not log in" });
+  await expect(notification).toBeVisible();
+  await expect(notification).toContainText(lockedLoginMessage);
+  await expect(page.locator(":focus")).toContainText(lockedLoginMessage);
+  expect(page.url()).toBe(url);
+  for (const control of [username, password, button]) await expect(control).toBeEnabled();
+
+  await button.click();
+  await expect.poll(() => logins).toBe(2);
+  await expect(button).toBeEnabled();
+  await expect(notification).toHaveCount(1);
+  await expect(notification).toContainText(lockedLoginMessage);
+  expect(page.url()).toBe(url);
+
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(notification.getByText(lockedLoginMessage)).toBeInViewport({ ratio: 1 });
+  await expectNoHorizontalScroll(page);
+});
+
+test("TC-015 (#266) login screen shows the busy message, then a retry logs in", async ({ page, context }) => {
+  await mockApi(context, { session: protectedNoUser });
+  let loggedIn = false;
+  const logins: Route[] = [];
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: loggedIn ? { mode: "protected", user: { username: "alice", role: "user" }, version: "v1" } : protectedNoUser }));
+  await page.route("**/api/v1/auth/login", (route) => {
+    logins.push(route);
+    hold(route);
+  });
+  await page.goto("/");
+  const url = page.url();
+  await page.getByRole("textbox", { name: "Username" }).fill("alice");
+  await page.locator("#login-password").fill("correct-password-123");
+  const button = page.getByRole("button", { name: "Log in", exact: true });
+  const pending = page.getByRole("button", { name: "Logging in…", exact: true });
+
+  await button.click();
+  await expect(pending).toBeDisabled();
+  await expect.poll(() => logins.length).toBe(1);
+  await logins[0].fulfill({ status: 429, json: { error: { code: "LOGIN_BUSY", message: busyLoginMessage } } });
+  const notification = page.locator(".cds--inline-notification").filter({ hasText: "Could not log in" });
+  await expect(notification).toContainText(busyLoginMessage);
+  await expect(notification).not.toContainText(lockedLoginMessage);
+  await expect(button).toBeEnabled();
+  expect(page.url()).toBe(url);
+
+  await button.click();
+  await expect(pending).toBeDisabled();
+  await expect.poll(() => logins.length).toBe(2);
+  loggedIn = true;
+  await logins[1].fulfill({ json: { user: { username: "alice", role: "user" } } });
+  await expect(page.getByRole("table", { name: "Tracked items" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Log in to Price follower" })).toHaveCount(0);
+  expect(new URL(page.url()).pathname).toBe("/");
+});

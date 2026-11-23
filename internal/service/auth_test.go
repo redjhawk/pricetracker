@@ -24,7 +24,7 @@ func TestAdminPasswordResetEndsSessionsAndReplacesPassword(t *testing.T) {
 	if err != nil || !created || len(first) != 24 {
 		t.Fatalf("create admin %q %v %v", first, created, err)
 	}
-	token, user, err := service.Login(ctx, "ADMIN", first)
+	token, user, err := service.Login(ctx, clientA, "ADMIN", first)
 	if err != nil || user.Role != "admin" {
 		t.Fatalf("admin login %+v %v", user, err)
 	}
@@ -35,10 +35,10 @@ func TestAdminPasswordResetEndsSessionsAndReplacesPassword(t *testing.T) {
 	if _, ok, _ := service.SessionUser(ctx, token); ok {
 		t.Fatal("admin session survived the reset")
 	}
-	if _, _, err := service.Login(ctx, "admin", first); errorCode(err) != "INVALID_CREDENTIALS" {
+	if _, _, err := service.Login(ctx, clientA, "admin", first); errorCode(err) != "INVALID_CREDENTIALS" {
 		t.Fatalf("old password: %v", err)
 	}
-	if _, _, err := service.Login(ctx, "admin", second); err != nil {
+	if _, _, err := service.Login(ctx, clientA, "admin", second); err != nil {
 		t.Fatalf("new password: %v", err)
 	}
 }
@@ -79,18 +79,18 @@ func TestLoginLockoutAndSessionExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	for attempt := 1; attempt <= 5; attempt++ {
-		if _, _, err := service.Login(ctx, "Alice", "wrong password"); errorCode(err) != "INVALID_CREDENTIALS" {
+		if _, _, err := service.Login(ctx, clientA, "Alice", "wrong password"); errorCode(err) != "INVALID_CREDENTIALS" {
 			t.Fatalf("attempt %d: %v", attempt, err)
 		}
 	}
-	if _, _, err := service.Login(ctx, "alice", "correct horse battery"); errorCode(err) != "LOGIN_LOCKED" {
+	if _, _, err := service.Login(ctx, clientA, "alice", "correct horse battery"); errorCode(err) != "LOGIN_LOCKED" {
 		t.Fatalf("6th attempt: %v", err)
 	}
-	if _, _, err := service.Login(ctx, "nobody", "x"); errorCode(err) != "INVALID_CREDENTIALS" {
+	if _, _, err := service.Login(ctx, clientA, "nobody", "x"); errorCode(err) != "INVALID_CREDENTIALS" {
 		t.Fatalf("other username: %v", err)
 	}
 	now = now.Add(time.Minute)
-	token, user, err := service.Login(ctx, "alice", "correct horse battery")
+	token, user, err := service.Login(ctx, clientA, "alice", "correct horse battery")
 	if err != nil || user.Username != "alice" {
 		t.Fatalf("after the lock: %+v %v", user, err)
 	}
@@ -102,7 +102,7 @@ func TestLoginLockoutAndSessionExpiry(t *testing.T) {
 	if _, ok, _ := service.SessionUser(ctx, token); ok {
 		t.Fatal("session valid after 30 days")
 	}
-	token, _, _ = service.Login(ctx, "alice", "correct horse battery")
+	token, _, _ = service.Login(ctx, clientA, "alice", "correct horse battery")
 	if err := service.Logout(ctx, token); err != nil {
 		t.Fatal(err)
 	}
@@ -114,28 +114,29 @@ func TestLoginLockoutAndSessionExpiry(t *testing.T) {
 func TestFailureDuringLockKeepsItAndOldEntriesArePruned(t *testing.T) {
 	service, _ := newSessionService(t)
 	now := time.Date(2026, 10, 4, 9, 0, 0, 0, time.UTC)
+	alice, bob, carol := loginKey{clientA, "alice"}, loginKey{clientA, "bob"}, loginKey{clientB, "carol"}
 	for attempt := 0; attempt < 5; attempt++ {
-		service.recordLoginFailure("alice", now)
+		service.recordLoginFailure(alice, now)
 	}
-	lockedUntil := service.loginFailures["alice"].lockedUntil
+	lockedUntil := service.loginFailures[alice].lockedUntil
 	// A request that passed the lock check before the lock was set fails afterwards.
-	service.recordLoginFailure("alice", now.Add(10*time.Second))
-	if entry := service.loginFailures["alice"]; !entry.lockedUntil.Equal(lockedUntil) {
+	service.recordLoginFailure(alice, now.Add(10*time.Second))
+	if entry := service.loginFailures[alice]; !entry.lockedUntil.Equal(lockedUntil) {
 		t.Fatalf("lock changed by a failure during the lock: %+v", entry)
 	}
 	service.now = func() time.Time { return now.Add(30 * time.Second) }
-	if _, _, err := service.Login(context.Background(), "alice", "x"); errorCode(err) != "LOGIN_LOCKED" {
+	if _, _, err := service.Login(context.Background(), clientA, "alice", "x"); errorCode(err) != "LOGIN_LOCKED" {
 		t.Fatalf("still locked: %v", err)
 	}
-	service.recordLoginFailure("bob", now)
-	service.recordLoginFailure("carol", now.Add(2*time.Hour))
-	if _, kept := service.loginFailures["alice"]; kept {
+	service.recordLoginFailure(bob, now)
+	service.recordLoginFailure(carol, now.Add(2*time.Hour))
+	if _, kept := service.loginFailures[alice]; kept {
 		t.Fatal("expired lock not pruned")
 	}
-	if _, kept := service.loginFailures["bob"]; kept {
+	if _, kept := service.loginFailures[bob]; kept {
 		t.Fatal("old failure not pruned")
 	}
-	if entry := service.loginFailures["carol"]; entry.count != 1 {
+	if entry := service.loginFailures[carol]; entry.count != 1 {
 		t.Fatalf("carol %+v", entry)
 	}
 }

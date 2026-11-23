@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -116,7 +118,7 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		if !decodeCredentials(w, r, &body) {
 			return
 		}
-		token, user, err := s.service.Login(r.Context(), body.Username, body.Password)
+		token, user, err := s.service.Login(r.Context(), clientAddress(r), body.Username, body.Password)
 		if err != nil {
 			serviceError(w, err)
 			return
@@ -179,6 +181,22 @@ func allowMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	w.Header().Set("Allow", method)
 	writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
 	return false
+}
+
+// clientAddress returns the client address of login limits: the CF-Connecting-IP header when it is
+// a bare IP address (the application is only reachable through Cloudflare), else the connection host.
+func clientAddress(r *http.Request) string {
+	if addr, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); err == nil {
+		return addr.WithZone("").Unmap().String()
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if addr, err := netip.ParseAddr(host); err == nil {
+		return addr.WithZone("").Unmap().String()
+	}
+	return host
 }
 
 // decodeCredentials reads one small JSON object with string username and password fields.
