@@ -81,7 +81,7 @@ Nothing runs on the PriceFollower server. All the workflows run on the self-host
    - `FACTORY_SUPERVISOR=off` stops the supervisor completely. After switching it back on, run `supervisor` once by hand (Actions → `supervisor` → *Run workflow*) to restart its loop.
    - `FACTORY_MAX_ACTIVE` sets how many issues are in development at a time. The default is `1`, and `0` stops the launch of new issues while the supervisor still resumes the stopped ones.
 
-GitHub's own schedule is best effort and has never fired in this repository. Each `supervisor` run therefore starts the next one itself, about 15 minutes later, from a short job on a GitHub-hosted runner, which is free for a public repository. The schedule stays as a backup.
+The supervisor runs whenever a `fabrica`, `repair` or `release` run ends, which is when there is something to decide. Each run also starts the next one about 15 minutes later, as the owner (`DEV_TOKEN`), from a short job on a GitHub-hosted runner, which is free for a public repository; that covers the timed decisions (retry back-off, usage-limit reset). Runs dispatched with `GITHUB_TOKEN` never started here (`startup_failure`), so it is only the fallback. GitHub's own schedule is best effort and rarely fires; it stays as a backup.
 
 ### Daily use
 

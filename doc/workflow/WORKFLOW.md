@@ -54,7 +54,7 @@ Every agent stage is a separate `claude -p` process with its own prompt from [`s
 
 ## Supervisor
 
-[`supervisor.yml`](../../.github/workflows/supervisor.yml) runs [`scripts/factory/supervisor.mjs`](../../scripts/factory/supervisor.mjs) every 15 minutes on `arc-dev`. GitHub's schedule is best effort and never fired in this repository, so each run ends with a job on a GitHub-hosted runner that waits 13 minutes and dispatches the next run, unless a newer run already exists; the schedule stays as a backup. It reads the open `ai-dev` issues, their comments and their `fabrica` runs, and resumes the runs that stopped for a reason that goes away without the owner:
+[`supervisor.yml`](../../.github/workflows/supervisor.yml) runs [`scripts/factory/supervisor.mjs`](../../scripts/factory/supervisor.mjs) on `arc-dev` whenever a `fabrica`, `repair` or `release` run ends (`workflow_run`, except the runs that skipped their job), and every 15 minutes: each run ends with a job on a GitHub-hosted runner that waits 13 minutes and dispatches the next run as the owner (`DEV_TOKEN`; runs dispatched with `GITHUB_TOKEN` ended in `startup_failure`, so it is only the fallback), unless a newer run that started already exists. GitHub's schedule is best effort and rarely fires; it stays as a backup. It reads the open `ai-dev` issues, their comments and their `fabrica` runs, and resumes the runs that stopped for a reason that goes away without the owner:
 
 | Stop | Supervisor |
 |---|---|
