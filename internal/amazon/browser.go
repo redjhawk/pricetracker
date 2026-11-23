@@ -426,6 +426,10 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		ErrorText string `json:"errorText"`
 	}
 	if err := t.browser.call(loadContext, t.session, "Page.navigate", map[string]any{"url": target}, &navigation); err != nil {
+		if loadContext.Err() != nil {
+			// The answer may be arriving and already be in the HTTP cache (issue #233).
+			t.clearCache(ctx)
+		}
 		return loadedPage{}, loadError(ctx, err)
 	}
 	document := func() (loadedPage, bool) {
@@ -445,9 +449,7 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		}
 		// A 2xx answer the browser did not open (a download, no content) may already be in the profile's
 		// HTTP cache, also when its response event comes late: the answer must not stay on disk (issue #217).
-		if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
-			log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
-		}
+		t.clearCache(ctx)
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
 	}
 	select {
@@ -478,6 +480,24 @@ func awaitDocument(ctx context.Context, document func() (loadedPage, bool), resp
 		case <-ctx.Done():
 			return loadedPage{}, false
 		}
+	}
+}
+
+// cacheClearTimeout bounds the wait for the browser to confirm that its HTTP cache is cleared.
+const cacheClearTimeout = 5 * time.Second
+
+// clearCache removes the profile's HTTP cache, which may hold the body of an answer offered as a
+// download (issue #217). It ignores the end of ctx, so an interrupted check still clears the cache
+// before the browser closes, and waits at most cacheClearTimeout for the answer (issue #233).
+func (t *browserTab) clearCache(ctx context.Context) {
+	clearContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cacheClearTimeout)
+	defer cancel()
+	err := t.browser.call(clearContext, t.session, "Network.clearBrowserCache", nil, nil)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = fmt.Errorf("Network.clearBrowserCache: no answer within %s", cacheClearTimeout)
+	}
+	if err != nil {
+		log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
 	}
 }
 
