@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 ready (issue #251)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251.
 
 ## Design
 
@@ -53,11 +53,26 @@ New file `internal/amazon/amazontest/server_dependencies_test.go` (`package amaz
 
 Refactoring: removing the import scan from the issue #232 test file is the change the feature asks for. Risk: low. The scan's guarantee moves to `TestServerDoesNotDependOnTestHelper`, which is stricter on what reaches the binary (indirect imports) and no longer fails on non-server packages.
 
+### Fixture modules compile (issue #251)
+
+Only `internal/amazon/amazontest/server_dependencies_test.go` changes. `server_dependencies.go`, `amazontest.go` and the dependency check (`listServerDependencies`, `checkServerDependencies`) are unchanged.
+
+- **Stub declares the name (chosen fix).** In `writeModule`, the stub `internal/amazon/amazontest/amazontest.go` becomes `"package amazontest\n\nconst DownloadMarker = \"\"\n"`. Rows a and c (`helperMain`: `var _ = amazontest.DownloadMarker`) and the renamed-import corner (`var _ = helper.DownloadMarker`) then type-check. The other fixtures do not change. Changing the fixtures to blank imports, the other option in the issue, is rejected: the renamed-import corner must keep a renamed import that uses its name (FR-TEST-HYG-015), and a renamed import that is not used does not compile.
+- `DownloadMarker` mirrors the real helper's exported constant. Its value does not matter: the fixtures only refer to it. Rows f and g (missing package, syntax error) are unchanged and stay invalid; the listing fails on them before any declaration of the stub is read.
+- **Build check.** New test code proves that every valid fixture compiles, so the fixtures cannot drift again:
+  - `buildModule(dir string) error` runs `exec.Command("go", "build", "./...")` with `Dir = dir` and `Env = append(os.Environ(), fixtureEnv...)` (offline: no proxy, no workspace, no toolchain download). On error it returns `fmt.Errorf("go build ./...: %w: %s", err, strings.TrimSpace(string(out)))` with `out` from `CombinedOutput`, so a failure shows the tool's output. The arguments are constant. `./...` always matches at least two packages (the stub and a program), so `go build` writes no binary into the fixture.
+  - The fixture table of `TestListServerDependencies_TC003_FixtureModules` moves to a package-level `var fixtureCases = []fixtureCase{…}` (type `fixtureCase struct { name string; files map[string]string; fails string }`), with the same entries, subtest names and `fails` values. The TC-003 test ranges over `fixtureCases` exactly as today, and the new build test ranges over the same table, so it builds each fixture exactly as TC-003 lists it. A fixture is valid when `fails` is `""` or `"dependency"`, and invalid otherwise (rows f and g).
+  - Row h (`plainMain`, `go` not reachable) stays in the TC-003 test. The build test builds its module separately, with the normal `PATH`.
+- **Delivery.** The fix is test code in the file that the TDD red commit locks. If the tests stage only added the build check (red), the developer could not then change the stub (green gate). So the **tests stage** delivers the whole change: the stub, the table move, `buildModule` and the build test, `gofmt`-clean. Like issue #208, it writes `<change folder>/no-tests.md` explaining that the change is itself test code, so the red-then-green sequence cannot run in the factory. The red state is proved inside the new test instead: its control case (the stub as on `master`, without `DownloadMarker`, with `helperMain`) must fail `go build ./...`. The development stage changes no code. It only sets the statuses of FR-TEST-HYG-014–017 and TS-TEST-HYG-016–020 to implemented.
+
+Refactoring: moving the TC-003 case table from a local variable to the package-level `fixtureCases`. Reason: the build check must use the same fixtures as the listing check, not a copy that could drift. Scope: `server_dependencies_test.go` only, with entries and subtest names unchanged. Risk: low. The maps are only read (`writeModule` copies them), and no test in the package runs in parallel.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
 - Backend: not affected at runtime. `internal/amazon/amazontest` is imported only by `_test.go` files, so the server binary does not change; issue #244 makes this a checked guarantee. No service, repository, validation, persistence, migration or concurrency change. `AssertNoDownload` runs after the browser has closed, and the dependency check runs `go list` as a child process of the test, so no application concurrency changes.
 - API: not affected. No endpoint, request, response or error changes; `API_SPECIFICATION.md` is unchanged.
+- Issue #251 touches only a `_test.go` file and the temporary modules it writes under `t.TempDir()`. No frontend, backend, API, database or migration change, and the server binary is the same.
 
 ## Technical IDs
 
@@ -78,6 +93,11 @@ Refactoring: removing the import scan from the issue #232 test file is the chang
 | TS-TEST-HYG-013 | FR-TEST-HYG-012 | Exact line match only, and `go list` without `-test`, so test-only and non-server imports pass. A listing error (exit status with the tool's standard error, or the start error) always fails with `list the server dependencies: <error>`, even with partial output. |
 | TS-TEST-HYG-014 | FR-TEST-HYG-013 | `TestServerDoesNotDependOnTestHelper` is an ordinary test of `internal/amazon/amazontest`, run by `go test ./...` with no skip, flag or build tag; it lists the module root and also requires `pricefollower.local/cmd/pricefollower` in the listing. The issue #208 check stays in its test. |
 | TS-TEST-HYG-015 | FR-TEST-HYG-009–013 (testability) | The listing and the judgement are separate functions: unit tests feed `checkServerDependencies` listings directly, and integration tests run `listServerDependencies` on fixture modules under `t.TempDir()` (see below). |
+| TS-TEST-HYG-016 | FR-TEST-HYG-014 | The stub written by `writeModule` declares `const DownloadMarker = ""`, so every name the valid fixtures use is declared. |
+| TS-TEST-HYG-017 | FR-TEST-HYG-015 | `fixtureCases` keeps every entry, subtest name, file and `fails` value of the TC-003 table. The renamed-import corner keeps `import helper "…/amazontest"` and `helper.DownloadMarker`, and the dependency check and its messages are unchanged. |
+| TS-TEST-HYG-018 | FR-TEST-HYG-016 | Rows f and g and row h are unchanged and still go through `assertListingFailure`. The stub change adds only a declaration, which `go list` does not need on those rows. |
+| TS-TEST-HYG-019 | FR-TEST-HYG-017 | The diff outside `doc/` is `internal/amazon/amazontest/server_dependencies_test.go` only. `go vet ./...` and `go test ./...` run the new build test with no flag, skip or build tag. |
+| TS-TEST-HYG-020 | FR-TEST-HYG-014–016 (testability) | `buildModule` runs `go build ./...` offline on each fixture of the shared `fixtureCases` and on the `plainMain` module. Valid fixtures must build and rows f and g must not. A control module (stub as on `master`, `helperMain`) must fail with `DownloadMarker` in the output. |
 
 ## Files to change
 
@@ -92,8 +112,11 @@ Refactoring: removing the import scan from the issue #232 test file is the chang
 | `internal/amazon/amazontest/server_dependencies_test.go` | tests (issue #244) | new: tests of TC-002 to TC-004 |
 | `internal/amazon/amazontest/server_dependencies.go` | development (issue #244) | new: `helperImportPath`, `listServerDependencies`, `checkServerDependencies` |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #244) | set the status of FR-TEST-HYG-009–013 and TS-TEST-HYG-010–015 to implemented |
+| `internal/amazon/amazontest/server_dependencies_test.go` | tests (issue #251) | stub declares `DownloadMarker`; case table moved to `fixtureCases`; new `buildModule` and the build test; header comment lists the issue #251 cases proved outside the file |
+| `doc/changes/2026-11-23-1559-issue-251-make-the-tc-003-fixture-modules-compile/no-tests.md` | tests (issue #251) | explain why the red phase is skipped (the change is the locked test code itself) and where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #251) | set the status of FR-TEST-HYG-014–017 and TS-TEST-HYG-016–020 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. No existing test file other than `internal/amazon/amazontest/amazontest_test.go` changes, and no test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. No test file is deleted.
 
 ## Test design (issue #232)
 
@@ -117,6 +140,26 @@ No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `packa
   - Rows f, g, h check that the failure message holds the tool's or the start error's text, and not `server depends on`.
 - **TC-004 (integration on the repository):** `TestServerDoesNotDependOnTestHelper`, as described in the design.
 - **Red state:** the new test file calls `listServerDependencies`, `checkServerDependencies` and uses `helperImportPath`, which do not exist before development, so `go vet ./...` and `go test ./...` fail to compile `internal/amazon/amazontest`. This is the expected TDD red.
+
+## Test design (issue #251)
+
+`internal/amazon/amazontest/server_dependencies_test.go`, `package amazontest`, standard library only (adds `fmt` and `os/exec`), `gofmt`-clean, no `t.Parallel` and no `t.Skip`. The test case IDs of issue #251 overlap those of issue #244 in the same file, so the new test name carries the issue number: `TestFixtureModulesBuild_Issue251_TC001`. The header comment gains an issue #251 block that names the cases proved outside the file (TC-002 by the existing TC-003 test, TC-003 by its rows f–h, TC-004 by the gates).
+
+- **`TestFixtureModulesBuild_Issue251_TC001`:**
+  - one subtest per entry of `fixtureCases`, under the entry's name: `buildModule(writeModule(t, tc.files))`. A valid entry fails with `t.Errorf("valid fixture does not build: %v", err)` on error. Rows f and g fail the test if they build (the check is not vacuous);
+  - subtest `TC-003 h fixture: plainMain`: the `plainMain` module builds;
+  - subtest `control: a program uses a name the stub does not declare`: `writeModule` with `cmd/app/main.go` = `helperMain`, overriding `internal/amazon/amazontest/amazontest.go` with `"package amazontest\n"` (the stub as on `master`; the `files` argument overrides the default files). `buildModule` must fail, and its error must hold `DownloadMarker`. This control is the red state of the change.
+- **`TestListServerDependencies_TC003_FixtureModules`:** the same body, ranging over `fixtureCases` instead of the local `cases`. Its results do not change.
+- Run: `go test -count=1 -run 'Fixture|TC003' ./internal/amazon/amazontest/...` passes. With the stub reverted to `package amazontest\n` in a scratch copy (never committed), rows a, c and the renamed corner of the build test fail with `undefined: amazontest.DownloadMarker` / `undefined: helper.DownloadMarker`.
+
+## Test case mapping (issue #251)
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | `internal/amazon/amazontest/server_dependencies_test.go`: `TestFixtureModulesBuild_Issue251_TC001` (valid entries of `fixtureCases` and the `plainMain` module build offline with `fixtureEnv`; rows f and g and the control module do not). The corner cases "run on every `go test ./...`" and "same result twice" are checked by `go test ./...` and `go test -count=1 ./internal/amazon/amazontest/...` |
+| TC-002 | `internal/amazon/amazontest/server_dependencies_test.go`: `TestListServerDependencies_TC003_FixtureModules`, unchanged rows a–e and the three corners over `fixtureCases` (same subtest names and expected results). A repository check on the diff confirms that each fixture's files and import forms are unchanged (renamed import still `import helper …` and used) and that only the stub line changed |
+| TC-003 | `internal/amazon/amazontest/server_dependencies_test.go`: rows f, g and h of `TestListServerDependencies_TC003_FixtureModules` (`exit status` plus `pricefollower.local/internal/nope` or `main.go`; `executable file not found`; `assertListingFailure` rejects `server depends on`), run with the new stub |
+| TC-004 | Repository check: `git diff --name-status master -- . ':!doc'` lists only `M internal/amazon/amazontest/server_dependencies_test.go`, and `internal/service/zz_scratch_docs_test.go` is absent. Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`), and `go test -count=1 ./internal/amazon/amazontest/...` |
 
 ## Test case mapping (issue #244)
 
