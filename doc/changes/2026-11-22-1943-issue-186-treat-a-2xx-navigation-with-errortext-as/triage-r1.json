@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The fix and its tests (TC-001, TC-004, TC-005) correctly turn the attachment response into a counted `request_error`, and the sentence sits in the Concurrency bullet: it means no check state carries over, since each check starts its own browser. Chromium already handled a possible download before this PR, because `browser.go` never sets a download behaviour (grep finds no `setDownloadBehavior`). The PR does not add that side effect, and technical.md 'Refactoring' lists it as out of scope. Making the sentence more precise and denying downloads is a hardening follow-up, not a defect of this change.",
+    "title": "Deny downloads in the Amazon browser and make the technical spec precise about it",
+    "todo": "**Problem:** `internal/amazon/browser.go` never sets a download behaviour. With `--headless=new`, an Amazon answer with `Content-Disposition: attachment` (now a `request_error`, issue #186) may still be written to disk (profile or `$HOME/Downloads`) on every such check. `doc/specifications/amazon-human-checks/technical.md:205` says \"a failed download leaves nothing for the next check\", but no test proves it for the disk.\n\n**Suggested work:**\n- When the browser starts (in the launch/target set-up steps of `browserTab`/`BrowserCollector`), call `Browser.setDownloadBehavior{behavior: \"deny\"}`.\n- Extend `TestBrowserNavigation_TC001_*` (`internal/amazon/browser_navigation_test.go`) to assert that no file appears in the profile directory or in a temporary `HOME`'s `Downloads` after the attachment check.\n- Reword the sentence in technical.md (section \"Success response not opened as a page (issue #186)\", Backend, last bullet) to describe the actual guarantee, and move the download behaviour out of \"Out of scope\"."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "This duplication is real: `captureCheckOutput` in `internal/httpapi/amazon_browser_navigation_test.go` copies `captureOutput` in `internal/amazon/browser_test.go` and the helper in `internal/service/amazon_browser_profile_test.go`. Unexported test helpers cannot be shared across packages, and the technical spec asked for this local helper. This is test-code refactoring, not a defect.",
+    "title": "Share the log/stdout capture test helper through amazontest",
+    "todo": "**Problem:** Three copies of the same helper capture `log` and `os.Stdout` through a pipe: `captureOutput` (`internal/amazon/browser_test.go:157`), the helper in `internal/service/amazon_browser_profile_test.go:184` and `captureCheckOutput` (`internal/httpapi/amazon_browser_navigation_test.go:128`).\n\n**Suggested work:** In a separate refactoring PR, add an exported `amazontest.CaptureOutput(t *testing.T) func() string` in `internal/amazon/amazontest`. Replace the three copies with it and add no behaviour change."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "This check is redundant: `assertNavigationFailure` (`internal/amazon/browser_navigation_test.go:32`) already fails on any `Result` other than `request_error`. The extra check at lines 83 and 117 only gives a clearer failure message. The tests still prove their cases.",
+    "title": "Fold the redundant Amazon-answer check into assertNavigationFailure",
+    "todo": "**Problem:** In `internal/amazon/browser_navigation_test.go`, lines 83 (TC-001) and 117 (TC-002) check `got.Result` against `price_not_found`/`success`/`unavailable` before calling `assertNavigationFailure`, which already requires `Result == \"request_error\"`.\n\n**Suggested work:** Remove the two checks and make the message in `assertNavigationFailure` (line 32) name the result that was wrongly given, for example `t.Fatalf(\"gave %q instead of a failure: %+v\", got.Result, got)`."
+  }
+]
