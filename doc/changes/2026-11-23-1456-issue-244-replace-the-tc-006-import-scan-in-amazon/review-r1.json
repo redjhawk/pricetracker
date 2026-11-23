@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 32,
+    "category": "test",
+    "body": "TestHelperImportPath compares the constant helperImportPath with the same string literal, so it proves nothing about the real package path. If the package is moved or the module renamed (for example to internal/amazon/testsupport), helperImportPath keeps the old value, no line of `go list -deps` ever equals it, and TestServerDoesNotDependOnTestHelper passes even when the server imports the helper. FR-TEST-HYG-012 requires the check never to pass without a real judgement. Fix: derive the expected value from the compiled package, e.g. `if got := reflect.TypeOf(Request{}).PkgPath(); got != helperImportPath { t.Errorf(...) }` (Request is an exported type of amazontest.go). The check then fails when the constant goes stale instead of silently failing open."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/amazontest/server_dependencies.go",
+    "line": 17,
+    "category": "nit",
+    "body": "`go list -deps ./cmd/...` only resolves the files selected for the current GOOS/GOARCH and the default build tags. The old text scan saw every .go file, so a helper import in a file with a build constraint (for example `//go:build windows` or a `_darwin.go` suffix) used by the server is now missed. No such files exist under cmd/ or internal/ today, so this is not a current defect. Either note the limitation in the doc comment or in the technical specification (TS-TEST-HYG-011), or, if it matters, also list with `-tags` or for the release targets' GOOS/GOARCH."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 173,
+    "category": "readability",
+    "body": "The `fails` field mixes a sentinel (`\"dependency\"`) with free text that a listing error must contain (`\"pricefollower.local/internal/nope\"`, `\"main.go\"`), and TC-002 uses the same field name with a different sentinel set (`\"dependency\"`/`\"listing\"`). A reader has to open the switch to see which values are magic. Use two fields instead (for example `want outcome` as an enum plus `listErrHolds string`), or at least name the constants. Row g also only checks for `main.go`, which any error about that file would match; checking for the file and line (`main.go:3`) would tie it to the syntax error."
+  },
+  {
+    "id": "R1-04",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 294,
+    "category": "nit",
+    "body": "The presence check for pricefollower.local/cmd/pricefollower repeats the split/trim loop of checkServerDependencies and keeps scanning after the match. `slices.Contains(strings.Fields(listing), \"pricefollower.local/cmd/pricefollower\")` (or a `break` after `found = true`) is shorter and clearer."
+  }
+]

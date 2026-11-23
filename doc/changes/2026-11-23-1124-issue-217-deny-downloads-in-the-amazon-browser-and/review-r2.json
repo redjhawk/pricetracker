@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R2-01",
+    "file": "internal/amazon/browser.go",
+    "line": 448,
+    "category": "bug",
+    "body": "`Network.clearBrowserCache` runs with the check's `ctx`. Suppose that context is cancelled (server shutdown, or the request context of a manual refresh ends) while `awaitDocument` waits up to 1 s after a download navigation. `awaitDocument` then returns at once. `cdpBrowser.call` (cdp.go:174-216) still writes the request but returns `ctx.Err()` without waiting for the reply. `open`/`Collect` then calls `close`, which sends `Browser.close` right away, so the browser can exit before the cache is cleared. The attachment body can then stay in `<profile>/Default/Cache`, which breaks FR-AMZ-HCHK-014 for that check. The log line also says the cache 'could not be cleared: context canceled', though the request was sent. The window is small, but this clear exists only to make the disk guarantee hold, so it should not depend on the check staying alive. Suggested fix: run the clear in its own bounded context that ignores cancellation, e.g. `clearContext, cancelClear := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second); defer cancelClear()`, and pass `clearContext` to the call. Then update the TS-AMZ-HCHK-017 bullet 'The call uses the check's `ctx`' (technical.md:358) to match."
+  },
+  {
+    "id": "R2-02",
+    "file": "doc/specifications/amazon-human-checks/technical.md",
+    "line": 69,
+    "category": "spec",
+    "body": "Backend step 4 still says the HTTP cache is cleared only for a 2xx response: '... → failure \"Amazon page could not be opened: <errorText>\" (FR-AMZ-HCHK-011, issue #186); with a 2xx response the HTTP cache is cleared first'. After the round 1 fix (R1-01), `load` clears the cache on every `errorText` path that does not return a non-2xx error page, including when no response was seen (browser.go:441-451). The TS-AMZ-HCHK-017 table row (line 30) and the bullet at line 360 already say so, so step 4 now contradicts them. Suggested fix: change the clause to 'with a 2xx response or none (a response may come after the 1 s wait), the HTTP cache is cleared first (issue #217, TS-AMZ-HCHK-017)'."
+  }
+]

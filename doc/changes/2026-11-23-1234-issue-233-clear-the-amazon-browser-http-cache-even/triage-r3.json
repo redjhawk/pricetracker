@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "blocking": false,
+    "reason": "Verified: internal/httpapi/amazon_browser_interrupted_test.go lines 40-44 already fail with 'the check ended before the server stop' before cancel(), so doc/todo/issue-233-r1-03.md (Status: todo, issue #238) describes finished work. A stale todo file is a tracking inconsistency, not a code defect, and it does not affect the merge.",
+    "title": "Close the finished TC-005 interruption-check todo (#238)",
+    "todo": "**Problem:** `doc/todo/issue-233-r1-03.md` (line 3, `Status: todo`) and issue #238 ask for a `select` on `stopped` before `cancel()` in TC-005. PR #236 already added it in `internal/httpapi/amazon_browser_interrupted_test.go` (lines 40-44), along with the tech spec and `testcases.md` updates.\n\n**Suggested work:** Delete `doc/todo/issue-233-r1-03.md` (or set `Status: done`) and close #238 as completed by #236."
+  },
+  {
+    "id": "R3-02",
+    "blocking": false,
+    "reason": "Verified: the TC-004 mode that releases the download at interruptAt records flushedAt (internal/amazon/browser_interrupted_test.go lines 302-311), and the 'while requested' branch is now at lines 296-300. Only part of doc/todo/issue-233-r1-02.md is still open and its line reference is stale. That is a documentation and tracking nit, not a merge blocker.",
+    "title": "Narrow the TC-004 'while requested' visibility todo (#237) to the open point",
+    "todo": "**Problem:** `doc/todo/issue-233-r1-02.md` and issue #237 still ask for a variant that releases the answer at `interruptAt`. PR #236 already added it with a `flushedAt` record (`internal/amazon/browser_interrupted_test.go` lines 302-311). The todo also cites 'around line 294', but the 'while requested' branch is now at lines 296-300.\n\n**Suggested work:** Rewrite the todo and #237 so that only the open point remains: in the 'while requested' branch (`browser_interrupted_test.go` lines 296-300), record whether the write at `interruptAt + 100 ms` reached the browser (for example a `wroteAt` under `mu`) and `t.Logf` it after the check. Do not weaken `AssertNoDownload`."
+  }
+]

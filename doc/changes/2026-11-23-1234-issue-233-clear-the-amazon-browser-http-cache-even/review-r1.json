@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/browser_interrupted_test.go",
+    "line": 338,
+    "category": "test",
+    "body": "TC-004 'after the download was offered' never checks that the check was still running when its context ended. The server flushes the attachment at interruptAt - 100 ms. Page.navigate then returns errorText. As soon as Chromium reports the 200 Document response (TS-AMZ-HCHK-017 expects it, possibly before the error), awaitDocument returns at once and load calls clearCache with a live context. Collect returns about 100 ms before `at`, so the deadline or cancel interrupts nothing. The subtest then passes against the pre-change code as well (the old inline clear used a live ctx) and does not prove FR-AMZ-HCHK-015. The technical spec's risk note requires a missed interruption point to fail with a message, never to pass silently; the arrival and flush checks do not catch this case. Fix: record when Collect returns and fail with 'interruption point missed' if it returned before `at`, or check that the failure cause is the interruption. If real Chromium can never reach this point, say so in the test and the spec and rely on TC-001 for it, rather than keeping a subtest that passes without exercising it."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser_interrupted_test.go",
+    "line": 294,
+    "category": "test",
+    "body": "TC-004 'while requested' only writes the download at interruptAt + 100 ms. After the change the clear is answered within milliseconds and Browser.close follows, so Chromium usually drops the connection first. waitUntil then returns false through r.Context() and the attachment is never sent. Nothing records or asserts that writeDownload ran or that the browser received the response. So AssertNoDownload passes without anything to find, before the change too (the old code also closed the browser at once). The scenario of the tech spec's risk note, an answer cached after the clear, is never exercised. Fix: record whether writeDownload completed (for example a `wroteAt` set after a successful Flush). Fail, or at least t.Log/t.Skip with a clear message, when the download never reached the browser, so a vacuous run is visible."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/httpapi/amazon_browser_interrupted_test.go",
+    "line": 440,
+    "category": "test",
+    "body": "TC-005 calls cancel() as soon as `flushed` is signalled, but does not check that the Collect goroutine is still running then. Same reason as R1-01: once Chromium has the attachment headers, Page.navigate returns errorText and the 200 Document response is recorded. load clears the cache with the live context and Collect can finish before cancel(). The 'server stop' is then a no-op, and the test passes against the pre-change code. Fix: before cancel(), `select { case <-stopped: t.Fatal(\"the check ended before the server stop: interruption point missed\"); default: }`. Otherwise document that this level cannot reach the interrupted path."
+  },
+  {
+    "id": "R1-04",
+    "file": "internal/amazon/browser_interrupted_test.go",
+    "line": 230,
+    "category": "test",
+    "body": "In TC-003, the 'no answer' and 'no answer, page still requested' subtests only check that the cache line does not contain 'context canceled'. TS-AMZ-HCHK-018 says this case is logged as 'no answer within 5s', never as `context canceled` or `context deadline exceeded`. FR-AMZ-HCHK-015 requires the real cause. If someone removes the errors.Is(err, context.DeadlineExceeded) mapping in clearCache, the line becomes '...: context deadline exceeded' and TC-003 still passes. Fix: for the never-answered subtests, assert the line contains 'no answer within'. In every subtest, also reject 'context deadline exceeded', for example by reusing assertNoInterruptionGivenForCache."
+  }
+]

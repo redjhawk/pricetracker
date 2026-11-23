@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "file": "doc/todo/issue-233-r1-03.md",
+    "line": 7,
+    "category": "nit",
+    "body": "This todo is already done in this PR, but it is still marked `Status: todo` and points to the open issue #238. The tests-stage commit ee358de added the requested check to TC-005, `select { case <-stopped: t.Fatal(\"the check ended before the server stop: the interruption point was missed\"); default: }` before `cancel()`, in internal/httpapi/amazon_browser_interrupted_test.go (lines 40-44). It also updated the tech spec's TC-005 'Interruption' bullet and testcases.md. Merging as is leaves a todo and an issue for work that is finished. Fix: list doc/todo/issue-233-r1-03.md in delete.txt, or mark it done, and close #238 as completed by #236."
+  },
+  {
+    "id": "R3-02",
+    "file": "doc/todo/issue-233-r1-02.md",
+    "line": 9,
+    "category": "nit",
+    "body": "Part of this todo is already done in this PR. The new TC-004 mode 'download offered at the interruption' (browser_interrupted_test.go lines 302-311) is the suggested 'variant that releases the answer ... right at interruptAt', and it records `flushedAt` and fails when nothing was flushed. Its 'around line 294' reference is also out of date: the 'while requested' branch is now at lines 296-300. Only the 'while requested' visibility point is still open: record whether its write at interruptAt + 100 ms reached the browser and t.Logf it. Fix: update the todo and issue #237 to keep only that point, with the current line reference."
+  }
+]

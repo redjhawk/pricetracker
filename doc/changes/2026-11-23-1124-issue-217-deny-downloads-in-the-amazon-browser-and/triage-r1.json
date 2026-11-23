@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "In `internal/amazon/browser.go:441-452`, `Network.clearBrowserCache` runs only when `awaitDocument` records the frame's 2xx response within 1 s. The technical spec (line 205) says Chromium can report the navigation error before the response event, and that a late 2xx response still means a failed check. In that case the attachment body already in `<profile>/Default/Cache` is not cleared, so FR-AMZ-HCHK-014 (no file from that response in the persistent profile) can fail. Dropping the `found` guard fixes this with a harmless extra clear, and TS-AMZ-HCHK-017 (technical.md:362) must be updated to match.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "`downloadFile` (`internal/amazon/amazontest/amazontest.go:239`) does ignore `os.ReadFile` errors. But it only reads regular files in the test's own temporary directories, after the browser has closed, and Chromium writes those files as the same user, so a read error is not a realistic outcome there. The test still proves TC-001–004 in practice. Failing closed would make the helper more robust, but it is not a merge blocker.",
+    "title": "Make AssertNoDownload fail on unreadable files",
+    "todo": "**Problem:** `downloadFile` in `internal/amazon/amazontest/amazontest.go` (around line 239) ignores the error from `os.ReadFile`. A file that cannot be read (permission denied, I/O error) is therefore treated as \"not a download\", even if it holds `DownloadMarker`. The evidence for FR-AMZ-HCHK-014 (TC-001 to TC-004) then fails open.\n\n**Suggested work:** Change `downloadFile` to return `(string, error)`. In the `filepath.WalkDir` callback of `AssertNoDownload`, return any read error other than `fs.ErrNotExist`, so `AssertNoDownload` reports it with `t.Fatalf` and does not skip the file. Keep ignoring files that disappear between listing and reading."
+  }
+]

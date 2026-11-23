@@ -4,11 +4,15 @@
 package amazontest
 
 import (
+	"bytes"
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -141,4 +145,132 @@ func (s *Server) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requests = nil
+}
+
+// DownloadMarker is added to the bodies offered as downloads; normal pages never contain it.
+const DownloadMarker = "<!-- download-marker-217 -->"
+
+// IsolatedHome sets HOME and XDG_CONFIG_HOME (t.Setenv) to new directories of the test and returns the home,
+// so the browser's default Downloads folder is <home>/Downloads. Call it after Browser(t), which may look
+// for Playwright's Chromium under the real home.
+func IsolatedHome(t testing.TB) string {
+	t.Helper()
+	home := filepath.Join(t.TempDir(), "home")
+	config := filepath.Join(home, ".config")
+	if err := os.MkdirAll(config, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", config)
+	return home
+}
+
+// partialDownloadPrefixes and partialDownloadSuffix name the files of a download in progress.
+var partialDownloadPrefixes = []string{"Unconfirmed ", ".com.google.Chrome.", ".org.chromium.Chromium."}
+
+const partialDownloadSuffix = ".crdownload"
+
+// downloadNamePattern matches name and the names Chromium derives from it: uniquified ("page (1).html")
+// and, for a name without extension, with an added extension ("B0PRICE001.html").
+func downloadNamePattern(name string) *regexp.Regexp {
+	extension := filepath.Ext(name)
+	if extension == "" {
+		return regexp.MustCompile(`^` + regexp.QuoteMeta(name) + `( \(\d+\))?(\.[^.]+)?$`)
+	}
+	stem := strings.TrimSuffix(name, extension)
+	return regexp.MustCompile(`^` + regexp.QuoteMeta(stem) + `( \(\d+\))?` + regexp.QuoteMeta(extension) + `$`)
+}
+
+// AssertNoDownload fails t when a root holds a file left by a download, after the browser has closed:
+// a regular file whose base name is one of names, or that name uniquified by Chromium ("page (1).html"),
+// or that starts with "download"; a partial download (suffix ".crdownload", prefix "Unconfirmed ",
+// ".com.google.Chrome." or ".org.chromium.Chromium."); or a regular file containing DownloadMarker.
+// A file that cannot be read fails t with the read error; a file that disappears before it is read is
+// ignored. Missing roots are ignored; symbolic links are not followed.
+func AssertNoDownload(t testing.TB, names []string, roots ...string) {
+	t.Helper()
+	patterns := make([]*regexp.Regexp, 0, len(names))
+	for _, name := range names {
+		patterns = append(patterns, downloadNamePattern(name))
+	}
+	var found []string
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				return err
+			}
+			if !entry.Type().IsRegular() {
+				return nil
+			}
+			reason, err := downloadFile(path, entry.Name(), patterns)
+			if err != nil {
+				return err
+			}
+			if reason != "" {
+				found = append(found, path+" ("+reason+")")
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("list the files of %s: %v", root, err)
+		}
+	}
+	if len(found) > 0 {
+		t.Fatalf("files left by a download:\n%s", strings.Join(found, "\n"))
+	}
+}
+
+// downloadFile returns why the regular file at path with base name looks left by a download, or "".
+// It returns the error of reading a file that no name rule matches, unless the file no longer exists.
+func downloadFile(path, name string, patterns []*regexp.Regexp) (string, error) {
+	for _, pattern := range patterns {
+		if pattern.MatchString(name) {
+			return "named after the attachment", nil
+		}
+	}
+	if strings.HasPrefix(name, "download") {
+		return "default download name", nil
+	}
+	if strings.HasSuffix(name, partialDownloadSuffix) {
+		return "partial download", nil
+	}
+	for _, prefix := range partialDownloadPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return "partial download", nil
+		}
+	}
+	data, err := os.ReadFile(path) // #nosec G304 -- file of a test directory
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if bytes.Contains(data, []byte(DownloadMarker)) {
+		return "holds the downloaded body", nil
+	}
+	return "", nil
+}
+
+// AssertDownloadsFolder fails t unless <home>/Downloads is absent (existed false) or an empty directory (existed true).
+func AssertDownloadsFolder(t testing.TB, home string, existed bool) {
+	t.Helper()
+	downloads := filepath.Join(home, "Downloads")
+	entries, err := os.ReadDir(downloads)
+	switch {
+	case !existed && errors.Is(err, fs.ErrNotExist):
+	case !existed && err == nil:
+		t.Fatalf("the Downloads folder %s was created, holding %d entries", downloads, len(entries))
+	case err != nil:
+		t.Fatalf("read the Downloads folder %s: %v", downloads, err)
+	case len(entries) > 0:
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("the Downloads folder %s holds %s", downloads, strings.Join(names, ", "))
+	}
 }

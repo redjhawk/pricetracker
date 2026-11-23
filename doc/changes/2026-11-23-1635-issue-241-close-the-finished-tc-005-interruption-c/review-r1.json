@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 3,
+    "category": "spec",
+    "body": "FR-TEST-HYG-019 (issue #238 closed as completed) is not met by this pull request: the factory's PR body only says `Closes #241` (scripts/factory/factory.sh pr_body), and the only record of the manual step is this status line plus TS-TEST-HYG-022 and the 'Manual follow-ups' section of technical.md. Nothing outside the spec documents reminds the owner, so #238 can stay open after the merge and the issue's goal ('close #238') is only half done. Suggested fix: when merging, the owner runs `gh issue close 238 --reason completed --comment \"Done by PR #236; its follow-up record doc/todo/issue-233-r1-03.md is removed by the pull request of #241.\"` (or adds `Closes #238` to the PR body before merging, which closes it as completed), then checks TC-002 with `gh issue view 238 --json state,stateReason`."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/changes/2026-11-23-1635-issue-241-close-the-finished-tc-005-interruption-c/testcases.md",
+    "line": 39,
+    "category": "nit",
+    "body": "TC-002's precondition 'Given the change merged (or the issue closed by the change's pull request)' suggests the pull request can close #238, but the technical specification (TS-TEST-HYG-022) says the factory's PR closes only #241 and #238 is closed by hand. Suggested wording: 'Given the change merged and issue #238 closed by the owner (TS-TEST-HYG-022)'."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 78,
+    "category": "nit",
+    "body": "The development-stage gate list (`go vet ./...`, `go test ./...`, `npm run build`, `npx playwright test`) omits `node --test scripts/*.test.mjs`, which TC-004, no-tests.md and the issue #241 test case mapping in this same file list as a gate. Align the lists so TC-004's evidence matches what the development stage says it runs."
+  }
+]

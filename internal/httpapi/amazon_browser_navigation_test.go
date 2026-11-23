@@ -28,22 +28,25 @@ import (
 
 // Answers of the navigation fixture server for /dp/<ASIN>.
 const (
-	answerPage503    int32 = iota // HTTP 503 with an error page
-	answerAttachment              // HTTP 200 text/html offered as a download
-	answerEmpty503                // HTTP 503 with an empty body
-	answerEmpty404                // HTTP 404 with an empty body
-	answerEmpty410                // HTTP 410 with an empty body
+	answerPage503        int32 = iota // HTTP 503 with an error page
+	answerAttachment                  // HTTP 200 text/html offered as a download, holding amazontest.DownloadMarker
+	answerEmpty503                    // HTTP 503 with an empty body
+	answerEmpty404                    // HTTP 404 with an empty body
+	answerEmpty410                    // HTTP 410 with an empty body
+	answerPage                        // HTTP 200 with the price-found.html page (issue #217)
+	answerAttachmentHeld              // answerAttachment written and flushed, then the request held open until it ends (issue #233)
 )
 
 // navigationFixture is a fixture server whose /dp/ answer is the value of answer.
 type navigationFixture struct {
 	*amazontest.Server
-	answer atomic.Int32
+	answer  atomic.Int32
+	flushed chan struct{} // signalled when answerAttachmentHeld has flushed its body (issue #233)
 }
 
 func newNavigationFixture(t *testing.T) *navigationFixture {
 	t.Helper()
-	fixture := &navigationFixture{}
+	fixture := &navigationFixture{flushed: make(chan struct{}, 1)}
 	page, noOffer := amazontest.Fixture(t, "price-found.html"), amazontest.Fixture(t, "aod-none.html")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dp/", func(w http.ResponseWriter, r *http.Request) {
@@ -54,13 +57,24 @@ func newNavigationFixture(t *testing.T) *navigationFixture {
 			io.WriteString(w, "<html><body><h1>Service Unavailable fixture</h1></body></html>")
 		case answerAttachment:
 			w.Header().Set("Content-Disposition", `attachment; filename="page.html"`)
-			io.WriteString(w, page)
+			io.WriteString(w, page+amazontest.DownloadMarker)
 		case answerEmpty503:
 			w.WriteHeader(http.StatusServiceUnavailable)
 		case answerEmpty404:
 			w.WriteHeader(http.StatusNotFound)
 		case answerEmpty410:
 			w.WriteHeader(http.StatusGone)
+		case answerPage:
+			io.WriteString(w, page)
+		case answerAttachmentHeld:
+			w.Header().Set("Content-Disposition", `attachment; filename="page.html"`)
+			io.WriteString(w, page+amazontest.DownloadMarker)
+			http.NewResponseController(w).Flush()
+			select {
+			case fixture.flushed <- struct{}{}:
+			default:
+			}
+			<-r.Context().Done()
 		}
 	})
 	usedOffers := func(w http.ResponseWriter, r *http.Request) {
@@ -220,8 +234,17 @@ func (api navigationAPI) storedResults(t *testing.T, result string) int {
 	return count
 }
 
+// assertNoDownloadWritten checks that no file of a download is in the browser profile of api or under
+// home, and that home has no Downloads folder (issue #217).
+func assertNoDownloadWritten(t *testing.T, api navigationAPI, home string) {
+	t.Helper()
+	amazontest.AssertNoDownload(t, []string{"page.html"}, filepath.Join(api.dir, "amazon-browser"), home)
+	amazontest.AssertDownloadsFolder(t, home, false)
+}
+
 // A download response is counted and does not reset the consecutive failure count.
 // TC-004
+// TC-004 (issue #217): the download as the 5th failure stops every item and writes no file.
 func TestAmazonBrowserNavigation_TC004_DownloadIsACountedFailure(t *testing.T) {
 	ids := []string{"B0NAVI0041", "B0NAVI0042"}
 
@@ -259,12 +282,41 @@ func TestAmazonBrowserNavigation_TC004_DownloadIsACountedFailure(t *testing.T) {
 
 	t.Run("download as the 5th failure", func(t *testing.T) {
 		api := openNavigationAPI(t, ids)
+		home := amazontest.IsolatedHome(t)
 		for index := range 4 {
 			api.check(ids[index%2], humanTime(14, index+1), answerPage503)
 		}
 		assertPriceAndOfferKept(t, api, time.Time{}, "after 4 failures")
 		api.check(ids[0], humanTime(14, 5), answerAttachment)
 		assertPriceAndOfferKept(t, api, humanTime(14, 5), "after the download as the 5th failure")
+		assertNoDownloadWritten(t, api, home)
+	})
+
+	t.Run("TC-004 download as the 5th failure, two owners", func(t *testing.T) {
+		owners := []int64{1, 2}
+		api := openNavigationAPI(t, ids, owners...)
+		home := amazontest.IsolatedHome(t)
+		for index := range 4 {
+			api.check(ids[index%2], humanTime(14, index+1), answerPage503)
+		}
+		api.check(ids[0], humanTime(14, 5), answerAttachment)
+		for index, owner := range owners {
+			items, err := api.database.List(context.Background(), owner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(items) != 1 || items[0].ID != ids[index] {
+				t.Fatalf("items of owner %d: %+v, want only %s", owner, items, ids[index])
+			}
+			item := items[0]
+			if !equalTime(item.AmazonStoppedAt, humanTime(14, 5)) {
+				t.Fatalf("owner %d, item %s: stopped %v, want stopped at %s", owner, item.ID, item.AmazonStoppedAt, humanTime(14, 5))
+			}
+			if item.LatestPrice == nil || item.LatestPrice.AmountCents != 1999 {
+				t.Fatalf("owner %d, item %s: latest price %+v, want 19.99", owner, item.ID, item.LatestPrice)
+			}
+		}
+		assertNoDownloadWritten(t, api, home)
 	})
 
 	t.Run("protected mode with two owners", func(t *testing.T) {

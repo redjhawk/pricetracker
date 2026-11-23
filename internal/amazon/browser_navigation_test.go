@@ -3,6 +3,8 @@ package amazon
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -44,7 +46,9 @@ func assertNavigationFailure(t *testing.T, got model.CollectionResult, item mode
 }
 
 // A 200 page offered as a download is a failure, not "price not found"; an inline page is opened.
+// The download is refused: no file of it is written in the profile or under HOME (issue #217).
 // TC-001
+// TC-001, TC-002 (issue #217)
 func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 	const (
 		attachment int32 = iota
@@ -55,12 +59,17 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 	if amount, found := productPrice(page); !found || amount != 12999 {
 		t.Fatalf("fixture check: the parser reads %d, %v", amount, found)
 	}
+	if strings.Contains(page, amazontest.DownloadMarker) {
+		t.Fatal("fixture check: the normal page holds the download marker")
+	}
 	newServer := func(t *testing.T, mode *atomic.Int32) *amazontest.Server {
 		return navigationServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			switch mode.Load() {
 			case attachment:
 				w.Header().Set("Content-Disposition", `attachment; filename="page.html"`)
+				io.WriteString(w, page+amazontest.DownloadMarker)
+				return
 			case inline:
 				w.Header().Set("Content-Disposition", "inline")
 			}
@@ -73,7 +82,15 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 		var mode atomic.Int32
 		mode.Store(attachment)
 		server := newServer(t, &mode)
-		collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
+		options := testBrowserOptions(t, server.URL)
+		home := amazontest.IsolatedHome(t)
+		collector := NewBrowserCollector(options)
+		assertNoFileWritten := func() {
+			t.Helper()
+			amazontest.AssertNoDownload(t, []string{"page.html"}, options.ProfileDir, home)
+			amazontest.AssertDownloadsFolder(t, home, false)
+		}
+
 		output := captureOutput(t)
 		got := browserCheck(t, collector, item)
 		logged := output()
@@ -84,12 +101,55 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 			t.Fatalf("an attachment gave the Amazon answer %q: %+v", got.Result, got)
 		}
 		assertNavigationFailure(t, got, item, logged)
+		assertNoFileWritten()
+
+		// TC-001 (issue #217): the same check answered again with a download adds no file.
+		output = captureOutput(t)
+		again := browserCheck(t, collector, item)
+		logged = output()
+		if count := server.Count("/dp/B0PRICE001"); count != 2 {
+			t.Fatalf("%d product page requests after the repeated check, want 2: %+v", count, server.Requests())
+		}
+		assertNavigationFailure(t, again, item, logged)
+		assertNoFileWritten()
 
 		mode.Store(normal)
-		if again := browserCheck(t, collector, item); again.Result != "success" || again.AmountCents != 12999 {
-			t.Fatalf("check after the failed download: %+v", again)
+		if next := browserCheck(t, collector, item); next.Result != "success" || next.AmountCents != 12999 {
+			t.Fatalf("check after the failed downloads: %+v", next)
 		}
+		assertNoFileWritten()
 	})
+
+	// TC-002 (issue #217): an existing Downloads folder stays empty, whatever the attachment's file name.
+	for _, answer := range []struct {
+		name, contentType, disposition string
+	}{
+		{"attachment named page.html", "text/html; charset=utf-8", `attachment; filename="page.html"`},
+		{"attachment without a file name", "text/html; charset=utf-8", "attachment"},
+		{"octet-stream attachment", "application/octet-stream", `attachment; filename="B0PRICE001.bin"`},
+	} {
+		t.Run("TC-002 existing Downloads folder, "+answer.name, func(t *testing.T) {
+			server := navigationServer(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", answer.contentType)
+				w.Header().Set("Content-Disposition", answer.disposition)
+				io.WriteString(w, page+amazontest.DownloadMarker)
+			})
+			options := testBrowserOptions(t, server.URL)
+			home := amazontest.IsolatedHome(t)
+			if err := os.Mkdir(filepath.Join(home, "Downloads"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			output := captureOutput(t)
+			got := browserCheck(t, NewBrowserCollector(options), item)
+			logged := output()
+			if got.Result == "price_not_found" || got.Result == "success" || got.Result == "unavailable" {
+				t.Fatalf("%s gave the Amazon answer %q: %+v", answer.name, got.Result, got)
+			}
+			assertNavigationFailure(t, got, item, logged)
+			amazontest.AssertDownloadsFolder(t, home, true)
+			amazontest.AssertNoDownload(t, []string{"page.html", "B0PRICE001", "B0PRICE001.bin"}, options.ProfileDir, home)
+		})
+	}
 
 	t.Run("inline page", func(t *testing.T) {
 		var mode atomic.Int32

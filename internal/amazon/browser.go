@@ -112,10 +112,11 @@ func logText(reason string) string {
 
 // loadedPage is the main document of a page loaded by the browser.
 type loadedPage struct {
-	status   int
-	mimeType string
-	url      string // after redirects
-	html     string // rendered DOM
+	status    int
+	mimeType  string
+	url       string // after redirects
+	html      string // rendered DOM
+	errorPage bool   // the browser did not open the answer and shows its own error page
 }
 
 // Collect checks one Amazon item page: the product page, then, without an Amazon second-hand offer
@@ -159,6 +160,11 @@ func (c *BrowserCollector) Collect(ctx context.Context, item model.Listing) mode
 		if result.SecondHandStatus == "available" {
 			return result
 		}
+	}
+	if page.errorPage {
+		// Chromium's error page has an opaque origin: used-offer requests from it cannot succeed (issue #187).
+		result.SecondHandStatus = "check_error"
+		return result
 	}
 	urls := usedOfferURLs(item)
 	for index := range urls {
@@ -331,6 +337,10 @@ func (t *browserTab) setUp(ctx context.Context, acceptLanguage string) error {
 	if err := t.browser.call(ctx, "", "Browser.getVersion", nil, &version); err != nil {
 		return err
 	}
+	// Amazon answers offered as a file must never be saved on the server's disk (issue #217).
+	if err := t.browser.call(ctx, "", "Browser.setDownloadBehavior", map[string]any{"behavior": "deny"}, nil); err != nil {
+		return err
+	}
 	var target struct {
 		TargetID string `json:"targetId"`
 	}
@@ -416,6 +426,10 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		ErrorText string `json:"errorText"`
 	}
 	if err := t.browser.call(loadContext, t.session, "Page.navigate", map[string]any{"url": target}, &navigation); err != nil {
+		if loadContext.Err() != nil {
+			// The answer may be arriving and already be in the HTTP cache (issue #233).
+			t.clearCache(ctx)
+		}
 		return loadedPage{}, loadError(ctx, err)
 	}
 	document := func() (loadedPage, bool) {
@@ -428,9 +442,14 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		// A non-2xx answer with an empty body also ends with an error text (Chromium then shows its own
 		// error page): its status still classifies the page. A 2xx answer the browser did not open as a
 		// page (a download, no content) fails like a navigation without an answer.
-		if page, found := awaitDocument(loadContext, document, responded); found && (page.status < 200 || page.status >= 300) {
+		page, found := awaitDocument(loadContext, document, responded)
+		if found && (page.status < 200 || page.status >= 300) {
+			page.errorPage = true
 			return page, nil
 		}
+		// A 2xx answer the browser did not open (a download, no content) may already be in the profile's
+		// HTTP cache, also when its response event comes late: the answer must not stay on disk (issue #217).
+		t.clearCache(ctx)
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
 	}
 	select {
@@ -461,6 +480,24 @@ func awaitDocument(ctx context.Context, document func() (loadedPage, bool), resp
 		case <-ctx.Done():
 			return loadedPage{}, false
 		}
+	}
+}
+
+// cacheClearTimeout bounds the wait for the browser to confirm that its HTTP cache is cleared.
+const cacheClearTimeout = 5 * time.Second
+
+// clearCache removes the profile's HTTP cache, which may hold the body of an answer offered as a
+// download (issue #217). It ignores the end of ctx, so an interrupted check still clears the cache
+// before the browser closes, and waits at most cacheClearTimeout for the answer (issue #233).
+func (t *browserTab) clearCache(ctx context.Context) {
+	clearContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cacheClearTimeout)
+	defer cancel()
+	err := t.browser.call(clearContext, t.session, "Network.clearBrowserCache", nil, nil)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = fmt.Errorf("Network.clearBrowserCache: no answer within %s", cacheClearTimeout)
+	}
+	if err != nil {
+		log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
 	}
 }
 

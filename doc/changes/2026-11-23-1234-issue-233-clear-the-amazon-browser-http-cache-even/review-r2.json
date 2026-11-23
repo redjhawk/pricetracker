@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R2-01",
+    "file": "internal/amazon/browser_interrupted_test.go",
+    "line": 338,
+    "category": "test",
+    "body": "Blocking comment R1-01 is still open. The round-1 development commit (665f36b) only deletes blocking.md and changes state.json. browser_interrupted_test.go is byte-identical to the hash in tests.lock, and no spec or test-case text changed. So TC-004 'after the download was offered' still only checks that the request arrived and the body was flushed before `at`. It never checks that the check was still running when its context ended. Chromium answers Page.navigate with errorText once it has the attachment headers. If it reports the 200 Document response at the same time (TS-AMZ-HCHK-017 relies on that event), awaitDocument returns at once. clearCache then runs with the live ctx and Collect returns within the 100 ms before `at`. The deadline or cancel then interrupts nothing, and the subtest passes on the pre-change code too. That breaks the tech spec's risk note: 'a test that misses its interruption point must fail with a message saying so, never pass silently'. Fix (needs the test lock lifted for this file): record the time Collect returns, for example `returned := time.Now()` right after collectInterrupted, and `t.Fatalf(\"check returned at %s, before the interruption at %s: the interruption point was missed\", ...)` when returned is before `at`. Or, if real Chromium always reports the response with the error so this point cannot be reached, say so in TC-004 of testcases.md and in the technical spec, rely on TC-001 (fake browser) for that path, and drop or relabel the subtest so it does not claim to prove FR-AMZ-HCHK-015."
+  },
+  {
+    "id": "R2-02",
+    "file": "internal/amazon/browser.go",
+    "line": 449,
+    "category": "nit",
+    "body": "clearCache now also runs on the interrupted Page.navigate path (TS-AMZ-HCHK-019, line 415). There the page was never answered or opened, yet a failure is still logged as 'Amazon browser cache could not be cleared after a page not opened: ...'. The spec only fixes the prefix 'Amazon browser cache could not be cleared' (TS-AMZ-HCHK-018), so the suffix can be neutral, for example 'Amazon browser cache could not be cleared: %v', or the caller can pass the reason. This keeps the log accurate for the person reading it, which is what FR-AMZ-HCHK-015 asks of this line."
+  }
+]
