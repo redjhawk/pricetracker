@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/service/amazon_human_checks_issue185_test.go",
+    "line": 124,
+    "category": "test",
+    "body": "TC-002 says it covers FR-AMZ-HCHK-005 and that every item gets \"its own\" window time, but the test only checks that each item is in the evening window of 2030-03-05 and is no longer `former`. A regression that draws one time and writes it to all three items (for example, `nextCheckAt` hoisted out of the loop in `scheduleUnscheduledAmazonItems`) would still pass. The random source is seeded (1851), so the draws are deterministic and this check cannot flake. Suggested fix: after the loop, assert that the three values in `drawn` are pairwise different, e.g. fail if `drawn[ids[0]].Equal(drawn[ids[1]]) || drawn[ids[1]].Equal(drawn[ids[2]]) || drawn[ids[0]].Equal(drawn[ids[2]])`."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser_empty_status_test.go",
+    "line": 26,
+    "category": "nit",
+    "body": "`status := row.status` copies one field, but the closure still reads `row.unavailable` directly. With go 1.25 (go.mod), loop variables are per iteration and the subtests run in sequence, so the copy is not needed and mixing the two forms reads unevenly. Suggested fix: use `row.status` throughout, or copy both fields."
+  }
+]

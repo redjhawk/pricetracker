@@ -1,7 +1,7 @@
 # Test suite hygiene: functional specification
 
-Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018, 020 and 021 implemented (issue #241); FR-TEST-HYG-019 waiting for the manual close of issue #238 (issue #241)
-Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`).
+Status: FR-TEST-HYG-001–003 implemented (issue #208); FR-TEST-HYG-004–008 implemented (issue #232); FR-TEST-HYG-009–013 implemented (issue #244); FR-TEST-HYG-014–017 implemented (issue #251); FR-TEST-HYG-018, 020 and 021 implemented (issue #241); FR-TEST-HYG-019 waiting for the manual close of issue #238 (issue #241); FR-TEST-HYG-022–026 implemented (issue #185)
+Source: issue #208 (from review comment R1-03 on PR #206, `doc/todo/issue-204-r1-03.md`); issue #232 ("Make AssertNoDownload fail on unreadable files", from review comment R1-02 on PR #231, `doc/todo/issue-217-r1-02.md`); issue #244 ("Replace the TC-006 import scan in amazontest_test.go with a dependency check", from review comment R1-01 on PR #243, `doc/todo/issue-232-r1-01.md`); issue #251 ("Make the TC-003 fixture modules compile", from review comment R2-01 on PR #247, `doc/todo/issue-244-r2-01.md`); issue #241 ("Close the finished TC-005 interruption-check todo (#238)", from review comment R3-01 on PR #236, `doc/todo/issue-233-r3-01.md`); issue #185 ("Tests missing from #168 (Amazon human-like checks)", from review comments R1-01, R1-03 and R4-01 on PR #179).
 Scope: repository maintenance. Application behaviour is not affected.
 
 ## Purpose
@@ -11,6 +11,7 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Issue #244: the guarantee "the server never uses the test helper package" is checked today by a text search in the helper's own unit tests (`TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched`). The search fails on any non-test Go file under `cmd/` or `internal/` that names the helper, even a future test-support package the server never uses, and it does not show what the server binary really depends on. Replace it with a check of the server's actual dependencies.
 - Issue #251: the unit tests of the dependency check build small fixture modules (TC-003 of issue #244). Some fixtures that stand for valid code use a name (`DownloadMarker`) that the fixture's stub of the test helper does not declare, so those modules would not compile. The tests pass only because listing dependencies does not compile the code; they would break, or prove less than they claim, if the listing ever compiled it. Make the fixtures that stand for valid code compile.
 - Issue #241: the follow-up record `doc/todo/issue-233-r1-03.md` and its GitHub issue #238 still say "todo" for work that PR #236 already did: TC-005 (`internal/httpapi/amazon_browser_interrupted_test.go`) fails with a message when the check ended before the server stop. Close the record and the issue so they no longer list finished work.
+- Issue #185: three behaviours of [Amazon human-like checks](../amazon-human-checks/functional.md) (issue #168) shipped without a test that proves them: a scheduled Amazon check whose window has passed is not sent (FR-AMZ-HCHK-004, FR-AMZ-HCHK-009), every Amazon item gets its own window time at the first start after the upgrade (FR-AMZ-HCHK-004, FR-AMZ-HCHK-005, FR-AMZ-HCHK-010), and an empty-body error response is classified by its HTTP status (FR-AMZ-HCHK-012). Add these tests, and keep `internal/amazon/browser_test.go` formatted with `gofmt`.
 
 ## Actors
 
@@ -25,6 +26,8 @@ Scope: repository maintenance. Application behaviour is not affected.
 - **Dependency check:** the repository check of issue #244 that fails when the test helper package is one of the server dependencies.
 - **Fixture module:** a small temporary Go module, with its own stub of the test helper package, that the unit tests of the dependency check build to run the check on a known set of imports.
 - **Follow-up record:** a file under `doc/todo/` that records a non-blocking review comment and the GitHub issue opened for it.
+- **Morning window, evening window, scheduled check, failure:** as defined in [Amazon human-like checks](../amazon-human-checks/functional.md) (06:00–09:00 and 19:00–23:00 in the schedule timezone).
+- **Upgrade redraw mark:** the mark the database records at the first start after the issue #168 change when Amazon items still hold the check time written before that change (`amazon_request_state.human_checks_redraw = 1`); it asks the application to draw a window time for every Amazon item at its start.
 - **Valid fixture:** a fixture module that stands for code the Go tool accepts: every fixture of the dependency check's unit tests except those whose purpose is to make the listing fail (a program importing a package that does not exist, a program with a syntax error).
 
 ## Scope and exclusions
@@ -38,6 +41,8 @@ Scope: repository maintenance. Application behaviour is not affected.
 - Excluded (issue #251): the dependency check itself, its failure messages and when it passes or fails (FR-TEST-HYG-009–013 are unchanged); the real test helper package; the fixtures whose purpose is to make the listing fail, which stay invalid.
 - In scope (issue #241): the follow-up record `doc/todo/issue-233-r1-03.md` and GitHub issue #238.
 - Excluded (issue #241): any change to TC-005 or to other test or production code, to the issue #233 technical specification and test cases, and to other follow-up records, including `doc/todo/issue-233-r3-01.md` (the record of issue #241 itself, which stays as the trace of this issue, as the follow-up records of earlier done issues do).
+- In scope (issue #185): new or extended automated tests for the three behaviours above, and the `gofmt` formatting of `internal/amazon/browser_test.go`.
+- Excluded (issue #185): any change to the application's behaviour, including the window rules, the upgrade restart and redraw, and the classification of HTTP statuses. If a new test shows that the application does not behave as FR-AMZ-HCHK-004, -009, -010 or -012 and the requirements below state, that is a defect to report, not something this issue changes.
 - Excluded: the other rules of the no-download check (which names and contents count as a download, missing folders, symbolic links), which stay as they are.
 - Excluded: the issue #204 change records under `doc/changes/2026-11-22-2139-issue-204-retrieval-error/`. The factory checks a `tests.lock` only for the issue it is running, and issue #204 is merged, so its lock is no longer checked and stays unchanged as the historical record of that issue.
 
@@ -78,6 +83,17 @@ Scope: repository maintenance. Application behaviour is not affected.
 - **FR-TEST-HYG-019** GitHub issue #238 is closed with the reason "completed" (not "not planned"), as the work it asks for was done by PR #236.
 - **FR-TEST-HYG-020** TC-005 still fails the test, with the message "the check ended before the server stop: the interruption point was missed", when the check has already ended at the moment the server is stopped; `internal/httpapi/amazon_browser_interrupted_test.go` is unchanged.
 - **FR-TEST-HYG-021** No other file under `doc/todo/` is deleted or changed, the change's diff outside `doc/` is empty, `go vet ./...` and `go test ./...` pass, and the operator observes no change in the application.
+
+### Missing tests of the Amazon human-like checks (issue #185)
+
+- **FR-TEST-HYG-022** (R1-01) An automated test covers a tracked, not stopped Amazon item whose scheduled check was due at a time in the morning window, when the scheduled checks run at a time in the evening window of the same day (the application was not running in between). The test passes only when, in that run: no Amazon request is sent for the item; the item's next scheduled check is a time within the next window that begins after the run time; and the server log has a line saying that the scheduled Amazon check of that item missed its window (`scheduled Amazon check of item <id> missed its window; next check <time>`), naming that next time. It fails if the item is checked in that run, keeps its past due time, or no such log line is written.
+- **FR-TEST-HYG-023** (R1-03) An automated test covers the first start of the application on a database holding the upgrade redraw mark and several tracked Amazon items that all hold the same check time from before the issue #168 change, chosen outside the next window that begins after the start time. The test passes only when, after the start: every one of these Amazon items has a next scheduled check within the next window that begins after the start time, so none keeps the shared earlier time; the upgrade redraw mark is cleared; and a second start with the mark cleared leaves the Amazon items' next scheduled checks unchanged. It fails if any Amazon item keeps the earlier time or if the mark is still set after the start.
+- **FR-TEST-HYG-024** (R4-01) An automated test checks an Amazon item through the real browser while the product page is answered with an HTTP error status and an empty body, once for each of 404, 410, 503 and 429:
+  - 404 and 410: the check result is "listing unavailable" (an Amazon answer, not a failure), and the check records that HTTP status.
+  - 503 and 429: the check is a failure (request error, second-hand check error), it records that HTTP status, and its failure cause, written to the server log, is `Amazon returned HTTP <status>` (for example `Amazon returned HTTP 429`).
+  The test fails if any of the four statuses gives another result, records another HTTP status, or (503, 429) gives another failure cause.
+- **FR-TEST-HYG-025** `gofmt -l internal/amazon` lists no file: `internal/amazon/browser_test.go` and every test file added or changed by issue #185 are formatted with `gofmt`.
+- **FR-TEST-HYG-026** The tests of FR-TEST-HYG-022–024 run in the existing unit-test gate (`go vet ./...`, `go test ./...`) with no separate command, and pass on the repository as changed. The change's diff outside `doc/` is limited to Go test files (`*_test.go`), and the operator observes no change in the application.
 
 ## States
 
@@ -120,6 +136,15 @@ Issue #241:
 - `git diff origin/master -- internal/httpapi/amazon_browser_interrupted_test.go` is empty, and the file still holds the check on `stopped` before `cancel()` with the message of FR-TEST-HYG-020.
 - The change's diff touches only `doc/` and, under `doc/todo/`, only deletes `doc/todo/issue-233-r1-03.md`; `go vet ./...` and `go test ./...` succeed (FR-TEST-HYG-021).
 
+Issue #185:
+
+- `go test ./...` runs a test for each of FR-TEST-HYG-022, -023 and -024, and they pass (FR-TEST-HYG-026).
+- Temporarily making the scheduled checks send a missed Amazon check instead of skipping it makes the FR-TEST-HYG-022 test fail (FR-TEST-HYG-022).
+- Temporarily making the application ignore the upgrade redraw mark at start makes the FR-TEST-HYG-023 test fail (FR-TEST-HYG-023).
+- The FR-TEST-HYG-024 test has a case for each of 404, 410, 503 and 429 with an empty body, and each case asserts the result and the recorded HTTP status; the 503 and 429 cases also assert the failure cause `Amazon returned HTTP <status>` (FR-TEST-HYG-024).
+- `gofmt -l internal/amazon` prints nothing (FR-TEST-HYG-025).
+- `go vet ./...` succeeds, and `git diff --name-only origin/master` outside `doc/` lists only `*_test.go` files (FR-TEST-HYG-026).
+
 ## Open questions
 
-None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice. Issue #241 accepts either deleting the record or marking it done; deletion is chosen, as no follow-up record uses a "done" status and the Git history keeps the file.
+None. Issue #232 states the expected behaviour: fail on a read error, keep ignoring files that disappear between listing and reading. Issue #244's title asks to replace the text search with a dependency check, so the guarantee is kept. The check runs in the existing unit-test gate so that a regression is caught without a manual step. Issue #251 states the expected outcome (the fixture modules compile); whether the stub declares the missing name or the fixtures stop using it is a technical choice. Issue #241 accepts either deleting the record or marking it done; deletion is chosen, as no follow-up record uses a "done" status and the Git history keeps the file. Issue #185 needed no question: it states each scenario and its expected result, which match FR-AMZ-HCHK-004, -009, -010 and -012 and the behaviour shipped by PR #179; whether a case extends an existing test or is a new test is a technical choice.
