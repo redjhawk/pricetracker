@@ -37,6 +37,11 @@ func TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile(t *t
 	case <-time.After(60 * time.Second):
 		t.Fatal("the product page was not answered with the download within 60 s")
 	}
+	select {
+	case <-stopped:
+		t.Fatal("the check ended before the server stop: the interruption point was missed")
+	default:
+	}
 	cancel()
 	select {
 	case <-stopped:

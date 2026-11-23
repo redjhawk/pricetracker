@@ -23,7 +23,7 @@ Conventions:
 
 | Use case | Test cases |
 | --- | --- |
-| UC-AMZ-HCHK-008 | TC-001 (main flow 3–7), TC-002 (alternative "interrupted while the page is still being requested"), TC-003 (main flow 6, alternative "removal really fails"), TC-004 (main flow 2–7, alternatives "interrupted while the page is still being requested", "next check answered with the normal page"), TC-005 (alternatives "server stopped during the check", "next check answered with the normal page", "protected mode"), TC-006 (postcondition "nothing else changes") |
+| UC-AMZ-HCHK-008 | TC-001 (main flow 3–7), TC-002 (alternative "interrupted while the page is still being requested"), TC-003 (main flow 6, alternative "removal really fails"), TC-004 (main flow 2 and 4–7, alternatives "interrupted while the page is still being requested", "next check answered with the normal page"), TC-005 (alternatives "server stopped during the check", "next check answered with the normal page", "protected mode"), TC-006 (postcondition "nothing else changes") |
 
 UC-AMZ-HCHK-008 alternative "fifth consecutive failure": the interrupted check returns the failure result (TC-001, TC-002, TC-004), which the existing stop tests already count and stop on (UC-AMZ-HCHK-005). The 90 s `amazonCheckTimeout` is a constant of the service, so no case waits for it through the service.
 
@@ -69,18 +69,19 @@ UC-AMZ-HCHK-008 alternative "fifth consecutive failure": the interrupted check r
 
 ### TC-004 — A real check interrupted around a download leaves no file in the profile or the Downloads folder
 
-- Covers: FR-AMZ-HCHK-015 (with FR-AMZ-HCHK-014, FR-AMZ-HCHK-011); UC-AMZ-HCHK-008 (main flow steps 2–7, alternatives "interrupted while the page is still being requested", "next check answered with the normal page")
+- Covers: FR-AMZ-HCHK-015 (with FR-AMZ-HCHK-014, FR-AMZ-HCHK-011); UC-AMZ-HCHK-008 (main flow steps 2 and 4–7, step 3 being covered by TC-001; alternatives "interrupted while the page is still being requested", "next check answered with the normal page")
 - Level: integration (browser test, `internal/amazon`, real Chromium, persistent profile, isolated home)
 - Given a fixture server for `/dp/B0PRICE001` that reports each request's arrival and, per subtest:
   - **while requested:** holds the request until the test releases it, then writes the download response;
-  - **after the download was offered:** writes the download response headers and body at once and flushes, then keeps the connection open until the request ends
-- When a check runs with its context ended (time limit; then server stop) at that point: **while requested** — after the request arrived, the context ends, then the request is released; **after the download was offered** — 100 ms after the body was flushed; then the server answers the normal page (no `Content-Disposition`) and the item is checked again with a live context
+  - **download offered at the interruption:** holds the request until the interruption, then writes the download response headers and body at once and flushes, then keeps the connection open until the request ends
+- When a check runs with its context ended (time limit; then server stop) at that point: **while requested** — after the request arrived, the context ends, then the request is released; **download offered at the interruption** — after the request arrived, the context ends as the body is flushed; then the server answers the normal page (no `Content-Disposition`) and the item is checked again with a live context
 - Then:
-  - the interrupted check is a failure and is bounded;
-  - no file written (Downloads folder absent before and after); in a second run of the **after the download was offered** subtest with `<home>/Downloads` created empty beforehand, it stays empty;
+  - the interrupted check is a failure and is bounded; the request arrived before the interruption, the download was flushed (second mode), and the check returned after the interruption, otherwise the test fails saying the interruption point was missed;
+  - no file written (Downloads folder absent before and after); in a second run of the **download offered at the interruption** subtest with `<home>/Downloads` created empty beforehand, it stays empty;
   - no cache log line;
   - the next check is `success` with 12999 cents, and still no file written
 - Corner cases: both interruption points and both kinds; Downloads folder absent and present; the persistent profile is reused by the next check, so a cached body left by the interrupted check would be found; the exact order of Chromium's events is not controlled, so the assertions must hold whichever order the run takes.
+- Not reachable with a real browser: an interruption while the check waits after the download was offered. Chromium answers `Page.navigate` with `errorText` and reports the 2xx `Document` response at the same time (measured: both within a few ms of the flush), so the check does not wait and clears the cache with a live context before any later interruption. TC-001 covers that point with the fake browser.
 
 ## Through the application
 
@@ -91,7 +92,7 @@ UC-AMZ-HCHK-008 alternative "fifth consecutive failure": the interrupted check r
 - Given two tracked Amazon items owned by two users (protected mode) with a recorded last price of 1999 cents, and the fixture server answering `/dp/<ASIN>` with the download response written and flushed while the request is held open, reporting each request's arrival
 - When the service's `Collect` of the first item runs with a context that the test cancels once the product page request has arrived and the body was flushed (server stop); then the fixture answers the normal page (`answerPage`) and `POST /api/v1/items/{id}/refresh` is called for each item (owner's session)
 - Then:
-  - the stopped `Collect` returns within the bound;
+  - the stopped `Collect` had not returned when the context was cancelled (otherwise the test fails saying the interruption point was missed) and returns within the bound;
   - no file written under `<data>/amazon-browser` or the isolated home, the Downloads folder is not created, and the data directory holds no new file outside `amazon-browser` other than the SQLite files (`dataFiles` snapshot, as TC-003 of issue #217);
   - no cache log line;
   - after the refreshes, `GET /api/v1/items/{id}` shows each item with its latest price 12999 cents, and still no file written

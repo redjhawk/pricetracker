@@ -235,11 +235,14 @@ func TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged(t *testing.
 }
 
 // A real check interrupted around a download leaves no file in the profile or the Downloads folder.
+// Chromium reports the response of an answer offered as a download together with the Page.navigate
+// error, so a real check never waits after the offer: that interruption point is covered by TC-001
+// with the fake browser, and here the download is offered at the interruption at the earliest.
 // TC-004
 func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile(t *testing.T) {
 	const (
 		whileRequested int32 = iota
-		afterOffered
+		offeredAtInterruption
 		normal
 	)
 	page := amazontest.Fixture(t, "price-found.html")
@@ -252,9 +255,9 @@ func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFil
 	}{
 		{"while requested, " + interruptionTimeLimit, whileRequested, interruptionTimeLimit, false},
 		{"while requested, " + interruptionServerStop, whileRequested, interruptionServerStop, false},
-		{"after the download was offered, " + interruptionTimeLimit, afterOffered, interruptionTimeLimit, false},
-		{"after the download was offered, " + interruptionServerStop, afterOffered, interruptionServerStop, false},
-		{"after the download was offered, existing Downloads folder, " + interruptionServerStop, afterOffered, interruptionServerStop, true},
+		{"download offered at the interruption, " + interruptionTimeLimit, offeredAtInterruption, interruptionTimeLimit, false},
+		{"download offered at the interruption, " + interruptionServerStop, offeredAtInterruption, interruptionServerStop, false},
+		{"download offered at the interruption, existing Downloads folder, " + interruptionServerStop, offeredAtInterruption, interruptionServerStop, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var mode atomic.Int32
@@ -296,7 +299,7 @@ func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFil
 					}
 					return
 				}
-				if !waitUntil(r, interruption.Add(-100*time.Millisecond)) {
+				if !waitUntil(r, interruption) {
 					return
 				}
 				writeDownload(w)
@@ -327,6 +330,7 @@ func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFil
 			ctx, cancel := interruptedContext(test.kind, at)
 			output := captureOutput(t)
 			got := collectInterrupted(t, collector, ctx, item, at)
+			returned := time.Now()
 			logged := output()
 			cancel()
 			mu.Lock()
@@ -335,8 +339,12 @@ func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFil
 			if arrived.IsZero() || arrived.After(at) {
 				t.Fatalf("product page requested at %v, want before the interruption at %s: the interruption point was missed", arrived, at.Format("15:04:05.000"))
 			}
-			if test.mode == afterOffered && (flushed.IsZero() || flushed.After(at)) {
-				t.Fatalf("download flushed at %v, want before the interruption at %s: the interruption point was missed", flushed, at.Format("15:04:05.000"))
+			if test.mode == offeredAtInterruption && flushed.IsZero() {
+				t.Fatalf("download not offered by the interrupted check at %s: the interruption point was missed", at.Format("15:04:05.000"))
+			}
+			if returned.Before(at) {
+				t.Fatalf("check returned at %s, before the interruption at %s: the interruption point was missed",
+					returned.Format("15:04:05.000"), at.Format("15:04:05.000"))
 			}
 			assertInterruptedFailure(t, got)
 			assertNoFileWritten()
