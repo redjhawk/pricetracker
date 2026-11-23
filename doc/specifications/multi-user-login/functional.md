@@ -44,7 +44,7 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 | FR-AUTH-002 | A person submits the login form. | Correct credentials log the person in. Wrong username or password show one generic error, without revealing which was wrong. | Given a wrong password, when submitting, then "Incorrect username or password" is shown and the person stays logged out. |
 | FR-AUTH-003 | A logged-in person chooses Log out. | The session ends and the login screen is shown. | After logout, reloading the page shows the login screen. |
 | FR-AUTH-004 | A session stays unused or reaches its maximum duration. | A session lasts 30 days unless the person logs out; then the person must log in again (D-8). | Given a login 31 days ago, when opening the app, then the login screen is shown. |
-| FR-AUTH-005 | Repeated failed logins. | After 5 consecutive failed logins for a username, further attempts for it are refused for 1 minute, with a message saying to wait (D-11). | Given 5 wrong passwords, when trying a 6th time within a minute, even with the right password, then login is refused. |
+| FR-AUTH-005 | Repeated failed logins. | After 5 consecutive failed logins for a username, further attempts for it are refused for 1 minute, with a message saying to wait (D-11). Superseded by [login attempt limits](../login-attempt-limits/functional.md) (issue #266): failures are counted per client address and username. | Given 5 wrong passwords, when trying a 6th time within a minute, even with the right password, then login is refused. |
 
 ### First login and password change
 
@@ -95,7 +95,7 @@ Excluded: OAuth or any external identity provider; self-registration; email; mul
 - D-8: a session lasts 30 days.
 - D-9: administrator username is `admin`; it changes its password in the app; the device command resets it in an emergency.
 - D-10: passwords have at least 12 characters.
-- D-11: 5 failed logins for a username block it for 1 minute.
+- D-11: 5 failed logins for a username block it for 1 minute. Since issue #266, counted per client address and username ([FR-LOGIN-LIM-*](../login-attempt-limits/functional.md)).
 - D-12: users can change their own password at any time.
 - D-13: admin user list shows username, must-change-password, created date, last login, item count.
 - D-14: reset or removal ends the user's sessions immediately.
