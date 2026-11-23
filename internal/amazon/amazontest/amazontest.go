@@ -185,7 +185,8 @@ func downloadNamePattern(name string) *regexp.Regexp {
 // a regular file whose base name is one of names, or that name uniquified by Chromium ("page (1).html"),
 // or that starts with "download"; a partial download (suffix ".crdownload", prefix "Unconfirmed ",
 // ".com.google.Chrome." or ".org.chromium.Chromium."); or a regular file containing DownloadMarker.
-// Missing roots are ignored; symbolic links are not followed.
+// A file that cannot be read fails t with the read error; a file that disappears before it is read is
+// ignored. Missing roots are ignored; symbolic links are not followed.
 func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 	t.Helper()
 	patterns := make([]*regexp.Regexp, 0, len(names))
@@ -204,7 +205,11 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 			if !entry.Type().IsRegular() {
 				return nil
 			}
-			if reason := downloadFile(path, entry.Name(), patterns); reason != "" {
+			reason, err := downloadFile(path, entry.Name(), patterns)
+			if err != nil {
+				return err
+			}
+			if reason != "" {
 				found = append(found, path+" ("+reason+")")
 			}
 			return nil
@@ -219,28 +224,35 @@ func AssertNoDownload(t testing.TB, names []string, roots ...string) {
 }
 
 // downloadFile returns why the regular file at path with base name looks left by a download, or "".
-func downloadFile(path, name string, patterns []*regexp.Regexp) string {
+// It returns the error of reading a file that no name rule matches, unless the file no longer exists.
+func downloadFile(path, name string, patterns []*regexp.Regexp) (string, error) {
 	for _, pattern := range patterns {
 		if pattern.MatchString(name) {
-			return "named after the attachment"
+			return "named after the attachment", nil
 		}
 	}
 	if strings.HasPrefix(name, "download") {
-		return "default download name"
+		return "default download name", nil
 	}
 	if strings.HasSuffix(name, partialDownloadSuffix) {
-		return "partial download"
+		return "partial download", nil
 	}
 	for _, prefix := range partialDownloadPrefixes {
 		if strings.HasPrefix(name, prefix) {
-			return "partial download"
+			return "partial download", nil
 		}
 	}
 	data, err := os.ReadFile(path) // #nosec G304 -- file of a test directory
-	if err == nil && bytes.Contains(data, []byte(DownloadMarker)) {
-		return "holds the downloaded body"
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
 	}
-	return ""
+	if err != nil {
+		return "", err
+	}
+	if bytes.Contains(data, []byte(DownloadMarker)) {
+		return "holds the downloaded body", nil
+	}
+	return "", nil
 }
 
 // AssertDownloadsFolder fails t unless <home>/Downloads is absent (existed false) or an empty directory (existed true).

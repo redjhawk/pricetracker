@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The import scan passes today: only _test.go files import amazontest (checked with grep), and amazontest.go does not import itself. TC-006 is still proved by the repository diff check and the gates, as the technical specification says. The unit test is an extra guard that could fail too strictly on a future non-_test.go test-support file, so it is fragile but not wrong now.",
+    "title": "Replace the TC-006 import scan in amazontest_test.go with a dependency check",
+    "todo": "**Problem:** `TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched` (`internal/amazon/amazontest/amazontest_test.go:370-401`) walks `../../../cmd` and `../../../internal` and fails when any non-`_test.go` file contains the amazontest import string. A future test-support helper file (for example `internal/httpapi/httpapitest/*.go`) could legitimately import amazontest without the server binary depending on it, and this test would then fail. A text search also does not show what actually reaches the binary. The technical specification (`doc/specifications/test-suite-hygiene/technical.md`, test case mapping) maps TC-006 to a repository diff check plus the gates, not to a unit test.\n\n**Suggested work:** Remove the import scan from the package test. If the guarantee is wanted, check it with `go list -deps ./cmd/...` (assert that `pricefollower.local/internal/amazon/amazontest` is absent) in a repository check or CI script, and record it in the TC-006 mapping."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "The check is not unrelated work: testcases.md lists \"`internal/service/zz_scratch_docs_test.go` is still absent\" as a TC-006 corner case for FR-TEST-HYG-003, which this issue rewords. It only reads the file system and passes. Tying the amazontest tests to a path in ../../service is a design and coupling concern, not a defect.",
+    "title": "Move the issue #208 scratch-file check out of the amazontest unit tests",
+    "todo": "**Problem:** `internal/amazon/amazontest/amazontest_test.go:371-375` checks that `../../service/zz_scratch_docs_test.go` is absent (issue #208, FR-TEST-HYG-003). This ties the amazontest package tests to an unrelated file path. The technical specification lists the issue #208 cases as repository checks (`git ls-files 'internal/service/zz_scratch*'` is empty).\n\n**Suggested work:** Remove the assertion from the package test (together with the R1-01 follow-up, the whole TC-006 unit test can go). Keep the check as the repository check in `doc/specifications/test-suite-hygiene/technical.md`, and update the TC-006 row of `doc/changes/2026-11-23-1415-issue-232-make-assertnodownload-fail-on-unreadable/testcases.md` if needed."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Confirmed: technical.md lines 75-79 name TestAssertNoDownloadFailsOnUnreadableFile and similar, while the test file declares TestAssertNoDownload_TC001_FailsOnUnreadableFile and so on, and does not mention the TC-006 unit test. Each TC-NNN still maps to a test with the same TC number, so traceability holds. This is a documentation inconsistency.",
+    "title": "Align the test case mapping in test-suite-hygiene/technical.md with the real test names",
+    "todo": "**Problem:** The test case mapping in `doc/specifications/test-suite-hygiene/technical.md` (lines 75-80) names `TestAssertNoDownloadFailsOnUnreadableFile`, `TestAssertNoDownloadReportsUnreadableDownloadByName`, `TestDownloadFileIgnoresRemovedFile`, `TestAssertNoDownloadJudgesReadableFiles` and `TestAssertNoDownloadPassesOnBrowserProfile`. `internal/amazon/amazontest/amazontest_test.go` declares `TestAssertNoDownload_TC001_FailsOnUnreadableFile`, `TestAssertNoDownload_TC002_ReportsUnreadableDownloadByName`, `TestDownloadFile_TC003_IgnoresRemovedFile`, `TestAssertNoDownload_TC004_JudgesReadableFiles`, `TestAssertNoDownload_TC005_PassesOnBrowserProfile`, and also `TestAssertNoDownload_TC006_ChangeLeavesApplicationUntouched`, which the mapping does not mention.\n\n**Suggested work:** Update the mapping rows to use the real test names, so a reader can run them with `go test -run`. Mention the TC-006 unit test, or drop it if the R1-01/R1-02 follow-ups remove it."
+  }
+]
