@@ -200,7 +200,7 @@ func (b *lockedBuffer) String() string {
 func TestBrowserCollector_TC002_RunsScriptsAndLoadsResources(t *testing.T) {
 	server := amazontest.NewServer(t, fixtureHandler(t))
 	collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
-	result := browserCheck(t,collector, fixtureItem("B0SCRIPT01"))
+	result := browserCheck(t, collector, fixtureItem("B0SCRIPT01"))
 	if result.Result != "success" || result.AmountCents != 4999 || pointerValue(result.Title) != "Script product" {
 		t.Fatalf("price inserted by the page script not detected: %+v (title %s)", result, pointerValue(result.Title))
 	}
@@ -257,9 +257,9 @@ func TestBrowserCollector_TC003_KeepsCookiesHeadlessWithoutCredentials(t *testin
 	collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
 	item := fixtureItem("B0PRICE001")
 
-	first := browserCheck(t,collector, item)
+	first := browserCheck(t, collector, item)
 	firstRequests := server.Requests()
-	second := browserCheck(t,collector, item)
+	second := browserCheck(t, collector, item)
 	if first.Result != "success" || second.Result != "success" {
 		t.Fatalf("checks without a display: first %+v, second %+v", first, second)
 	}
@@ -312,7 +312,7 @@ func TestBrowserCollector_TC004_ResultsMatchTheParser(t *testing.T) {
 					t.Fatalf("fixture check: the parser reads %d, %v", amount, found)
 				}
 			}
-			got := browserCheck(t,collector, fixtureItem(test.asin))
+			got := browserCheck(t, collector, fixtureItem(test.asin))
 			if got.Result != test.want.Result || got.AmountCents != test.want.AmountCents || got.Message != test.want.Message ||
 				pointerValue(got.Title) != pointerValue(test.want.Title) || pointerValue(got.ThumbnailURL) != pointerValue(test.want.ThumbnailURL) ||
 				got.SecondHandStatus != test.want.SecondHandStatus || got.SecondHandAmountCents != test.want.SecondHandAmountCents ||
@@ -324,7 +324,7 @@ func TestBrowserCollector_TC004_ResultsMatchTheParser(t *testing.T) {
 	}
 	// As today, a product page answering 404 (or 410) is an unavailable listing, not a failure.
 	t.Run("product page answering 404", func(t *testing.T) {
-		got := browserCheck(t,collector, fixtureItem("B0GONE0001"))
+		got := browserCheck(t, collector, fixtureItem("B0GONE0001"))
 		if got.Result != "unavailable" || got.Message != "The listing is no longer available." {
 			t.Fatalf("404 product page: %+v", got)
 		}
@@ -358,7 +358,7 @@ func TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures(t *testing.T)
 			collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
 			output := captureOutput(t)
 			item := fixtureItem("B0PRICE001")
-			got := browserCheck(t,collector, item)
+			got := browserCheck(t, collector, item)
 			logged := output()
 			if got.Result != "request_error" || got.Message != amazonCheckFailed || got.SecondHandStatus != "check_error" {
 				t.Fatalf("not a failure: %+v", got)
@@ -431,7 +431,7 @@ func TestBrowserCollector_TC007_ErrorsEndTheCheck(t *testing.T) {
 		listener.Close()
 		options := testBrowserOptions(t, closedOrigin)
 		goroutines := runtime.NumGoroutine()
-		got := browserCheck(t,NewBrowserCollector(options), fixtureItem("B0PRICE001"))
+		got := browserCheck(t, NewBrowserCollector(options), fixtureItem("B0PRICE001"))
 		failure(t, got)
 		if got.HTTPStatus != 0 || !strings.HasSuffix(got.RequestURL, "/dp/B0PRICE001") {
 			t.Fatalf("diagnostics without a response: %+v", got)
@@ -445,7 +445,7 @@ func TestBrowserCollector_TC007_ErrorsEndTheCheck(t *testing.T) {
 		options.NavigationTimeout = 2 * time.Second
 		goroutines := runtime.NumGoroutine()
 		started := time.Now()
-		got := browserCheck(t,NewBrowserCollector(options), fixtureItem("B0PRICE001"))
+		got := browserCheck(t, NewBrowserCollector(options), fixtureItem("B0PRICE001"))
 		failure(t, got)
 		if elapsed := time.Since(started); elapsed > 30*time.Second {
 			t.Fatalf("the navigation timeout did not end the check: %s", elapsed)

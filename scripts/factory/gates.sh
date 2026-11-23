@@ -95,6 +95,10 @@ gate_red() {
     grep -q "$id" $files || { echo "test case $id is not referenced by any changed test"; missing=1; }
   done
   [ $missing = 0 ] || return 1
+  # Locked tests cannot be formatted later, and an unformatted file on the base branch fails every repair.
+  local unformatted
+  unformatted=$(grep -E '_test\.go$' <<<"$files" | xargs -r gofmt -l 2>&1 || true)
+  [ -z "$unformatted" ] || { echo "gofmt reports (run gofmt -w on them):"; echo "$unformatted"; return 1; }
   # A Playwright spec that playwright.config.ts (explicit testMatch) does not list would never run.
   local listed f
   listed=$(npx playwright test --list 2>/dev/null || true)
