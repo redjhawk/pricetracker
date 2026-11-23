@@ -1,10 +1,10 @@
 // Tests of the agent factory supervisor's decisions (scripts/factory/supervisor.mjs) and of the usage-limit
-// reset parser in scripts/factory/lib.sh. Offline: no GitHub, no Claude.
+// reset parser and the deletion list in scripts/factory/lib.sh. Offline: no GitHub, no Claude.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import {
   applyGlobalLimit, classify, classifyProbe, decide, FACTORY_MARKER, freeSlots, HOLD_LABEL, labeledAt, launchCandidates,
@@ -279,4 +279,25 @@ test('lib.sh reads the reset time of a usage-limit message', () => {
   assert.ok(daily > Date.now() && daily <= Date.now() + 24 * 3600_000, 'today or tomorrow');
   assert.equal(new Date(daily).toISOString().slice(11, 16), '23:10');
   assert.equal(resets('Claude failed'), '');
+});
+
+test('lib.sh deletes the files listed in delete.txt that the profile may edit, and only those', () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'delete-')));
+  const lib = join(process.cwd(), 'scripts/factory/lib.sh');
+  const files = ['internal/a.go', 'internal/b.go', '.github/w.yml', 'README.md', 'doc/changes/x/state.json'];
+  try {
+    for (const f of files) { mkdirSync(join(dir, dirname(f)), { recursive: true }); writeFileSync(join(dir, f), 'x\n'); }
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    writeFileSync(join(dir, 'doc/changes/x/delete.txt'),
+      ['internal/a.go', `${dir}/internal/b.go`, '.github/w.yml', 'internal/../README.md', 'internal', '/etc/hostname', ''].join('\n'));
+    execFileSync('bash', ['-c', `source "${lib}"; CHANGE_DIR=doc/changes/x; apply_deletions "Read,Edit(internal/**),Edit(doc/changes/x/**),Bash(go test:*)"`],
+      { cwd: dir, stdio: 'pipe' });
+    const left = files.filter((f) => existsSync(join(dir, f)));
+    assert.deepEqual(left, ['.github/w.yml', 'README.md', 'doc/changes/x/state.json']);
+    assert.ok(!existsSync(join(dir, 'doc/changes/x/delete.txt')), 'the list is not committed');
+    assert.equal(execFileSync('git', ['ls-files', 'internal'], { cwd: dir, encoding: 'utf8' }), '');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
