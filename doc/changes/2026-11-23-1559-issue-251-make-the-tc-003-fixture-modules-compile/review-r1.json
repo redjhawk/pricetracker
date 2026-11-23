@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 324,
+    "category": "test",
+    "body": "For rows f and g, the build test only checks `err != nil`. Any build failure is accepted, including one that has nothing to do with the fixture (for example a cache or environment error, or a future change that breaks every fixture the same way). So the \"not vacuous\" corner case of TC-001 is only weakly proved. Every entry already carries the text its failure must hold (`tc.fails`: `pricefollower.local/internal/nope`, `main.go`). Suggested fix: in the default branch, also require `strings.Contains(err.Error(), tc.fails)`, as the control subtest already does for `DownloadMarker`."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 303,
+    "category": "nit",
+    "body": "`go build ./...` never compiles `_test.go` files. The test files of row d (`cmd/app/main_test.go`, `internal/service/service_test.go`) are therefore not part of what this test proves compiles. This meets FR-TEST-HYG-014 as written, which defines the check as `go build ./...`, and those files only hold blank imports, so this is not a defect today. If the intent is that every fixture file compiles, also run `go vet ./...` (which type-checks test files) in `buildModule`, or say in the header comment that test files are out of scope."
+  }
+]
