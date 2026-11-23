@@ -21,13 +21,22 @@ type claudeClient interface {
 // SettingsInput holds the Settings entries to save; a nil part is left unchanged.
 type SettingsInput struct {
 	LeboncoinSession *SessionInput
-	ClaudeToken      *string
+	ClaudeToken      *TokenInput
 }
 
-// SessionInput is the pasted LeBoncoin session and the revision shown in Settings.
+// SessionInput replaces the LeBoncoin session with Value, or removes it, if the
+// stored revision is still Revision. A blank Value leaves the session unchanged.
 type SessionInput struct {
 	Value    string
+	Remove   bool
 	Revision int64
+}
+
+// TokenInput replaces the Claude token with Value, or removes it. A blank Value
+// leaves the token unchanged.
+type TokenInput struct {
+	Value  string
+	Remove bool
 }
 
 // ClaudeToken returns the saved Claude token settings.
@@ -56,7 +65,7 @@ func (s *Service) SaveSettings(ctx context.Context, input SettingsInput) (model.
 	}
 	var tokenChange *store.TokenChange
 	if input.ClaudeToken != nil {
-		token := strings.TrimSpace(*input.ClaudeToken)
+		token := strings.TrimSpace(input.ClaudeToken.Value)
 		if err := validateClaudeToken(token); err != nil {
 			return model.LeboncoinSession{}, model.ClaudeToken{}, err
 		}

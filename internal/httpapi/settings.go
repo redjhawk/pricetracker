@@ -76,7 +76,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", invalidRequest)
 			return
 		}
-		input.ClaudeToken = token.Value
+		input.ClaudeToken = &service.TokenInput{Value: *token.Value}
 	}
 	if input.LeboncoinSession == nil && input.ClaudeToken == nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", invalidRequest)

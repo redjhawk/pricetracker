@@ -71,13 +71,15 @@ func withTransport(t *testing.T, transport sessionFixtureTransport) {
 	t.Cleanup(func() { http.DefaultTransport = original })
 }
 
+// saveSession saves raw as Settings does, or removes the session when raw is "".
 func saveSession(t *testing.T, service *Service, raw string) model.LeboncoinSession {
 	t.Helper()
 	current, err := service.LeboncoinSession(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := service.SaveLeboncoinSession(context.Background(), raw, current.Revision)
+	input := &SessionInput{Value: raw, Revision: current.Revision, Remove: raw == ""}
+	saved, _, err := service.SaveSettings(context.Background(), SettingsInput{LeboncoinSession: input})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +111,11 @@ func TestSaveLeboncoinSessionValidationAndConflict(t *testing.T) {
 	service, database := newSessionService(t)
 	ctx := context.Background()
 	insertListing(t, database, "lbc", "leboncoin", "https://www.leboncoin.fr/ad/test/123")
-	saved, err := service.SaveLeboncoinSession(ctx, " Cookie: a=1; datadome=synthetic-saved; b=2 ", 0)
+	save := func(input SessionInput) (model.LeboncoinSession, error) {
+		session, _, err := service.SaveSettings(ctx, SettingsInput{LeboncoinSession: &input})
+		return session, err
+	}
+	saved, err := save(SessionInput{Value: " Cookie: a=1; datadome=synthetic-saved; b=2 ", Revision: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,17 +123,22 @@ func TestSaveLeboncoinSessionValidationAndConflict(t *testing.T) {
 		t.Fatalf("saved %+v", saved)
 	}
 	var typed *Error
-	if _, err := service.SaveLeboncoinSession(ctx, "a=1", 1); !errors.As(err, &typed) || typed.Status != 400 || typed.Code != "INVALID_SESSION" || typed.Message != "No datadome cookie was found in the pasted text." {
+	if _, err := save(SessionInput{Value: "a=1", Revision: 1}); !errors.As(err, &typed) || typed.Status != 400 || typed.Code != "INVALID_SESSION" || typed.Message != "No datadome cookie was found in the pasted text." {
 		t.Fatalf("invalid input error %v", err)
 	}
-	if _, err := service.SaveLeboncoinSession(ctx, "other", 0); !errors.As(err, &typed) || typed.Status != 409 || typed.Code != "SESSION_CHANGED" || typed.Message != "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." {
+	if _, err := save(SessionInput{Value: "other", Revision: 0}); !errors.As(err, &typed) || typed.Status != 409 || typed.Code != "SESSION_CHANGED" || typed.Message != "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." {
 		t.Fatalf("conflict error %v", err)
 	}
 	current, _ := service.LeboncoinSession(ctx)
 	if *current.Value != "synthetic-saved" || current.Revision != 1 {
 		t.Fatalf("rejected saves changed the session %+v", current)
 	}
-	cleared, err := service.SaveLeboncoinSession(ctx, "   ", 1)
+	// Issue #265: a blank value keeps the session; only an explicit removal clears it.
+	kept, err := save(SessionInput{Value: "   ", Revision: 1})
+	if err != nil || kept.Value == nil || *kept.Value != "synthetic-saved" || kept.Revision != 1 {
+		t.Fatalf("blank value changed the session %+v %v", kept, err)
+	}
+	cleared, err := save(SessionInput{Remove: true, Revision: 1})
 	if err != nil || cleared.Value != nil || cleared.Status != "none" {
 		t.Fatalf("clear %+v %v", cleared, err)
 	}

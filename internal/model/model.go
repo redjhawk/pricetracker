@@ -164,6 +164,15 @@ type AIDescriptionPhotos struct {
 	Mismatches  []string `json:"mismatches"`
 }
 
+// SecretHintMinLength is the shortest saved secret whose last 4 characters are shown.
+const SecretHintMinLength = 16
+
+// SecretHint returns the last 4 characters of a saved secret, or nil when none is
+// saved or it is shorter than SecretHintMinLength.
+func SecretHint(value *string) *string {
+	return nil // not implemented (issue #265)
+}
+
 // LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
 type LeboncoinSession struct {
 	Value       *string                  `json:"value"`
