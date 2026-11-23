@@ -52,6 +52,37 @@ What the server log shows:
 - For each failed Amazon check: `Amazon request failed url=… at=… status=… cause=…`. The cause says whether the browser could not start (with the browser's own reason), the page could not be opened or did not finish loading, Amazon returned a non-success HTTP status, or Amazon showed a robot check.
 - For a page without a detectable price: `Amazon check found no price url=… at=… status=… cause=…`. It is not counted as a failed request.
 
+### Service user without a home directory
+
+Chromium needs a writable configuration directory. A service user created without a home directory has none, and the browser then exits at startup with `chrome_crashpad_handler: --database is required`. Give the service two directories it can write to, for example inside the data directory (`systemctl edit <service>`), then restart it:
+
+```ini
+[Service]
+Environment=XDG_CONFIG_HOME=<data directory>/.config
+Environment=XDG_CACHE_HOME=<data directory>/.cache
+```
+
+### Outbound proxy or firewall
+
+An Amazon page loads its scripts, styles and images from other hosts (`m.media-amazon.com`, `*.ssl-images-amazon.com` and others), and PriceFollower waits up to 45 seconds for the whole page to load. A proxy or firewall that allows only `amazon.fr` or `amazon.es` must therefore **reject** every other destination at once (TCP reset, refused connection or HTTP 403), never drop it silently: a single request left hanging makes every check fail with `did not finish loading`. Check it from the server; a blocked host must fail in milliseconds, not after the 15-second limit:
+
+```bash
+curl -m 15 -s -o /dev/null -w '%{http_code} %{time_total}s\n' https://www.amazon.fr/        # an HTTP code
+curl -m 15 -s -o /dev/null -w '%{http_code} %{time_total}s\n' https://m.media-amazon.com/  # 000 in a few ms
+```
+
+To tell the network from the service, load a product page with Chromium alone (add `--no-sandbox` as root). It should print about 2,000,000 bytes within seconds:
+
+```bash
+time timeout 60 chromium --headless=new --user-data-dir=/tmp/cr-test --dump-dom "https://www.amazon.fr/dp/<ASIN>" | wc -c
+```
+
+If that works but the service still times out, compare the service's environment (`tr '\0' '\n' < /proc/<service PID>/environ`), in particular any `http_proxy`/`https_proxy` variable, and try a fresh browser profile: stop the service, move `amazon-browser/` aside and start it again.
+
+### Amazon checks stopped
+
+After 5 consecutive failed Amazon requests the application logs `Amazon checks stopped after 5 consecutive failures` and stops every Amazon item. Fixing the cause does not restart them: press "Refresh price" on each Amazon item. A manual check runs even while stopped, and a successful answer restarts that item's scheduled checks.
+
 ## Administrator account
 
 Without regular users, PriceFollower works without login (open mode). To add users, create the `admin` account on the server, as the service user and with the service's data directory:
