@@ -27,7 +27,7 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-014 | HCHK-011 | The collector's failure log line also prints the request URL (`item.URL`, the result's `RequestURL`), so a check that fails in the browser is logged with the request URL and the browser's error on one line (issue #186) | `internal/amazon/collector.go` |
 | TS-AMZ-HCHK-015 | HCHK-013 (with HCHK-012) | `loadedPage.errorPage` is set when `load` returns the non-2xx response of an `errorText` navigation (the tab shows Chromium's error page); `Collect` then returns the unavailable result with `SecondHandStatus = "check_error"` without `fetchAll`, so no used-offer request and no used-offer log line (issue #187) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-016 | HCHK-014 | `browserTab.setUp` calls `Browser.setDownloadBehavior{behavior: "deny"}` on the browser (default browser context) before the page is created; an error fails the check as a browser start failure, before any navigation (issue #217) | `internal/amazon/browser.go` |
-| TS-AMZ-HCHK-017 | HCHK-014 (with HCHK-011) | `browserTab.load`: when an `errorText` navigation recorded a 2xx Document response (a download or no content), `Network.clearBrowserCache` is called before the failure is returned, so the response body is not kept in the profile's HTTP disk cache (issue #217) | `internal/amazon/browser.go` |
+| TS-AMZ-HCHK-017 | HCHK-014 (with HCHK-011) | `browserTab.load`: when an `errorText` navigation did not record a non-2xx Document response (a download, no content, or no response seen within the wait), `Network.clearBrowserCache` is called before the failure is returned, so the response body is not kept in the profile's HTTP disk cache (issue #217) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
 ## Backend
@@ -336,7 +336,7 @@ Not affected: no new state, field or message. A download is still the failed che
   - The setting lives in the browser process and is not stored in the profile. Each check starts its own browser (`open`), so every check sets it again.
   - An error from this call fails `setUp`, so `open` returns `browser could not start: Browser.setDownloadBehavior: <message>`. The check is the existing counted browser start failure, and no page is requested. This is fail-closed: a check never runs with downloads allowed.
   - `fetch` used-offer requests and subresources never start downloads; only navigations do, and the setting covers them all.
-- **TS-AMZ-HCHK-017**, `browserTab.load`, `errorText` branch. The network stack stores a navigation response in the profile's HTTP disk cache (`<profile>/Default/Cache`, since the profile is outside `~/.config`) as it reads the body. It does this even when the response then goes to the download system. A small attachment can therefore be cached whole before the download is cancelled. When the branch found a 2xx response, the HTTP cache is cleared before the failure is returned:
+- **TS-AMZ-HCHK-017**, `browserTab.load`, `errorText` branch. The network stack stores a navigation response in the profile's HTTP disk cache (`<profile>/Default/Cache`, since the profile is outside `~/.config`) as it reads the body. It does this even when the response then goes to the download system. A small attachment can therefore be cached whole before the download is cancelled. Unless the branch found a non-2xx response (an error page), the HTTP cache is cleared before the failure is returned. The clear does not depend on `awaitDocument` finding the response, since Chromium may report the error before the response event and that event may come after the 1 s wait:
 
   ```go
   if navigation.ErrorText != "" {
@@ -345,12 +345,10 @@ Not affected: no new state, field or message. A download is still the failed che
           page.errorPage = true
           return page, nil
       }
-      if found {
-          // A 2xx answer the browser did not open (a download, no content) may already be in the profile's
-          // HTTP cache: the answer must not stay on disk (issue #217).
-          if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
-              log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
-          }
+      // A 2xx answer the browser did not open (a download, no content) may already be in the profile's
+      // HTTP cache, also when its response event comes late: the answer must not stay on disk (issue #217).
+      if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
+          log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
       }
       return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
   }
@@ -358,8 +356,8 @@ Not affected: no new state, field or message. A download is still the failed che
 
   - The cache entry is created when the request starts, so it exists at this point. Clearing dooms the active entries too: a cache write still running is deleted when it ends.
   - The call uses the check's `ctx`, not `loadContext`, which may be about to expire. An error is logged and the result stays the same failure.
-  - Cookies and other site data are kept: `Network.clearBrowserCache` clears only the HTTP cache. After such a failure, the next check reloads page resources over the network, as a returning visitor with an empty cache would. This happens only after a 2xx answer the browser did not open.
-  - A navigation without a response (DNS, refused) and a non-2xx answer (TS-AMZ-HCHK-013/015) are unchanged.
+  - Cookies and other site data are kept: `Network.clearBrowserCache` clears only the HTTP cache. After such a failure, the next check reloads page resources over the network, as a returning visitor with an empty cache would. This happens only after a failed navigation that is not a non-2xx error page.
+  - A navigation without a response (DNS, refused) also clears the HTTP cache, since a late response cannot be told apart from none; its result stays the same failure. A non-2xx answer (TS-AMZ-HCHK-013/015) is unchanged.
 - Check results, messages, logs, the gate, the failure count and stops are unchanged (FR-AMZ-HCHK-011). `Browser.close` ends each check, and the browser shuts down cleanly before the process group is killed, so no partial download is left behind. Service, store, validation, persistence and migrations: none. Concurrency: unchanged (gate lock, `BrowserCollector.mu`).
 - Compatibility: `Browser.setDownloadBehavior` and `Network.clearBrowserCache` exist in every Chromium/Chrome that supports `--headless=new`, so no version is newly excluded.
 

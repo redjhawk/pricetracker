@@ -443,12 +443,10 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 			page.errorPage = true
 			return page, nil
 		}
-		if found {
-			// A 2xx answer the browser did not open (a download, no content) may already be in the profile's
-			// HTTP cache: the answer must not stay on disk (issue #217).
-			if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
-				log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
-			}
+		// A 2xx answer the browser did not open (a download, no content) may already be in the profile's
+		// HTTP cache, also when its response event comes late: the answer must not stay on disk (issue #217).
+		if err := t.browser.call(ctx, t.session, "Network.clearBrowserCache", nil, nil); err != nil {
+			log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
 		}
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
 	}
