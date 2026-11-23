@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Commit 623f2cf wraps the one-line B0CAUSEG01 func literal in internal/service/amazon_browser_retrieval_test.go:221 over three lines; the original form passes gofmt, and gates.sh has no line-length rule, so the hunk is not needed. It is a formatting change to a #204 test that no #226 test case touches, which counts as unrelated work mixed into this PR. Revert the hunk.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Correct but not a defect: snapParagraph already repeats `chromium` and `chromium-browser` after the lookup list, so TestAmazonBrowserSnapDocs_TC002_ChecksAcceptTheSpecifiedSection already proves repeats are accepted. The extra test is redundant but not wrong.",
+    "title": "Remove or sharpen the redundant repeated-name docs test of #226",
+    "todo": "**Problem:** `TestAmazonBrowserSnapDocs_TC002_RepeatedNameAfterTheListIsAccepted` (`internal/service/amazon_browser_snap_docs_test.go:227`) repeats `chromium` after the lookup list. `specifiedSnapSetup` already does that through `snapParagraph` (which names `chromium` and `chromium-browser`), so `TestAmazonBrowserSnapDocs_TC002_ChecksAcceptTheSpecifiedSection` already covers this case.\n\n**Suggested work:** Either delete the test and add a comment on `ChecksAcceptTheSpecifiedSection` saying it covers names repeated after the list, or change the fixture to test something the specified fixture does not, for example a repeat of `google-chrome-stable` after the list. Run `go test ./internal/service/...` afterwards."
+  }
+]

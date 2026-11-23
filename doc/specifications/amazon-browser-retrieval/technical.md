@@ -1,8 +1,8 @@
 # Technical specification: Amazon browser retrieval
 
-Status: ready (issue #204)\
-Functional specification: [functional.md](functional.md), FR-AMZ-BRET-001 – 007\
-Test cases: [testcases.md](../../changes/2026-11-22-2139-issue-204-retrieval-error/testcases.md), TC-001 – TC-013\
+Status: ready (issue #204); TS-AMZ-BRET-008 ready (issue #226, see [Issue #226](#issue-226-ubuntu-chromium-snap-pitfall))\
+Functional specification: [functional.md](functional.md), FR-AMZ-BRET-001 – 008\
+Test cases: [#204 testcases.md](../../changes/2026-11-22-2139-issue-204-retrieval-error/testcases.md), TC-001 – TC-013; [#226 testcases.md](../../changes/2026-11-23-1020-issue-226-document-the-ubuntu-chromium-snap-pitfal/testcases.md), TC-001 – TC-004\
 Companions: [Amazon human-like checks](../amazon-human-checks/technical.md) (browser collector, TS-AMZ-HCHK-003 classification amended here), [Amazon browser profile recovery](../amazon-browser-profile/technical.md), [Amazon request stop](../amazon-request-stop/technical.md) (count, stop and restart, unchanged)
 
 ## Summary
@@ -30,6 +30,7 @@ Price and second-hand parsing, the failure count, stop and restart rules, the UI
 | TS-AMZ-BRET-005 | BRET-005 | `cdpBrowser` keeps the last 2 KB of the browser's stderr and its exit status. An error caused by the browser exiting becomes `the browser exited (<exit status>): <stderr tail>`, so a start failure logs `browser could not start: the browser exited (exit status 1): Running as root without --no-sandbox …`. | `internal/amazon/cdp.go` | TC-006, TC-007, TC-012, TC-013 |
 | TS-AMZ-BRET-006 | BRET-006 | New `Server setup` section in `deploy/README.md`: browser install commands, lookup order (`PRICEFOLLOWER_BROWSER_PATH`, then executable names on `PATH`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true` for containers and root, the profile directory and the related log lines. `README.md` links to it. The names are exported from code so a documentation test can compare both ways. The start log line for a missing browser stays as it is. | `deploy/README.md`, `README.md`, `internal/amazon/browser.go`, `internal/service/service.go` | TC-011, TC-012, TC-013 |
 | TS-AMZ-BRET-007 | BRET-007 | No change. A stopped item is still skipped by the scheduler, and **Refresh price** (`manual = true`) still runs it. A non-failure result clears its stop (`ClearAmazonStop`) and resets the count. | none (verified only) | TC-010 |
+| TS-AMZ-BRET-008 | BRET-008, BRET-006 | Issue #226. One new paragraph, the snap sentence, in `### Browser for Amazon checks` of `deploy/README.md`, right after the lookup paragraph. No code change: `FindBrowser`, `BrowserNames` and `BrowserPathVariable` stay as they are. | `deploy/README.md` | #226 TC-001 – TC-004, #204 TC-011 |
 
 ## Frontend
 
@@ -183,3 +184,67 @@ Out of scope: changing price or second-hand parsing, retrying or restarting stop
 `go build ./...`, `go vet ./...`, `go test ./...`, and `go test -race ./internal/amazon/... ./internal/service/... ./internal/httpapi/...` with Chromium available (`CI` set, so browser tests cannot skip). Also `npm run build` and the Playwright suite (tests unchanged).
 
 No open question.
+
+## Issue #226: Ubuntu Chromium snap pitfall
+
+FR-AMZ-BRET-008, TS-AMZ-BRET-008. Test case numbers in this section are those of the [#226 test cases](../../changes/2026-11-23-1020-issue-226-document-the-ubuntu-chromium-snap-pitfal/testcases.md).
+
+### Summary
+
+On Ubuntu, `chromium` and `chromium-browser` usually lead to the snap Chromium, which `FindBrowser` finds before `google-chrome-stable`. Snap confinement can stop it from starting for the service. The fix is one documentation sentence that tells the operator to set `PRICEFOLLOWER_BROWSER_PATH` to Google Chrome. The lookup order does not change (the functional specification excludes it).
+
+### Frontend
+
+Not affected: no screen, state or message changes. No file in `src/` or `web/` changes. The Playwright tests in `tests/` must keep passing.
+
+### Backend
+
+Not affected: no code change. `amazon.FindBrowser`, `amazon.BrowserNames` (`chromium`, `chromium-browser`, `google-chrome-stable`, `google-chrome`) and `amazon.BrowserPathVariable` stay as they are. `FindBrowser` still resolves the executable at each check, so a value of `PRICEFOLLOWER_BROWSER_PATH` set later is used without a restart. No persistence, migration, validation or concurrency change. New tests only pin the existing behaviour (TC-003, TC-004).
+
+### API
+
+Not affected: no endpoint, field or error changes. `API_SPECIFICATION.md` does not change.
+
+### Documentation (TS-AMZ-BRET-008)
+
+`deploy/README.md`, subsection `### Browser for Amazon checks` of `## Server setup`: add this paragraph directly after the paragraph that starts "The application uses `PRICEFOLLOWER_BROWSER_PATH`" and before the container paragraph:
+
+> When a Chromium snap is installed (usual on Ubuntu, where `chromium` and `chromium-browser` lead to it), snap confinement can stop it from starting for the service and every Amazon check then fails with "browser could not start", so set `PRICEFOLLOWER_BROWSER_PATH` to the Google Chrome executable, for example `/usr/bin/google-chrome-stable`.
+
+Rules for the text, checked by the tests:
+
+- It is one sentence. It has no `.`, `!` or `?` followed by whitespace before its end, and no `e.g.`.
+- The example path is written only as the full path `/usr/bin/google-chrome-stable`. It is never a bare name such as `google-chrome-stable` in its own backtick token, so the documented looked-up names stay those of the code. The repeated `chromium` and `chromium-browser` tokens come after the lookup list, so they do not change its order.
+- `PRICEFOLLOWER_BROWSER_PATH` is the only setting named, so the #204 TC-011 variable check still passes.
+- No other part of `deploy/README.md` or `README.md` changes.
+
+### Test implementation
+
+Test names use the prefix `TestAmazonBrowserSnapDocs_TCnnn_`.
+
+| Test case | File | Notes |
+| --- | --- | --- |
+| TC-001 | `internal/service/amazon_browser_snap_docs_test.go` (new) | Reuses `serverSetupSection`, `readRepositoryFile` and `fencedCodePattern` from `amazon_browser_retrieval_docs_test.go`. New helpers: `browserSubsection(section)` returns the text from `\n### Browser for Amazon checks\n` to the next `\n### ` or `\n## `, or ""; `sentences(text)` removes fenced code, then splits on ``[.!?](\s+|$)`` and on blank lines, and returns each sentence with its offset. `assertSnapSentence(t, deployment)` requires one sentence that contains `snap`, `ubuntu` and `google chrome` (case-insensitive), and `amazon.BrowserPathVariable` and `/usr/bin/google-chrome-stable` (exact). The sentence must start after the first `` `google-chrome` `` token of the subsection, which ends the lookup list. It runs on the real file and on fixtures built from `specifiedSnapSetup`: `specifiedServerSetup` with the snap sentence inserted as a new paragraph after the lookup paragraph. Fixtures that must fail: no sentence; no setting; no path; words split over two sentences; sentence only under `## Administrator account`; sentence only in a fenced block. The specified fixture must pass. Each failing fixture is checked with a helper that returns an error instead of calling `t.Fatal`. |
+| TC-002 | `internal/service/amazon_browser_snap_docs_test.go` (new) | `lookedUpNames(subsection)`: backtick tokens of the prose (fenced code removed) that match `browserNamePattern`, in reading order, without repeats. It must equal `amazon.BrowserNames` (`slices.Equal`). It runs on the real file, on `specifiedSnapSetup`, and on fixtures: names in another order and an extra bare name (`google-chrome-unstable`, `chromium-snap`) fail; `chromium` repeated in the snap sentence passes; the backticked `/usr/bin/google-chrome-stable` is never collected. Also calls `assertInstallationDocumentation` on `specifiedSnapSetup` and the real files, so #204 TC-011 is checked on the changed section (the existing #204 TC-011 tests stay unchanged). |
+| TC-003 | `internal/amazon/browser_snap_test.go` (new, package `amazon`) | Writes executable `#!/bin/sh` stubs (mode `0o755`) in `t.TempDir()`, then sets `t.Setenv("PATH", dir)` and `t.Setenv(BrowserPathVariable, …)`. Checks `FindBrowser` for each case of the test case: `chromium` and `google-chrome-stable` give `chromium`; only `chromium-browser` and `google-chrome` give `chromium-browser`; only `google-chrome-stable` gives it; the setting set to the `google-chrome-stable` stub wins over `chromium`; an empty setting acts as unset; nothing gives an error. Asserts that `BrowserNames` equals the four names in order. Not parallel (`t.Setenv`). |
+| TC-004 | `internal/service/amazon_browser_snap_test.go` (new) | Reuses the #204 helpers: `amazontest.Browser(t)` (called before `PATH` changes), `newAmazonFixture` with `page(amazontest.ExpandedFixture(t, "mentions-captcha.html"))` (price 129.99 €), `openHumanStore`, `insertPricedAmazonItem` (last price 19.99 €), `captureRetrievalLog`, `documentedService`, `newClock`, `refreshPrice`, `storedItem`, `amazonFailures`, `checkLogLine`, `logCause`. Snap stub: `#!/bin/sh` script named `chromium` in a `PATH` directory that writes `cannot create user data directory: Permission denied` to stderr and exits 1. `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true` as in #204 TC-012. Step (a), setting empty: `request_error`, latest price still 1999 cents, `amazonFailures == 1`, and the logged cause has `browser could not start` and the stub's message. Step (b): `t.Setenv(amazon.BrowserPathVariable, browser)` on the same service, clock moved forward, Refresh price again: `success`, price 12999, `amazonFailures == 0`, no new `Amazon request failed` line. Subtests cover the corner cases: only a `google-chrome-stable` link to the test browser on `PATH` with the setting empty; the setting already set with the snap stub on `PATH`; a repeated refresh after (b); the setting pointing to a missing file, where the cause has `browser could not start` and the missing path. Not parallel. |
+
+No e2e test: the interface does not change. The whole suite must keep passing: `go test ./...` (including #204 TC-011, TC-012 and TC-013) and the Playwright tests in `tests/`.
+
+### Files to change
+
+| File | Change |
+| --- | --- |
+| `deploy/README.md` | Snap sentence (TS-AMZ-BRET-008) |
+| `internal/service/amazon_browser_snap_docs_test.go` (new) | TC-001, TC-002 |
+| `internal/amazon/browser_snap_test.go` (new) | TC-003 |
+| `internal/service/amazon_browser_snap_test.go` (new) | TC-004 |
+| `internal/service/amazon_browser_retrieval_test.go` | Formatting only, required by `gofmt`: the one-line `B0CAUSEG01` func literal of #204 TC-007 is wrapped over three lines. The master form is not gofmt-clean (`git show master:internal/service/amazon_browser_retrieval_test.go \| gofmt -l` prints `<standard input>`, because `gofmt` keeps a func literal body on one line only when it is short). The red gate checks `gofmt -l` on the changed test files, the implementation stage needs `gofmt -l .` empty, and `repair.sh` checks `gofmt -l cmd internal`. Reverting the hunk would break those checks. The test does not change in any other way. |
+
+### Refactoring
+
+None. The new tests reuse the unexported helpers of the #204 tests in the same packages, so no helper needs to move.
+
+### Verification
+
+`go vet ./...`, `go test ./...` with Chromium available (`CI` set, so browser tests cannot skip), and the Playwright suite (tests unchanged). No manual follow-up outside the developer's paths. No open question.

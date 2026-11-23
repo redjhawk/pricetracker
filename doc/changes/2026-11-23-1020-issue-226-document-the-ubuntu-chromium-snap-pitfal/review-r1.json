@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/service/amazon_browser_retrieval_test.go",
+    "line": 221,
+    "category": "refactor-pr",
+    "body": "Unrelated formatting change in an existing #204 test: the one-line B0CAUSEG01 func literal is wrapped over three lines. gofmt does not require it (the gate only runs `gofmt -l`), no test case of #226 touches TC-007, and the technical specification's 'Files to change' table does not list this file (it says the existing #204 tests stay unchanged). Revert this hunk so that the PR only holds the #226 documentation sentence and its tests; any reformatting belongs in its own commit or PR."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/service/amazon_browser_snap_docs_test.go",
+    "line": 226,
+    "category": "simplify",
+    "body": "TestAmazonBrowserSnapDocs_TC002_RepeatedNameAfterTheListIsAccepted adds nothing: the snap paragraph in specifiedSnapSetup already repeats `chromium` and `chromium-browser` after the lookup list, so TestAmazonBrowserSnapDocs_TC002_ChecksAcceptTheSpecifiedSection (and the real-file test) already prove that repeats after the list are accepted. Either drop this test and say in a comment on ChecksAcceptTheSpecifiedSection that it covers the 'chromium repeated' corner case, or make the fixture prove something the specified fixture does not, for example a repeat of `google-chrome-stable` after the list."
+  }
+]

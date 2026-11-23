@@ -218,7 +218,9 @@ func TestAmazonBrowserRetrieval_TC007_EachFailureCauseHasItsOwnLogText(t *testin
 		},
 		"B0CAUSEE01": func() (int, string) { return http.StatusOK, fixture(t, "robot-check-en.html") },
 		"B0CAUSEF01": func() (int, string) { return http.StatusOK, fixture(t, "price-not-found.html") },
-		"B0CAUSEG01": func() (int, string) { return http.StatusNotFound, "<html><body><h1>Page introuvable</h1></body></html>" },
+		"B0CAUSEG01": func() (int, string) {
+			return http.StatusNotFound, "<html><body><h1>Page introuvable</h1></body></html>"
+		},
 		"B0CAUSEH01": func() (int, string) { return http.StatusOK, fixture(t, "price-found.html") },
 	}
 	_, server := newAmazonFixture(t, func(asin string) (int, string) { return answers[asin]() })
