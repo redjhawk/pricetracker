@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "In TC-004 'after the download was offered' the attachment is flushed at interruptAt − 100 ms. Chromium then answers Page.navigate with errorText and reports the 200 Document response (TS-AMZ-HCHK-017), so awaitDocument (browser.go) can return and clearCache can run with the live ctx well within those 100 ms. The test only checks the arrival and flush times, never that the check was still running at the interruption, so it can pass without exercising FR-AMZ-HCHK-015 (it would also pass on the pre-change code). The tech spec risk note forbids a missed interruption point passing silently.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "The interruption point is exercised: the request is held past interruptAt and the test asserts it arrived before it, and the 'while requested' clear path itself is proven by TC-002 with the fake browser. The test follows the approved TC-004 design, which accepts that Chromium's event order is not controlled. Recording or logging whether the held download reached the browser would make a vacuous run visible, but it is a test-visibility improvement.",
+    "title": "TC-004 'while requested': report whether the held download reached the browser",
+    "todo": "**Problem:** In `internal/amazon/browser_interrupted_test.go` (around line 294), the 'while requested' subtests of `TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile` write the download only at `interruptAt + 100 ms`. After the change the browser usually closes first, `waitUntil` returns false and nothing is written, so `AssertNoDownload` has nothing to find. Nothing shows whether the 'answer cached after the clear' risk of the tech spec was exercised.\n\n**Suggested work:** Record when `writeDownload` completed and flushed (for example a `wroteAt` under `mu`). After the check, `t.Logf` whether the download reached the browser. Consider a variant that releases the answer before the clear (for example right at `interruptAt`), so a run that delivers the body after the interruption is reached at least sometimes. Do not weaken `AssertNoDownload`."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "In TC-005, cancel() runs immediately after the fixture signals the flush, while Collect still needs Chromium to read the response, answer Page.navigate, report the response, clear the cache and exit on Browser.close. Collect cannot realistically end first. The suggested `select` on `stopped` before cancel() is cheap hardening against a silent miss, not a fix for a test that fails to prove its case.",
+    "title": "TC-005: fail if the check ended before the server stop",
+    "todo": "**Problem:** `internal/httpapi/amazon_browser_interrupted_test.go` (around line 40) calls `cancel()` after `api.fixture.flushed` without checking that the `Collect` goroutine is still running. A future change that made the check finish faster would make the 'server stop' a no-op without failing.\n\n**Suggested work:** Before `cancel()`, add `select { case <-stopped: t.Fatal(\"the check ended before the server stop: interruption point missed\"); default: }`, as the tech spec risk note requires (a missed interruption point must fail with a message)."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "The implementation maps the clear's own deadline to 'no answer within 5s' (clearCache in browser.go), as TS-AMZ-HCHK-018 requires. TC-003 asserts what the approved test case states (no 'context canceled'), so this is a missing regression assertion, not an unmet requirement.",
+    "title": "TC-003: assert the 'no answer within' cause and reject 'context deadline exceeded'",
+    "todo": "**Problem:** In `internal/amazon/browser_interrupted_test.go` (around line 230), `TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged` only rejects `context canceled` in the cache log line. If someone removed the `errors.Is(err, context.DeadlineExceeded)` mapping in `clearCache` (`internal/amazon/browser.go`), the line would read `...: context deadline exceeded` and the test would still pass, although TS-AMZ-HCHK-018 / FR-AMZ-HCHK-015 require the real cause.\n\n**Suggested work:** For the never-answered subtests ('no answer', 'no answer, page still requested'), assert that the line contains `no answer within`. In every subtest, also reject `context deadline exceeded`, for example by calling `assertNoInterruptionGivenForCache(t, logged)`. Update the TC-003 entry in the change's `testcases.md` to match."
+  }
+]
