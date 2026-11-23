@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 )
 
-// helperImportPath is the import path of this test helper package.
-const helperImportPath = "pricefollower.local/internal/amazon/amazontest"
+// helperImportPath is the import path of this test helper package, read from the compiled
+// package so that it follows a move of the package or a rename of the module.
+var helperImportPath = reflect.TypeOf(Request{}).PkgPath()
 
 // listServerDependencies runs go list -deps ./cmd/... in dir, with env added to the process
 // environment, and returns its standard output. Its error holds the Go tool's message.
