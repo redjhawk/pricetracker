@@ -47,7 +47,7 @@ test('a usage limit is relaunched after its reset, without counting as a retry',
   assert.equal(decide(limit(undefined)).action, 'relaunch', 'unknown reset: the probe decides');
 });
 
-test('an error is retried with a growing delay, then the supervisor gives up', () => {
+test('an error is retried with a growing delay, then repaired', () => {
   const base = { runs: [run(30, 'failure')], comments: [stop(10, error)] };
   assert.match(decide(snapshot(base)).why, /retry 1 of 3 after/);
   const first = decide(snapshot({ ...base, comments: [stop(16, error)] }));
@@ -57,7 +57,51 @@ test('an error is retried with a growing delay, then the supervisor gives up', (
     comments: [...Array.from({ length: n }, (_, i) => relaunched(300 - i * 10, 'implement/1', i + 1)), stop(stopAgo, error)] });
   assert.match(decide(snapshot(retried(2, 40))).why, /retry 3 of 3 after/, 'the third retry waits 45 minutes');
   assert.equal(decide(snapshot(retried(2, 46))).attempt, 3);
-  assert.equal(decide(snapshot(retried(3, 200))).action, 'give-up');
+  const spent = decide(snapshot(retried(3, 200)));
+  assert.deepEqual([spent.action, spent.attempt, spent.progress, spent.busy], ['repair', 1, 'implement/1', true]);
+});
+
+const repairing = (minutes, progress, attempt = 1) => sup(minutes, { action: 'repair', reason: 'gate', progress, attempt });
+const gate = { reason: 'gate', stage: 'testcases', round: 0 };
+
+test('a failed gate or a blocked environment is repaired at once', () => {
+  for (const reason of ['gate', 'blocked-env']) {
+    const d = decide(snapshot({ runs: [run(30)], comments: [stop(20, { ...gate, reason })] }));
+    assert.deepEqual([d.action, d.reason, d.progress, d.attempt, d.busy], ['repair', reason, 'testcases/0', 1, true], reason);
+  }
+});
+
+test('a running repair is waited for, and taken as failed once it is too old', () => {
+  const s = (repairAgo) => snapshot({ runs: [run(repairAgo + 20)], comments: [stop(repairAgo + 10, gate), repairing(repairAgo, 'testcases/0')] });
+  const running = decide(s(30));
+  assert.deepEqual([running.action, running.busy], ['none', true]);
+  assert.match(running.why, /repair is running/);
+  assert.match(decide(s(179)).why, /repair is running/);
+  const stale = decide(s(181));
+  assert.deepEqual([stale.action, stale.attempt], ['repair', 2]);
+});
+test('after a repair the issue is relaunched; two repairs at the same stage, then the supervisor gives up', () => {
+  const repaired = sup(100, { action: 'relaunch', reason: 'repaired', progress: 'testcases/0', counted: false, attempt: 0 });
+  assert.match(decide(snapshot({ runs: [run(300)], comments: [stop(290, gate), repairing(200, 'testcases/0'), { ...repaired, createdAt: ago(5) }] })).why,
+    /waiting for the run to start/);
+  const again = [stop(290, gate), repairing(200, 'testcases/0'), repaired, stop(60, gate)];
+  assert.equal(decide(snapshot({ runs: [run(90)], comments: again })).attempt, 2);
+  const twice = [...again, repairing(50, 'testcases/0', 2), { ...repaired, createdAt: ago(40) }, stop(10, gate)];
+  const d = decide(snapshot({ runs: [run(35)], comments: twice }));
+  assert.equal(d.action, 'give-up');
+  assert.match(d.why, /2 repairs did not help/);
+  assert.equal(decide(snapshot({ runs: [run(35)], comments: [...twice.slice(0, -1), stop(10, { ...gate, stage: 'techspec' })] })).action, 'repair',
+    'another stage starts the count again');
+});
+
+test('a repair failure is a give-up: only the owner brings the supervisor back', () => {
+  const failed = sup(30, { action: 'give-up', reason: 'repair-failed', progress: 'testcases/0' });
+  assert.match(decide(snapshot({ runs: [run(300)], comments: [stop(290, gate), repairing(200, 'testcases/0'), failed] })).why, /gave up/);
+});
+
+test('no repair while the usage limit holds', () => {
+  const ds = applyGlobalLimit([{ action: 'repair', why: 'x' }, { action: 'none', limitUntil: Date.parse(NOW) + 60_000 }], NOW);
+  assert.equal(ds[0].action, 'none');
 });
 
 test('progress to another stage or round, or an owner comment, starts the retry count again', () => {
@@ -90,7 +134,7 @@ test('a base-bug stop waits until the blocking issue is closed', () => {
 });
 
 test('stops that need the owner are not relaunched', () => {
-  for (const reason of ['questions', 'gate', 'test-problem', 'max-rounds', 'sensitive', 'security', 'merge-conflict']) {
+  for (const reason of ['questions', 'test-problem', 'max-rounds', 'sensitive', 'security', 'merge-conflict']) {
     assert.equal(decide(snapshot({ runs: [run(300)], comments: [stop(200, { reason, stage: 'x', round: 0 })] })).action, 'none', reason);
   }
 });
@@ -143,8 +187,10 @@ test('an issue takes a place while the factory goes on with it without the owner
   assert.equal(busy({ labels: [HOLD_LABEL], runs: [run(1, null, 'in_progress')] }), false, 'on hold');
   assert.equal(busy({ runs: [run(30)] }), false, 'finished without a stop');
   const failing = { runs: [run(400, 'failure')], comments: [...[1, 2, 3].map((i) => relaunched(390 - i * 60, 'implement/1', i)), stop(60, error)] };
-  assert.equal(decide(snapshot(failing)).action, 'give-up');
-  assert.equal(busy(failing), false, 'the supervisor gives up');
+  assert.equal(decide(snapshot(failing)).action, 'repair');
+  assert.equal(busy(failing), true, 'the supervisor repairs it');
+  const repairedTwice = { ...failing, comments: [...failing.comments.slice(0, -1), repairing(300, 'implement/1'), repairing(200, 'implement/1', 2), failing.comments.at(-1)] };
+  assert.equal(busy(repairedTwice), false, 'the supervisor gives up after two repairs');
 });
 
 test('free places count only the busy issues', () => {

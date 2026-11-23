@@ -1,5 +1,6 @@
 # Supervisor of the agent factory (scripts/factory/supervisor.mjs, doc/workflow/WORKFLOW.md "Supervisor").
-# Every 15 minutes it resumes the factory runs that stopped for a reason that goes away without the owner:
+# Every 15 minutes it resumes the factory runs that stopped for a reason that goes away without the owner, and
+# starts a repair (repair.yml) for technical stops that a relaunch does not cure:
 # a Claude usage limit (after the reset), a failed or crashed run (up to 3 retries per stage), a broken
 # runner (once a probe agent passes) and a bug on master (once its issue is closed). While fewer than
 # FACTORY_MAX_ACTIVE issues (1 by default) are in development, it launches the next open issue, chosen by a
