@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 ready (issue #241)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241.
 
 ## Design
 
@@ -67,12 +67,23 @@ Only `internal/amazon/amazontest/server_dependencies_test.go` changes. `server_d
 
 Refactoring: moving the TC-003 case table from a local variable to the package-level `fixtureCases`. Reason: the build check must use the same fixtures as the listing check, not a copy that could drift. Scope: `server_dependencies_test.go` only, with entries and subtest names unchanged. Risk: low. The maps are only read (`writeModule` copies them), and no test in the package runs in parallel.
 
+### Finished TC-005 follow-up closed (issue #241)
+
+No code changes. The work of the follow-up record is already on `master`: `internal/httpapi/amazon_browser_interrupted_test.go` lines 40–44 hold, after the wait on `api.fixture.flushed` and before `cancel()`, `select { case <-stopped: t.Fatal("the check ended before the server stop: the interruption point was missed"); default: }`.
+
+- **Record deletion (technical specification stage).** Only the stages with the `docs` tool profile (`Edit(doc/**)`: specification, use cases, test cases, technical specification) may change `doc/todo/`. The tests and development stages (`code` profile) may change only `doc/specifications/` under `doc/`, and the factory's `apply_deletions` keeps a file that `delete.txt` lists outside the stage's Edit rules. So this stage lists `doc/todo/issue-233-r1-03.md` in the change folder's `delete.txt`, and the pipeline deletes it in the technical specification commit. `prepare_tests` resets only paths outside `doc/` and `tests/`, so the deletion survives the later stages.
+- **Issue #238 (manual follow-up).** No stage holds GitHub credentials, and the pull request body that the factory writes closes only #241 (`Closes #241`). The owner closes #238 by hand once the pull request is merged: `gh issue close 238 --reason completed --comment "Done by PR #236; its follow-up record doc/todo/issue-233-r1-03.md is removed by the pull request of #241."`. Running it again on a closed issue leaves it closed as completed. The issue is neither deleted nor transferred.
+- **Unchanged.** TC-005 and its file; every other `doc/todo/` record, including `issue-233-r3-01.md` (the trace of issue #241); the issue #233 technical specification and test cases. The remaining mentions of the deleted path (`functional.md`, the `doc/FUNCTIONAL_SPECIFICATIONS.md` index, the change folder) describe this change, not open work, and stay.
+- **Tests stage.** No test code is written: the change deletes a document and closes an issue, and TC-005 already exists and must not change. The stage writes `<change folder>/no-tests.md` giving that reason and where each TC is proved (see the mapping below); the red gate is then skipped.
+- **Development stage.** No code. It sets the status of FR-TEST-HYG-018, FR-TEST-HYG-020 and FR-TEST-HYG-021 and of TS-TEST-HYG-021–024 to implemented, and records FR-TEST-HYG-019 as waiting for the manual close of #238. It runs the gates (`go vet ./...`, `go test ./...`, `npm run build`, `npx playwright test`).
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
 - Backend: not affected at runtime. `internal/amazon/amazontest` is imported only by `_test.go` files, so the server binary does not change; issue #244 makes this a checked guarantee. No service, repository, validation, persistence, migration or concurrency change. `AssertNoDownload` runs after the browser has closed, and the dependency check runs `go list` as a child process of the test, so no application concurrency changes.
 - API: not affected. No endpoint, request, response or error changes; `API_SPECIFICATION.md` is unchanged.
 - Issue #251 touches only a `_test.go` file and the temporary modules it writes under `t.TempDir()`. No frontend, backend, API, database or migration change, and the server binary is the same.
+- Issue #241 deletes one file under `doc/todo/` and closes a GitHub issue. Frontend, backend and API: not affected, as no file outside `doc/` changes; `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -98,6 +109,10 @@ Refactoring: moving the TC-003 case table from a local variable to the package-l
 | TS-TEST-HYG-018 | FR-TEST-HYG-016 | Rows f and g and row h are unchanged and still go through `assertListingFailure`. The stub change adds only a declaration, which `go list` does not need on those rows. |
 | TS-TEST-HYG-019 | FR-TEST-HYG-017 | The diff outside `doc/` is `internal/amazon/amazontest/server_dependencies_test.go` only. `go vet ./...` and `go test ./...` run the new build test with no flag, skip or build tag. |
 | TS-TEST-HYG-020 | FR-TEST-HYG-014–016 (testability) | `buildModule` runs `go build ./...` offline on each fixture of the shared `fixtureCases` and on the `plainMain` module. Valid fixtures must build and rows f and g must not. A control module (stub as on `master`, `helperMain`) must fail with `DownloadMarker` in the output. |
+| TS-TEST-HYG-021 | FR-TEST-HYG-018 | The technical specification stage lists `doc/todo/issue-233-r1-03.md` in `delete.txt`; the pipeline deletes it (docs profile, `Edit(doc/**)`). No `Status: done` variant. |
+| TS-TEST-HYG-022 | FR-TEST-HYG-019 | Manual follow-up: the owner runs `gh issue close 238 --reason completed` after the merge; the factory cannot, as no stage has GitHub credentials and its pull request closes only #241. |
+| TS-TEST-HYG-023 | FR-TEST-HYG-020 | `internal/httpapi/amazon_browser_interrupted_test.go` is not edited: its `select` on `stopped` with a `default` branch and the exact message stays before `cancel()`. |
+| TS-TEST-HYG-024 | FR-TEST-HYG-021 | The only change outside the change folder and the specifications is the deletion of the record; no file outside `doc/`, no other `doc/todo/` file and no test file changes. |
 
 ## Files to change
 
@@ -115,8 +130,11 @@ Refactoring: moving the TC-003 case table from a local variable to the package-l
 | `internal/amazon/amazontest/server_dependencies_test.go` | tests (issue #251) | stub declares `DownloadMarker`; case table moved to `fixtureCases`; new `buildModule` and the build test; header comment lists the issue #251 cases proved outside the file |
 | `doc/changes/2026-11-23-1559-issue-251-make-the-tc-003-fixture-modules-compile/no-tests.md` | tests (issue #251) | explain why the red phase is skipped (the change is the locked test code itself) and where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #251) | set the status of FR-TEST-HYG-014–017 and TS-TEST-HYG-016–020 to implemented |
+| `doc/todo/issue-233-r1-03.md` | technical specification (issue #241) | delete (via `delete.txt`) |
+| `doc/changes/2026-11-23-1635-issue-241-close-the-finished-tc-005-interruption-c/no-tests.md` | tests (issue #241) | explain why no test is written and where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #241) | set the status of FR-TEST-HYG-018, 020, 021 and TS-TEST-HYG-021–024 to implemented; FR-TEST-HYG-019 waits for the manual close of #238 |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. No test file is deleted.
 
 ## Test design (issue #232)
 
@@ -151,6 +169,17 @@ No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `packa
   - subtest `control: a program uses a name the stub does not declare`: `writeModule` with `cmd/app/main.go` = `helperMain`, overriding `internal/amazon/amazontest/amazontest.go` with `"package amazontest\n"` (the stub as on `master`; the `files` argument overrides the default files). `buildModule` must fail, and its error must hold `DownloadMarker`. This control is the red state of the change.
 - **`TestListServerDependencies_TC003_FixtureModules`:** the same body, ranging over `fixtureCases` instead of the local `cases`. Its results do not change.
 - Run: `go test -count=1 -run 'Fixture|TC003' ./internal/amazon/amazontest/...` passes. With the stub reverted to `package amazontest\n` in a scratch copy (never committed), rows a, c and the renamed corner of the build test fail with `undefined: amazontest.DownloadMarker` / `undefined: helper.DownloadMarker`.
+
+## Test case mapping (issue #241)
+
+No test file implements these cases: the tests stage writes `no-tests.md`, and the cases are repository checks and runs of existing suites.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Repository check: `test ! -e doc/todo/issue-233-r1-03.md`; `git diff --name-status master -- doc/todo` lists only `D doc/todo/issue-233-r1-03.md`; `issue-233-r1-02.md`, `-r1-04.md`, `-r2-02.md`, `-r3-01.md`, `-r3-02.md` exist unchanged; `git grep -n 'issue-233-r1-03' -- ':!doc/changes' ':!doc/specifications' ':!doc/FUNCTIONAL_SPECIFICATIONS.md' ':!doc/todo/issue-233-r3-01.md'` finds nothing |
+| TC-002 | Repository check after the manual close: `gh issue view 238 --json state,stateReason` shows `CLOSED` and `COMPLETED` |
+| TC-003 | Repository check: `git diff master -- internal/httpapi/amazon_browser_interrupted_test.go` is empty and the file holds the `select` with `default` and the exact message before `cancel()`. Integration run of the existing, unchanged test: `go test -count=1 -run TestAmazonBrowserInterrupted_TC005 ./internal/httpapi/` |
+| TC-004 | Repository check: `git diff --name-status master -- . ':!doc'` is empty. Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`) |
 
 ## Test case mapping (issue #251)
 
@@ -194,4 +223,5 @@ Issue #208 cases (unchanged record):
 
 ## Manual follow-ups
 
-None. The check runs in the existing `go test ./...` gate, so no CI or `scripts/` change is needed.
+- Issues #208 to #251: none. The checks run in the existing `go test ./...` gate, so no CI or `scripts/` change is needed.
+- Issue #241: after the merge, the owner closes issue #238 as completed (`gh issue close 238 --reason completed`, see TS-TEST-HYG-022). No test depends on it; TC-002 checks it afterwards.
