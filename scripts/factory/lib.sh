@@ -129,6 +129,35 @@ $extra"
     --output-format json >"$LOG_DIR/$name.json" 2>"$LOG_DIR/$name.err" \
     || { agent_log "$name"; agent_failed "$name"; }
   agent_log "$name"
+  apply_deletions "$tools"
+}
+
+# apply_deletions <tools>: no tool profile can delete a file (rm and git rm need an approval nobody gives in a
+# non-interactive run), so an agent lists the files to delete in $CHANGE_DIR/delete.txt, one path per line.
+# The factory deletes those its profile's Edit rules cover and keeps the others; the list is never committed.
+apply_deletions() {
+  local list="$CHANGE_DIR/delete.txt" p rule ok rules
+  [ -f "$list" ] || return 0
+  IFS=, read -ra rules <<<"$1"
+  while IFS= read -r p || [ -n "$p" ]; do
+    p=${p%$'\r'}; p=${p#"$PWD"/}; p=${p#./}
+    [ -n "$p" ] || continue
+    ok=0
+    if [[ $p != /* && /$p/ != */../* ]] && { [ -f "$p" ] || [ -L "$p" ]; }; then
+      for rule in "${rules[@]}"; do
+        case "$rule" in Edit\(*\)) rule=${rule#Edit(}; rule=${rule%)} ;; *) continue ;; esac
+        # shellcheck disable=SC2053 # the rule is a glob; in [[ ]], * also matches /
+        [[ $p == $rule ]] && ok=1
+      done
+    fi
+    if [ $ok = 1 ]; then
+      git rm -q -f --ignore-unmatch -- "$p"; rm -f -- "$p"
+      log "deleted $p, listed in delete.txt"
+    else
+      log "kept $p, listed in delete.txt: not a file the stage may change"
+    fi
+  done <"$list"
+  rm -f -- "$list"
 }
 
 # agent_log <prompt name>: $LOG_DIR/<name>.log holds the agent's final answer, followed by every tool call

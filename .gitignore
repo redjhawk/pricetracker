@@ -9,3 +9,4 @@ web/static/dist/
 !.env.example
 playwright-report/
 test-results/
+.factory-repair/

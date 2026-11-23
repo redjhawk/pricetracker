@@ -4,11 +4,17 @@
 // stopped for a reason that goes away without the owner:
 //
 //   usage-limit                               after the reset (resets_at in the stop marker)
-//   error, crash, blocked-env, merge-failed   after 15, 30, 45 minutes; at most 3 times per stage and round
+//   error, crash, merge-failed                after 15, 30, 45 minutes; at most 3 times per stage and round
 //   base-bug                                  when the issue it waits for is closed
 //   an owner comment that started no run      15 minutes after the comment
 //
-// Every other stop (functional questions, a failed gate, sensitive files...) waits for the owner.
+// Technical stops that a relaunch does not cure are repaired: a failed gate, a blocked environment, and the
+// retried stops above once their retries are spent. A repair is a comment that starts repair.yml
+// (scripts/factory/repair.sh): an agent fixes the cause on master (factory, prompts, skills, code, tests),
+// the fix must pass the whole suite, and repair.sh merges it and relaunches the issue. At most 2 repairs per
+// stage and round, then the supervisor gives up.
+//
+// Every other stop (functional questions, sensitive files, review rounds...) waits for the owner.
 //
 // It also feeds the factory: while fewer than FACTORY_MAX_ACTIVE issues (1 by default) are in development,
 // it launches the next open issue of a trusted author by adding the ai-dev label. An issue is in development
@@ -17,7 +23,7 @@
 // (bugs that block, dependencies, size, age); the owner's priority:high and priority:low labels come first.
 // Before it relaunches anything, a probe agent checks that the runner can run agents with Bash. When it
 // cannot, one factory-infra issue says so and nothing is relaunched; the issue is closed once the probe
-// passes. The supervisor never edits code: it comments, labels, and opens or closes the infra issue.
+// passes. The supervisor itself never edits code: it comments, labels, and opens or closes the infra issue.
 //
 // A relaunch is a comment by the owner's token without the <!-- agent-factory --> marker, so fabrica.yml
 // starts on it as on an owner comment; the factory does not pass it to the agents (lib.sh).
@@ -36,7 +42,9 @@ export const HOLD_LABEL = 'factory-hold';
 export const INFRA_LABEL = 'factory-infra';
 const STOP_RE = /<!-- factory-stop (\{.*?\}) -->/;
 const SUPERVISOR_RE = /<!-- factory-supervisor (\{.*?\}) -->/;
-const RETRIED = new Set(['error', 'crash', 'blocked-env', 'merge-failed', 'not-started']);
+const RETRIED = new Set(['error', 'crash', 'merge-failed', 'not-started']);
+// Stops repaired at once: relaunching them unchanged would stop again the same way.
+export const REPAIRED = new Set(['gate', 'blocked-env']);
 // Open issues with one of these labels, or with a factory:* label (it has been in the factory), are not launched.
 export const EXCLUDED_LABELS = ['ai-dev', HOLD_LABEL, INFRA_LABEL, 'question', 'wontfix', 'duplicate', 'invalid'];
 const MINUTE = 60_000;
@@ -47,6 +55,8 @@ export const DEFAULTS = {
   limitMarginMinutes: 5, // after the usage limit's reset time
   graceMinutes: 15, // for a run to start after a comment, a label or a relaunch
   maxActive: 1, // issues in development at a time (FACTORY_MAX_ACTIVE); the supervisor launches no more
+  maxRepairs: 2, // repairs at the same stage and round before giving up
+  repairMinutes: 180, // a repair without an outcome after this long is taken as failed (repair.yml times out before)
 };
 
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -76,7 +86,7 @@ export function classify(comment, trusted) {
  *   (fabrica runs of this issue whose job ran), runsSince (oldest run fetched, ISO, or null when all were),
  *   labeledAt (last ai-dev label by a trusted actor, ISO, only needed when there is no run), trusted[],
  *   blockers {issue number: 'OPEN'|'CLOSED'}, config }
- * Returns { action: 'none'|'relaunch'|'give-up', why, busy, reason?, progress?, attempt?, counted?, limitUntil? }.
+ * Returns { action: 'none'|'relaunch'|'repair'|'give-up', why, busy, reason?, progress?, attempt?, counted?, limitUntil? }.
  * busy: the factory goes on with the issue without the owner, so it takes one of the maxActive places.
  */
 export function decide(s) {
@@ -112,6 +122,10 @@ export function decide(s) {
   }
 
   if (lastSup?.marker.action === 'give-up' && !(owner && owner.at > lastSup.at)) return none('gave up, waiting for the owner', false);
+  // repair.sh ends with a relaunch or a give-up comment; until then the repair runs.
+  if (lastSup?.marker.action === 'repair' && lastSup.at > lastRunAt && now - lastSup.at < cfg.repairMinutes * MINUTE) {
+    return none('a repair is running', true);
+  }
 
   // The stop to act on: the factory's last stop marker, or a crash when the last run failed without reporting one.
   const stop = latest('stop');
@@ -136,8 +150,9 @@ export function decide(s) {
   if (owner && owner.at > since) return none('the owner answered after the stop', true);
 
   const progress = `${m.stage ?? ''}/${m.round ?? ''}`;
-  const tries = sups.filter((e) => e.marker.action === 'relaunch' && e.marker.counted &&
-    e.marker.progress === progress && !(owner && owner.at > e.at)).length;
+  const sinceOwner = (e) => e.marker.progress === progress && !(owner && owner.at > e.at);
+  const tries = sups.filter((e) => e.marker.action === 'relaunch' && e.marker.counted && sinceOwner(e)).length;
+  const repairs = sups.filter((e) => e.marker.action === 'repair' && sinceOwner(e)).length;
 
   if (reason === 'usage-limit') {
     const until = m.resets_at ? Date.parse(m.resets_at) + cfg.limitMarginMinutes * MINUTE : NaN;
@@ -148,6 +163,7 @@ export function decide(s) {
     if (s.blockers?.[m.waiting_on] !== 'CLOSED') return none(`waiting for #${m.waiting_on}`, true);
     return counted(since, `#${m.waiting_on} is closed`);
   }
+  if (REPAIRED.has(reason)) return repair(`stopped with ${reason}`);
   if (RETRIED.has(reason)) {
     return counted(since + cfg.backoffMinutes * MINUTE * (tries + 1), reason === 'not-started' ? 'no run started' : `stopped with ${reason}`);
   }
@@ -155,11 +171,22 @@ export function decide(s) {
 
   function counted(notBefore, why) {
     if (tries >= cfg.maxRetries) {
-      const at = progress === '/' ? '' : ` at ${progress}`;
-      return { action: 'give-up', reason, progress, busy: false, why: `${tries} relaunches${at} did not help (${reason})` };
+      // A run that never starts is GitHub's or the runner's problem, which no change on master fixes.
+      if (reason === 'not-started') {
+        const at = progress === '/' ? '' : ` at ${progress}`;
+        return { action: 'give-up', reason, progress, busy: false, why: `${tries} relaunches${at} did not help (${reason})` };
+      }
+      return repair(`${tries} relaunches did not help (${reason})`);
     }
     if (now < notBefore) return none(`retry ${tries + 1} of ${cfg.maxRetries} after ${iso(notBefore)}`, true);
     return { ...relaunch(reason, progress, true, why), attempt: tries + 1 };
+  }
+  function repair(why) {
+    const at = progress === '/' ? '' : ` at ${progress}`;
+    if (repairs >= cfg.maxRepairs) {
+      return { action: 'give-up', reason, progress, busy: false, why: `${why}${at}, and ${repairs} repairs did not help` };
+    }
+    return { action: 'repair', reason, progress, busy: true, attempt: repairs + 1, why: `${why}${at}` };
   }
   function relaunch(why0, prog, isCounted, why) {
     return { action: 'relaunch', reason: why0, progress: prog, counted: isCounted, why, busy: true };
@@ -174,7 +201,7 @@ function stageLabel(labels) {
 export function applyGlobalLimit(decisions, now) {
   const until = Math.max(-Infinity, ...decisions.map((d) => d.limitUntil ?? -Infinity));
   if (!(Date.parse(now) < until)) return decisions;
-  return decisions.map((d) => (d.action === 'relaunch' ? { ...d, action: 'none', why: `usage limit until ${iso(until)}` } : d));
+  return decisions.map((d) => (['relaunch', 'repair'].includes(d.action) ? { ...d, action: 'none', why: `usage limit until ${iso(until)}` } : d));
 }
 
 /** Result of the probe agent: ok when it printed the nonce it could only read with Bash. */
@@ -383,6 +410,16 @@ function giveUp(repo, issue, d) {
   gh(['issue', 'edit', String(issue), '-R', repo, '--add-label', 'factory:needs-human', ...old.flatMap((l) => ['--remove-label', l])]);
 }
 
+// The comment carries both markers: fabrica.yml ignores it, and repair.yml starts on it.
+function repairIssue(repo, issue, d) {
+  const meta = { action: 'repair', reason: d.reason, progress: d.progress, attempt: d.attempt };
+  gh(['issue', 'comment', String(issue), '-R', repo, '--body-file', '-'],
+    `${FACTORY_MARKER}\n<!-- factory-supervisor ${JSON.stringify(meta)} -->\n` +
+    `The factory ${d.why}: the supervisor starts a repair (attempt ${d.attempt} of ${DEFAULTS.maxRepairs}). ` +
+    'An agent looks for the cause in the logs and fixes it on `master`; once the fix passes the whole suite, it is merged and the factory resumes here.' +
+    `${runLink()}\n`);
+}
+
 function launchIssue(repo, l) {
   const prio = priority(l.labels) === 1 ? '' : ` (${l.labels.find((x) => x.startsWith('priority:'))})`;
   const next = l.next.length ? `\n\nQueue after it, as ranked now: ${l.next.map((n) => `#${n}`).join(', ')}.` : '';
@@ -452,7 +489,7 @@ function main() {
   let queueLine = `queue: ${decisions.filter((d) => d.busy).length} of ${max} in development` +
     (limited ? ', waiting for the usage limit' : '');
 
-  const relaunches = decisions.filter((d) => d.action === 'relaunch');
+  const relaunches = decisions.filter((d) => ['relaunch', 'repair'].includes(d.action));
   let probeLine = 'probe: not needed';
   if (!dryRun && (relaunches.length > 0 || candidates.length > 0 || openInfraIssue(repo))) {
     const result = probe(process.cwd(), process.env.FACTORY_MODEL || 'claude-opus-5-5');
@@ -460,7 +497,7 @@ function main() {
     if (result.ok) closeInfraIssue(repo);
     else if (!result.limit) reportBrokenRunner(repo, result);
     if (!result.ok) {
-      decisions = decisions.map((d) => (d.action === 'relaunch' ? { ...d, action: 'none', why: `${probeLine}; ${d.why}` } : d));
+      decisions = decisions.map((d) => (['relaunch', 'repair'].includes(d.action) ? { ...d, action: 'none', why: `${probeLine}; ${d.why}` } : d));
       if (candidates.length) queueLine += `, nothing launched (${probeLine})`;
       candidates = [];
     }
@@ -480,6 +517,7 @@ function main() {
   for (const d of decisions) {
     if (dryRun) continue;
     if (d.action === 'relaunch') relaunchIssue(repo, d.issue, d);
+    if (d.action === 'repair') repairIssue(repo, d.issue, d);
     if (d.action === 'give-up') giveUp(repo, d.issue, d);
   }
   for (const l of launches) if (!dryRun) launchIssue(repo, l);
