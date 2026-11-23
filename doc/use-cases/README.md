@@ -47,6 +47,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-HCHK-003 — Refresh Amazon prices immediately](amazon-human-checks/UC-AMZ-HCHK-003-refresh-amazon-prices-immediately.md)
 - [UC-AMZ-HCHK-004 — Restart stopped Amazon items once after the upgrade](amazon-human-checks/UC-AMZ-HCHK-004-restart-stopped-amazon-items-once-after-upgrade.md)
 - [UC-AMZ-HCHK-005 — Amazon check answered with a page the browser does not open](amazon-human-checks/UC-AMZ-HCHK-005-amazon-check-answered-with-page-the-browser-does-not-open.md)
+- [UC-AMZ-HCHK-006 — Unavailable listing page the browser does not open sends no used-offer request](amazon-human-checks/UC-AMZ-HCHK-006-unavailable-listing-page-the-browser-does-not-open-sends-no-used-offer-request.md)
 
 ## Amazon browser profile recovery
 

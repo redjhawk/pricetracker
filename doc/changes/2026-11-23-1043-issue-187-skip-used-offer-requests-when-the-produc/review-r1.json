@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/httpapi/amazon_browser_error_page_test.go",
+    "line": 150,
+    "category": "nit",
+    "body": "The final `api.usedOfferCount() != 0` check after the loop repeats the assertion the loop has just made for its last attempt. The counter only grows and nothing runs between the two checks, so the second check can never fail on its own. Suggested fix: either drop it, or move the per-attempt check out of the loop and keep only this total check (also after the Refresh all prices step, which today has no count check of its own)."
+  }
+]

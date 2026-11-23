@@ -112,10 +112,11 @@ func logText(reason string) string {
 
 // loadedPage is the main document of a page loaded by the browser.
 type loadedPage struct {
-	status   int
-	mimeType string
-	url      string // after redirects
-	html     string // rendered DOM
+	status    int
+	mimeType  string
+	url       string // after redirects
+	html      string // rendered DOM
+	errorPage bool   // the browser did not open the answer and shows its own error page
 }
 
 // Collect checks one Amazon item page: the product page, then, without an Amazon second-hand offer
@@ -159,6 +160,11 @@ func (c *BrowserCollector) Collect(ctx context.Context, item model.Listing) mode
 		if result.SecondHandStatus == "available" {
 			return result
 		}
+	}
+	if page.errorPage {
+		// Chromium's error page has an opaque origin: used-offer requests from it cannot succeed (issue #187).
+		result.SecondHandStatus = "check_error"
+		return result
 	}
 	urls := usedOfferURLs(item)
 	for index := range urls {
@@ -429,6 +435,7 @@ func (t *browserTab) load(ctx context.Context, target string, timeout time.Durat
 		// error page): its status still classifies the page. A 2xx answer the browser did not open as a
 		// page (a download, no content) fails like a navigation without an answer.
 		if page, found := awaitDocument(loadContext, document, responded); found && (page.status < 200 || page.status >= 300) {
+			page.errorPage = true
 			return page, nil
 		}
 		return loadedPage{}, fmt.Errorf("Amazon page could not be opened: %s", navigation.ErrorText)
