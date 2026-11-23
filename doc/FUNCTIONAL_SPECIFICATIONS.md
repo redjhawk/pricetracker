@@ -344,4 +344,5 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon browser profile recovery | [amazon-browser-profile](specifications/amazon-browser-profile/functional.md) | specified (issue #180) |
 | Amazon browser retrieval | [amazon-browser-retrieval](specifications/amazon-browser-retrieval/functional.md) | specified (issue #204) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
+| Test suite hygiene | [test-suite-hygiene](specifications/test-suite-hygiene/functional.md) | specified (issue #208, maintenance: removes the empty leftover `internal/service/zz_scratch_docs_test.go`; no behaviour change) |
 | Responsive layout | [responsive-layout](specifications/responsive-layout/functional.md) | specified (issue #140); FR-RESPONSIVE-018 to 024 specified, 016/017/020 updated (issue #165) |
