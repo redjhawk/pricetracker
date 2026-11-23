@@ -2,7 +2,9 @@ package amazontest
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,6 +21,13 @@ import (
 //     TestServerDoesNotDependOnTestHelper; TC-003 below reproduces each mutation on fixture modules.
 //   - TC-006: the diff outside doc/ is limited to internal/amazon/amazontest/ test code, and the
 //     gates (go vet, go test, node --test, npm run build, npx playwright test) pass.
+//
+// Issue #251: the fixture modules compile. TestFixtureModulesBuild_Issue251_TC001 proves its TC-001;
+// its other test cases are proved outside that test:
+//   - TC-002: TestListServerDependencies_TC003_FixtureModules, rows a to e and the three corners of
+//     fixtureCases, keep their subtest names and results.
+//   - TC-003: rows f, g and h of the same test keep failing as listing failures with the same messages.
+//   - TC-004: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -140,7 +149,7 @@ func writeModule(t *testing.T, files map[string]string) string {
 	dir := t.TempDir()
 	all := map[string]string{
 		"go.mod": "module pricefollower.local\n\ngo 1.25\n",
-		"internal/amazon/amazontest/amazontest.go": "package amazontest\n",
+		"internal/amazon/amazontest/amazontest.go": "package amazontest\n\nconst DownloadMarker = \"\"\n",
 	}
 	for name, content := range files {
 		all[name] = content
@@ -166,78 +175,83 @@ const (
 	helperTest  = "import _ \"pricefollower.local/internal/amazon/amazontest\"\n"
 )
 
+// fixtureCase is a fixture module of TC-003 (issue #244).
+type fixtureCase struct {
+	name  string
+	files map[string]string
+	fails string // "" passes, "dependency", or the text a listing failure must hold
+}
+
+// fixtureCases is shared by the listing test and the build test, so both run the same fixtures.
+var fixtureCases = []fixtureCase{
+	{
+		name:  "TC-003 a: a program imports the helper directly",
+		files: map[string]string{"cmd/app/main.go": helperMain},
+		fails: "dependency",
+	},
+	{
+		name: "TC-003 b: a program imports the helper through another package",
+		files: map[string]string{
+			"cmd/app/main.go":             serviceMain,
+			"internal/service/service.go": helperSvc,
+		},
+		fails: "dependency",
+	},
+	{
+		name: "TC-003 c: only the second program depends on the helper",
+		files: map[string]string{
+			"cmd/app/main.go":  plainMain,
+			"cmd/tool/main.go": helperMain,
+		},
+		fails: "dependency",
+	},
+	{
+		name: "TC-003 d: only test files import the helper",
+		files: map[string]string{
+			"cmd/app/main.go":                  serviceMain,
+			"cmd/app/main_test.go":             "package main\n\n" + helperTest,
+			"internal/service/service.go":      plainSvc,
+			"internal/service/service_test.go": "package service\n\n" + helperTest,
+		},
+	},
+	{
+		name: "TC-003 e: a test-support package no program imports uses the helper",
+		files: map[string]string{
+			"cmd/app/main.go":                        plainMain,
+			"internal/httpapi/httpapitest/helper.go": "package httpapitest\n\n" + helperTest,
+		},
+	},
+	{
+		name:  "TC-003 f: a program imports a package that does not exist",
+		files: map[string]string{"cmd/app/main.go": "package main\n\nimport _ \"pricefollower.local/internal/nope\"\n\nfunc main() {}\n"},
+		fails: "pricefollower.local/internal/nope",
+	},
+	{
+		name:  "TC-003 g: a program has a syntax error",
+		files: map[string]string{"cmd/app/main.go": "package main\n\nimport \"fmt\n\nfunc main() { fmt.Println() }\n"},
+		fails: "main.go",
+	},
+	{
+		name:  "TC-003 corner: no helper import at all",
+		files: map[string]string{"cmd/app/main.go": serviceMain, "internal/service/service.go": plainSvc},
+	},
+	{
+		name:  "TC-003 corner: blank import of the helper in a program",
+		files: map[string]string{"cmd/app/main.go": "package main\n\n" + helperTest + "\nfunc main() {}\n"},
+		fails: "dependency",
+	},
+	{
+		name: "TC-003 corner: renamed import of the helper in a server dependency",
+		files: map[string]string{
+			"cmd/app/main.go":             serviceMain,
+			"internal/service/service.go": "package service\n\nimport helper \"pricefollower.local/internal/amazon/amazontest\"\n\nvar _ = helper.DownloadMarker\n\nfunc Run() {}\n",
+		},
+		fails: "dependency",
+	},
+}
+
 func TestListServerDependencies_TC003_FixtureModules(t *testing.T) {
-	cases := []struct {
-		name  string
-		files map[string]string
-		fails string // "" passes, "dependency", or the text a listing failure must hold
-	}{
-		{
-			name:  "TC-003 a: a program imports the helper directly",
-			files: map[string]string{"cmd/app/main.go": helperMain},
-			fails: "dependency",
-		},
-		{
-			name: "TC-003 b: a program imports the helper through another package",
-			files: map[string]string{
-				"cmd/app/main.go":             serviceMain,
-				"internal/service/service.go": helperSvc,
-			},
-			fails: "dependency",
-		},
-		{
-			name: "TC-003 c: only the second program depends on the helper",
-			files: map[string]string{
-				"cmd/app/main.go":  plainMain,
-				"cmd/tool/main.go": helperMain,
-			},
-			fails: "dependency",
-		},
-		{
-			name: "TC-003 d: only test files import the helper",
-			files: map[string]string{
-				"cmd/app/main.go":                  serviceMain,
-				"cmd/app/main_test.go":             "package main\n\n" + helperTest,
-				"internal/service/service.go":      plainSvc,
-				"internal/service/service_test.go": "package service\n\n" + helperTest,
-			},
-		},
-		{
-			name: "TC-003 e: a test-support package no program imports uses the helper",
-			files: map[string]string{
-				"cmd/app/main.go":                        plainMain,
-				"internal/httpapi/httpapitest/helper.go": "package httpapitest\n\n" + helperTest,
-			},
-		},
-		{
-			name:  "TC-003 f: a program imports a package that does not exist",
-			files: map[string]string{"cmd/app/main.go": "package main\n\nimport _ \"pricefollower.local/internal/nope\"\n\nfunc main() {}\n"},
-			fails: "pricefollower.local/internal/nope",
-		},
-		{
-			name:  "TC-003 g: a program has a syntax error",
-			files: map[string]string{"cmd/app/main.go": "package main\n\nimport \"fmt\n\nfunc main() { fmt.Println() }\n"},
-			fails: "main.go",
-		},
-		{
-			name:  "TC-003 corner: no helper import at all",
-			files: map[string]string{"cmd/app/main.go": serviceMain, "internal/service/service.go": plainSvc},
-		},
-		{
-			name:  "TC-003 corner: blank import of the helper in a program",
-			files: map[string]string{"cmd/app/main.go": "package main\n\n" + helperTest + "\nfunc main() {}\n"},
-			fails: "dependency",
-		},
-		{
-			name: "TC-003 corner: renamed import of the helper in a server dependency",
-			files: map[string]string{
-				"cmd/app/main.go":             serviceMain,
-				"internal/service/service.go": "package service\n\nimport helper \"pricefollower.local/internal/amazon/amazontest\"\n\nvar _ = helper.DownloadMarker\n\nfunc Run() {}\n",
-			},
-			fails: "dependency",
-		},
-	}
-	for _, tc := range cases {
+	for _, tc := range fixtureCases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := writeModule(t, tc.files)
 			listing, listErr := listServerDependencies(dir, fixtureEnv)
@@ -281,6 +295,57 @@ func TestListServerDependencies_TC003_FixtureModules(t *testing.T) {
 			t.Errorf("listing error %q does not hold the start error", listErr)
 		}
 		assertListingFailure(t, checkServerDependencies(listing, listErr), "executable file not found")
+	})
+}
+
+// buildModule runs go build ./... offline in the fixture module dir; a failure holds the tool's output.
+func buildModule(dir string) error {
+	cmd := exec.Command("go", "build", "./...")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), fixtureEnv...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("go build ./...: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// Issue #251 TC-001: every valid fixture module builds offline; the invalid ones and a program using a
+// name the stub does not declare do not, so the check is not vacuous.
+func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
+	for _, tc := range fixtureCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := buildModule(writeModule(t, tc.files))
+			switch tc.fails {
+			case "", "dependency":
+				if err != nil {
+					t.Errorf("valid fixture does not build: %v", err)
+				}
+			default:
+				if err == nil {
+					t.Error("invalid fixture builds, want a build failure")
+				}
+			}
+		})
+	}
+
+	t.Run("TC-003 h fixture: plainMain", func(t *testing.T) {
+		if err := buildModule(writeModule(t, map[string]string{"cmd/app/main.go": plainMain})); err != nil {
+			t.Errorf("valid fixture does not build: %v", err)
+		}
+	})
+
+	t.Run("control: a program uses a name the stub does not declare", func(t *testing.T) {
+		dir := writeModule(t, map[string]string{
+			"internal/amazon/amazontest/amazontest.go": "package amazontest\n",
+			"cmd/app/main.go":                          helperMain,
+		})
+		err := buildModule(dir)
+		if err == nil {
+			t.Fatal("the module builds, want a failure on the undeclared DownloadMarker")
+		}
+		if !strings.Contains(err.Error(), "DownloadMarker") {
+			t.Errorf("build failure %q does not name DownloadMarker", err)
+		}
 	})
 }
 
