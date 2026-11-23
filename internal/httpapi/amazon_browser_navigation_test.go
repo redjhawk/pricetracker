@@ -28,23 +28,25 @@ import (
 
 // Answers of the navigation fixture server for /dp/<ASIN>.
 const (
-	answerPage503    int32 = iota // HTTP 503 with an error page
-	answerAttachment              // HTTP 200 text/html offered as a download, holding amazontest.DownloadMarker
-	answerEmpty503                // HTTP 503 with an empty body
-	answerEmpty404                // HTTP 404 with an empty body
-	answerEmpty410                // HTTP 410 with an empty body
-	answerPage                    // HTTP 200 with the price-found.html page (issue #217)
+	answerPage503        int32 = iota // HTTP 503 with an error page
+	answerAttachment                  // HTTP 200 text/html offered as a download, holding amazontest.DownloadMarker
+	answerEmpty503                    // HTTP 503 with an empty body
+	answerEmpty404                    // HTTP 404 with an empty body
+	answerEmpty410                    // HTTP 410 with an empty body
+	answerPage                        // HTTP 200 with the price-found.html page (issue #217)
+	answerAttachmentHeld              // answerAttachment written and flushed, then the request held open until it ends (issue #233)
 )
 
 // navigationFixture is a fixture server whose /dp/ answer is the value of answer.
 type navigationFixture struct {
 	*amazontest.Server
-	answer atomic.Int32
+	answer  atomic.Int32
+	flushed chan struct{} // signalled when answerAttachmentHeld has flushed its body (issue #233)
 }
 
 func newNavigationFixture(t *testing.T) *navigationFixture {
 	t.Helper()
-	fixture := &navigationFixture{}
+	fixture := &navigationFixture{flushed: make(chan struct{}, 1)}
 	page, noOffer := amazontest.Fixture(t, "price-found.html"), amazontest.Fixture(t, "aod-none.html")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/dp/", func(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +66,15 @@ func newNavigationFixture(t *testing.T) *navigationFixture {
 			w.WriteHeader(http.StatusGone)
 		case answerPage:
 			io.WriteString(w, page)
+		case answerAttachmentHeld:
+			w.Header().Set("Content-Disposition", `attachment; filename="page.html"`)
+			io.WriteString(w, page+amazontest.DownloadMarker)
+			http.NewResponseController(w).Flush()
+			select {
+			case fixture.flushed <- struct{}{}:
+			default:
+			}
+			<-r.Context().Done()
 		}
 	})
 	usedOffers := func(w http.ResponseWriter, r *http.Request) {
