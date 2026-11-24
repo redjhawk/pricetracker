@@ -20,8 +20,9 @@ const leboncoin = {
   listingId: "1234567890", asin: null, marketplace: "leboncoin.fr",
   url: "https://www.leboncoin.fr/ad/velos/1234567890", secondHandOffer: null,
 };
-type FixtureItem = Omit<typeof amazon, "title" | "asin" | "secondHandOffer" | "latestPrice"> & {
+type FixtureItem = Omit<typeof amazon, "title" | "thumbnailUrl" | "asin" | "secondHandOffer" | "latestPrice"> & {
   title: string | null;
+  thumbnailUrl: string | null;
   asin: string | null;
   secondHandOffer: (Omit<typeof amazon.secondHandOffer, "latestDetection"> & {
     latestDetection: typeof usedPrice | null;
@@ -311,4 +312,52 @@ test("TC-030 Amazon tab shows no stop warning after the upgrade", async ({ page,
   await expect(page).toHaveURL("/items/amazon-one");
   await expect(page.getByRole("heading", { name: "Amazon headphones", exact: true })).toBeVisible();
   await expect(page.getByText(/are stopped since/)).toHaveCount(0);
+});
+
+// Issue #275: the list shows the Amazon image the server kept, or the placeholder when it kept none.
+test("TC-010 Amazon list shows the accepted image or the placeholder", async ({ page, context }) => {
+  const imageUrl = "https://m.media-amazon.com/images/I/price-found.jpg";
+  const withImage: FixtureItem = { ...amazon, id: "amazon-image", title: "Amazon item with image", thumbnailUrl: imageUrl };
+  const withoutImage: FixtureItem = { ...amazon, id: "amazon-no-image", title: "Amazon item without image", thumbnailUrl: null };
+  const api = await mockApi(context, [withImage, withoutImage, leboncoin]);
+  const imageRequests: string[] = [];
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    if (new URL(request.url()).origin === "http://127.0.0.1:4173") return route.fallback();
+    if (request.url() === imageUrl) {
+      imageRequests.push(request.url());
+      return route.fulfill({ contentType: "image/png",
+        body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64") });
+    }
+    if (request.resourceType() === "image") api.unexpected.push(`image ${request.url()}`);
+    return route.abort();
+  });
+  const rowWithImage = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Amazon item with image", exact: true }) });
+  const rowWithoutImage = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Amazon item without image", exact: true }) });
+  const expectThumbnails = async () => {
+    await expect(page.getByRole("tab", { name: "Amazon", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(rowWithImage.locator("img.item-thumbnail")).toHaveAttribute("src", imageUrl);
+    await expect(rowWithImage.locator(".item-thumbnail-placeholder")).toHaveCount(0);
+    await expect(rowWithoutImage.locator(".item-thumbnail-placeholder")).toBeVisible();
+    await expect(rowWithoutImage.locator("img.item-thumbnail")).toHaveCount(0);
+  };
+
+  await page.goto("/");
+  await expectThumbnails();
+  await rowWithoutImage.getByRole("button", { name: "Amazon item without image", exact: true }).click();
+  await expect(page).toHaveURL("/items/amazon-no-image");
+  await expect(page.getByRole("heading", { name: "Amazon item without image", exact: true })).toBeVisible();
+  await expect(page.locator("img.detail-thumbnail")).toHaveCount(0);
+  await page.getByRole("button", { name: "Tracked items", exact: true }).click();
+  await expectThumbnails();
+
+  await page.reload();
+  await expectThumbnails();
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await expectThumbnails();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  expect(imageRequests.every((url) => url === imageUrl)).toBe(true);
+  expect(api.unexpected).toEqual([]);
 });
