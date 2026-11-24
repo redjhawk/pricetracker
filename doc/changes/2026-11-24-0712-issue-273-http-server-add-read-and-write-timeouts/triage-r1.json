@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: the refresh, single refresh, AI review and DELETE handlers (server.go:94-129, 143+) never read r.Body, so abortLateBodies never sees the deadline. net/http's post-handler discard of the unread body (on the original body, not the lateBody wrapper) runs into the 15 s read deadline, and the 202 is still sent with Connection: close after the work has started. That contradicts the API_SPECIFICATION.md row and FR-HTTP-TMO-001 ('not handled, nothing saved or started'), so the documented contract is not met.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "reason": "Confirmed: bufio.Reader.ReadLine returns a partial request line with a nil error when the 5 s header deadline fires, so net/http answers its plain '400 Bad Request'. testSlowHeaders (http_server_limits_test.go:584-588) accepts that answer, but the API_SPECIFICATION.md row ('no response') and TC-012 ('with no response', zero bytes) say otherwise. The contract added in this PR and its test case contradict what the test asserts.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Correct, but it is only documentation drift. testUnreadResponseIsCutOff still proves the 60 s cut-off without the 4 KiB receive buffer (the response is far larger than the loopback buffers). The 59 s lower bound only allows for the write deadline being set just before the handler records its time, and the TC-005 corner case already states it.",
+    "title": "Align TC-005 and technical.md with the slow-reader test",
+    "todo": "**Problem:** TC-005 (`doc/changes/2026-11-24-0712-issue-273-http-server-add-read-and-write-timeouts/testcases.md:90`) and `doc/specifications/http-server-timeouts/technical.md:143` say the raw client sets a 4 KiB receive buffer (`SetReadBuffer(4096)`). `testUnreadResponseIsCutOff` in `internal/httpapi/http_server_limits_test.go` (comment at lines 263-265) deliberately does not, because of TCP zero-window probes. The test also accepts a first failed write from 59 s, while TC-005's Then says 60-65 s.\n\n**Suggested work:** Remove the 4 KiB receive-buffer clause from TC-005 and from the TC-005 row of technical.md, explaining that the loopback buffers are much smaller than the 256 MiB response. Put the [59 s, 65 s] tolerance in TC-005's Then line."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "Correct nit: the long subtests run through runConcurrently (http_server_limits_test.go:142-154), not t.Parallel(). The test structure is sound; only the technical specification sentence is out of date.",
+    "title": "Technical spec: describe runConcurrently instead of t.Parallel",
+    "todo": "**Problem:** `doc/specifications/http-server-timeouts/technical.md:135` says each long subtest of `TestHTTPServerLimits_Live` calls `t.Parallel()`. The test uses `runConcurrently` (`internal/httpapi/http_server_limits_test.go:142-154`), which calls `t.Run` from goroutines so that the GOMAXPROCS limit of `t.Parallel` does not queue the long waits.\n\n**Suggested work:** Change the sentence to describe `runConcurrently` and why it is used."
+  }
+]
