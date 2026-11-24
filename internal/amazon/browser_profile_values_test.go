@@ -210,7 +210,7 @@ func TestBrowserProfile_Issue197_TC003_PreparedProfileReturnsItsPath(t *testing.
 	t.Run("TC-003 temporary profile", func(t *testing.T) {
 		path, cleanup, err := profileOf("")
 		t.Cleanup(func() { // the temporary profile is removed however the subtest ends, after its checks (issue #324)
-			if path == "" || filepath.Clean(path) == filepath.Clean(os.TempDir()) {
+			if filepath.Dir(path) != filepath.Clean(os.TempDir()) || !strings.HasPrefix(filepath.Base(path), "pricefollower-browser-") {
 				return
 			}
 			if err := os.RemoveAll(path); err != nil {
