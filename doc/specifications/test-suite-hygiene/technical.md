@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 ready (issue #295)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295.
 
 ## Design
 
@@ -170,6 +170,41 @@ No `t.Parallel`, build tag or skip is used. The test does not capture the log.
 
 Refactoring: none. The restart test is a new test in its own file, not a new subtest of TC-032: its scenario (a stopped item, no check in flight) does not fit TC-032's "no duplicate while running" case. A separate file also leaves the issue #168 file's numbered tests unchanged apart from the one step.
 
+### TC-010 proves the accepted image is requested (issue #295)
+
+Only `tests/platform-tabs.spec.ts` changes, inside the test `TC-010 Amazon list shows the accepted image or the placeholder`. On `master`, its own route handler (lines 324–334) pushes into `imageRequests` only when `request.url() === imageUrl`, records any other image in `api.unexpected` and aborts every other non-local request. So line 361, `expect(imageRequests.every((url) => url === imageUrl)).toBe(true)`, can only pass.
+
+- **Change.** Line 361 is replaced, in place, by:
+
+  ```ts
+  await expect.poll(() => imageRequests.length, { message: "the accepted Amazon image was requested" }).toBeGreaterThan(0);
+  ```
+
+  Line 362, `expect(api.unexpected).toEqual([])`, stays right after it. Nothing else in the file changes: the route handler, `imageUrl`, the fixtures, `expectThumbnails`, the navigation, reload and 320 px steps, `mockApi` and the `afterEach` check are kept as they are.
+- **Why `expect.poll` and not `expect(imageRequests.length)`.** The list renders the thumbnail as `<img … loading="lazy">` (`src/components/TrackedItemsPage.tsx`). `expectThumbnails` checks the `src` attribute, not that the request has reached the Node route handler. The poll retries until the expect timeout of the suite, so the assertion does not depend on that race. It still fails when no request is ever recorded, with the given message. On a normal run the first `page.goto("/")` loads the image, long before line 361, so the poll passes on its first try.
+- **Why "greater than zero" and not an exact count.** After `page.reload()` and the second `page.goto("/")` the browser may take the image from its cache without a new routed request (FR-TEST-HYG-038, TC-002 corner case).
+- **Other images.** The check that no other image is requested is still `api.unexpected` (line 332 pushes `image <url>`; line 362 and the `afterEach` check fail on it). It covers other URLs on accepted Amazon hosts, as it compares the full URL.
+
+**Delivery (same as issues #251 and #182).** The change is the test code itself, and TC-010 passes on `master` application code both before and after it, so a red phase cannot fail. Test files are locked after the TDD red commit. So the **tests stage** makes the edit above and writes `<change folder>/no-tests.md`. That file says why the red phase is skipped, records the fault injections below and says where each TC is proved. The red gate is then skipped. The development stage writes no code.
+
+**Fault injections (tests stage, never committed).** Each one is a temporary edit of TC-010, then `npx playwright test tests/platform-tabs.spec.ts -g "TC-010"`, then a revert with `Edit`. The command and the failing assertion are recorded in `no-tests.md`:
+
+1. Remove `imageRequests.push(request.url());` from the route handler. The run must fail at the new poll with `the accepted Amazon image was requested`.
+2. Give `withImage` `thumbnailUrl: null`. The run must fail, at the `src` check of `expectThumbnails` or at the poll.
+3. After the last `expectThumbnails()`, insert a load of another image:
+
+   ```ts
+   await page.evaluate((url) => new Promise<void>((done) => { const image = new Image(); image.onload = image.onerror = () => done(); image.src = url; }), "https://images-eu.ssl-images-amazon.com/images/I/other.jpg");
+   ```
+
+   The route handler pushes `image https://images-eu.ssl-images-amazon.com/images/I/other.jpg` before it aborts the request, and `onerror` fires only after the abort, so the result does not depend on timing. The run must fail at `expect(api.unexpected).toEqual([])` with that value.
+
+After the last revert, TC-010 passes again (`--repeat-each=3`), and `git diff master -- tests/platform-tabs.spec.ts` shows only the one replaced line.
+
+- **Development stage.** No code. It sets FR-TEST-HYG-037–039 and TS-TEST-HYG-044–047 to implemented. It runs the gates and the repository checks of TC-001 and TC-004, and restores any file outside `doc/` that differs from `master` and is not `tests/platform-tabs.spec.ts`.
+
+Refactoring: none.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -181,6 +216,7 @@ Refactoring: none. The restart test is a new test in its own file, not a new sub
 - Issue #238 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (TC-005 is kept as it is on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 - Issue #181 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (the status classification of FR-AMZ-HCHK-012 and its tests stay as on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 - Issue #182 changes one `_test.go` file and adds another in `internal/service/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change. The tests run the existing scheduler, gate and Refresh price code on a temporary SQLite file, with a fake clock and a fake Amazon collector. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
+- Issue #295 changes one line of one Playwright spec. Frontend: not affected, as no view, component, state, style or asset changes; the spec keeps mocking the API and the image as before. Backend: not affected, as no Go file changes. API: not affected, as the mocked requests and responses are unchanged and `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -229,6 +265,10 @@ Refactoring: none. The restart test is a new test in its own file, not a new sub
 | TS-TEST-HYG-041 | FR-TEST-HYG-035 | `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice` covers the scenario: the item is due at 07:00 and stopped at 07:00; the 07:00 run makes no check; the Refresh price at 07:30 restarts the item; the two 07:31 runs give one check in total and a next check in the evening window of 2030-03-05. |
 | TS-TEST-HYG-042 | FR-TEST-HYG-035 (proof) | Mutation 2 (`rescheduleOverdueAmazonCheck` not called by `RefreshItem`) fails the test on the call count. Mutation 3 (no `ClearAmazonStop` in `amazonGate.do`) fails it on the stop state. Recorded in `no-tests.md`, then reverted. |
 | TS-TEST-HYG-043 | FR-TEST-HYG-036 | Ordinary tests (no build tag, flag, skip or `t.Parallel`) run by `go test ./...`. `gofmt -l internal/service` is empty. The diff outside `doc/` is `M internal/service/amazon_human_checks_test.go` and `A internal/service/amazon_human_checks_issue182_test.go`, and no production file changes. |
+| TS-TEST-HYG-044 | FR-TEST-HYG-037 | Line 361 of `tests/platform-tabs.spec.ts`, `expect(imageRequests.every((url) => url === imageUrl)).toBe(true)`, is removed, not commented out; no other assertion of TC-010 compares the recorded URLs with `imageUrl`. |
+| TS-TEST-HYG-045 | FR-TEST-HYG-038 | In its place, `await expect.poll(() => imageRequests.length, { message: "the accepted Amazon image was requested" }).toBeGreaterThan(0)`. The route handler, which records only `imageUrl` and puts any other image into `api.unexpected`, and `expect(api.unexpected).toEqual([])` are kept. |
+| TS-TEST-HYG-046 | FR-TEST-HYG-038 (proof) | The tests stage writes `no-tests.md` (the change is test code, so the red phase cannot fail) and runs the three reverted fault injections (no push, no thumbnail, another Amazon image), recording each failure there. |
+| TS-TEST-HYG-047 | FR-TEST-HYG-039 | The diff outside `doc/` is `M tests/platform-tabs.spec.ts`, one line inside TC-010. No production, Go, frontend, dependency or `API_SPECIFICATION.md` change. The gates run the same test list as on `master`. |
 
 ## Files to change
 
@@ -263,8 +303,22 @@ Refactoring: none. The restart test is a new test in its own file, not a new sub
 | `internal/service/amazon_human_checks_issue182_test.go` | tests (issue #182) | new: `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice` |
 | `doc/changes/2026-11-24-0458-issue-182-make-the-tc-032-refresh-price-subtest-re/no-tests.md` | tests (issue #182) | explain why the red phase is skipped (tests of shipped behaviour); record the three mutation checks and their failure messages; where TC-003 and TC-006 are proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #182) | set the status of FR-TEST-HYG-033–036 and TS-TEST-HYG-038–043 to implemented |
+| `tests/platform-tabs.spec.ts` | tests (issue #295) | TC-010: replace the `imageRequests.every` assertion with the `expect.poll` on `imageRequests.length` |
+| `doc/changes/2026-11-24-0608-issue-295-replace-the-dead-image-request-assertion/no-tests.md` | tests (issue #295) | explain why the red phase is skipped (the change is the locked test code itself); record the three fault injections and their failures; where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #295) | set the status of FR-TEST-HYG-037–039 and TS-TEST-HYG-044–047 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. No test file is deleted.
+
+## Test case mapping (issue #295)
+
+No test file is added: the tests stage edits TC-010 and writes `no-tests.md`.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Repository check: `git grep -n 'imageRequests.every' -- tests/platform-tabs.spec.ts` finds nothing; the only remaining uses of `imageRequests` in TC-010 are its declaration, the `push` in the route handler and `imageRequests.length` in the poll |
+| TC-002 | `tests/platform-tabs.spec.ts`: `TC-010 Amazon list shows the accepted image or the placeholder`, run with `npx playwright test tests/platform-tabs.spec.ts -g "TC-010"` and again with `--repeat-each=3` (poll on `imageRequests.length` greater than zero, `expect(api.unexpected).toEqual([])` kept, all other steps unchanged) |
+| TC-003 | Fault injections 1–3 (tests stage, recorded in `no-tests.md`): each run of TC-010 fails at the stated assertion, and TC-010 passes again after each revert |
+| TC-004 | Repository check: `git diff --name-only master -- . ':!doc'` lists only `tests/platform-tabs.spec.ts`; `git diff master -- tests/platform-tabs.spec.ts` has one hunk inside TC-010, replacing line 361 only; `doc/todo/issue-275-r1-01.md` and the issue #275 change folder are unchanged. Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`) |
 
 ## Test case mapping (issue #182)
 
@@ -445,3 +499,4 @@ Issue #208 cases (unchanged record):
 - Issue #185: none. The tests run in `go test ./...`, and the gate environment already has Chromium for the browser test.
 - Issue #181: none. The document edit is made in the technical specification stage; no CI or `scripts/` change is needed.
 - Issue #182: none. The tests run in `go test ./...` and need no CI or `scripts/` change.
+- Issue #295: none. TC-010 runs in the existing `npx playwright test` gate; no CI, `scripts/` or `playwright.config.ts` change is needed.
