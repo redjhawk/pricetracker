@@ -306,7 +306,10 @@ func (c *BrowserCollector) profile() (string, func(), error) {
 		if err := os.MkdirAll(c.options.ProfileDir, 0o700); err != nil {
 			return "", nil, err
 		}
-		return c.options.ProfileDir, func() {}, removeStaleLocks(c.options.ProfileDir)
+		if err := removeStaleLocks(c.options.ProfileDir); err != nil {
+			return "", nil, err
+		}
+		return c.options.ProfileDir, func() {}, nil
 	}
 	directory, err := os.MkdirTemp("", "pricefollower-browser-")
 	if err != nil {

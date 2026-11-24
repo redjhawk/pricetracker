@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R2-01",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 591,
+    "category": "spec",
+    "body": "The R1-01 fix (the `held` assertion and fault injection 7) is in the code, the design text (line 422) and no-tests.md, but not in the traceability. The issue #315 test case mapping for TC-003 still says it is proved by run 1 only (`... ESRCH`). It does not name the `held` assertion or injection 7, which is now the evidence that both hold stubs are still running when the wait ends (FR-TEST-HYG-049). TS-TEST-HYG-068 (line 533) lists only 'fault injections 2–6', and TS-TEST-HYG-064 (FR-TEST-HYG-049) does not mention `held`. Suggested fix: add the `held` check, with `t.Errorf(\"the stub exited before the end of the wait\")`, to TS-TEST-HYG-064 or TS-TEST-HYG-062. Extend TS-TEST-HYG-068 to injections 2–7, and add injection 7 to the TC-003 row of the mapping, as no-tests.md already does."
+  },
+  {
+    "id": "R2-02",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 531,
+    "category": "test",
+    "body": "TS-TEST-HYG-066, design run 1 and the TC-005 mapping all say the normal run passes with `-race`, and TC-005 requires it. no-tests.md records that `-race` could not run because the runner has no C compiler. No CI workflow or script runs `-race` (no match in `.github/`, `scripts/` or a Makefile), so no gate proves that corner case. The risk is low: the `wait` closure runs in the caller's goroutine, so `signalled` and `held` are not shared. But the specification claims evidence that does not exist. Suggested fix: run the command with `-race` where cgo is available and record the result. Otherwise, state in TS-TEST-HYG-066 and the TC-005 mapping that `-race` is not run, and why no data race is possible (the closure is called synchronously by `runBrowserOnProfileUntil`, and the only cross-process link is the marker file)."
+  },
+  {
+    "id": "R2-03",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 422,
+    "category": "nit",
+    "body": "The R1-01 bullet is inserted with a blank line after it, before the '15 s bound starts when `wait` is called' bullet. This splits one list of hold-wait notes into two Markdown lists, and the 'still running' rule comes before the timing rules it depends on. Suggested fix: remove the blank line and move the bullet after the 'No signal (FR-TEST-HYG-050)' bullet."
+  }
+]

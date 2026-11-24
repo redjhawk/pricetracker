@@ -13,6 +13,9 @@
 # where the previous one stopped. The run stops, and asks on the issue, when it needs a functional answer.
 # Runs the same locally and in .github/workflows/fabrica.yml.
 set -euo pipefail
+# No core dumps: a crashed browser or test leaves core.<pid> in its directory, the stage checkpoint
+# (git add -A) commits it, and GitHub refuses files over 100 MB, so the push fails.
+ulimit -c 0
 
 FACTORY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh

@@ -10,3 +10,6 @@ web/static/dist/
 playwright-report/
 test-results/
 .factory-repair/
+# Core dumps (a crashed Chromium in a test once left a 700 MB core.<pid> that the factory committed)
+core
+core.[0-9]*
