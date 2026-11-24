@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 3,
+    "category": "spec",
+    "body": "The development stage did not update the statuses. The technical specification (Scheduled checks around a Refresh price, \"Development stage\", and the Files to change table) says it sets FR-TEST-HYG-033–036 and TS-TEST-HYG-038–043 to implemented. The development commit 4bd4a63 only touches state.json, so the PR merges with `FR-TEST-HYG-033–036 specified (issue #182)` here, `TS-TEST-HYG-038–043 ready (issue #182)` in doc/specifications/test-suite-hygiene/technical.md line 3, and `FR-TEST-HYG-033–036 specified (issue #182, …)` in the Test suite hygiene row of doc/FUNCTIONAL_SPECIFICATIONS.md (line 358). Every earlier issue in this spec (#181, #185, #238, …) is recorded as implemented after its merge. Fix: change the three status texts to implemented."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/service/amazon_human_checks_issue182_test.go",
+    "line": 10,
+    "category": "readability",
+    "body": "The header comment contradicts itself. It says \"TC-001 to TC-003 are in TestAmazonHumanChecks_TC032_…\" and then says TC-002 is a check recorded in no-tests.md. TC-002 is a mutation check, not a part of TC-032 (testcases.md, no-tests.md). Fix: \"TC-001 and TC-003 are in TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning; TC-002, TC-005 and TC-006 are checks recorded in the change folder's no-tests.md.\""
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/changes/2026-11-24-0458-issue-182-make-the-tc-032-refresh-price-subtest-re/no-tests.md",
+    "line": 19,
+    "category": "nit",
+    "body": "no-tests.md says \"The scratch files are listed in `delete.txt`\", but the change folder in the PR has no delete.txt (the pipeline consumed it), so a reader cannot follow the reference. The method also differs from the technical specification, which says the tests stage reverts each mutation with Edit and checks `git diff --quiet master -- internal/service/service.go internal/service/amazon_gate.go`. The `go test -overlay` approach is fine and leaves production files untouched. Fix: drop the delete.txt sentence, or say the scratch overlay files were removed after the run."
+  }
+]
