@@ -81,6 +81,32 @@ test("TC-013 (#265) saving a token sends only the Claude part, shows progress, a
   await expect(reopened).not.toContainText("AI reviews are unavailable");
 });
 
+// Issue #273: the server allows a response 60 s; the interface has no shorter limit of its own.
+test("TC-010 (#273) a save answered after 19 s keeps its progress, closes without an error and shows the token saved", async ({ page, context }) => {
+  test.setTimeout(60_000);
+  const api = await mockApi(context, noToken);
+  const dialog = await openSettings(page);
+  const field = dialog.getByRole("textbox", { name: "Claude token" });
+  await field.fill(tokenU);
+  const savedAt = Date.now();
+  api.putGate = new Promise<void>((resolve) => { setTimeout(resolve, 19_000); }); // the answer comes 19 s after Save
+  await dialog.getByRole("button", { name: "Save" }).click();
+  for (const at of [1_000, 10_000, 18_000]) {
+    await page.waitForTimeout(Math.max(0, savedAt + at - Date.now()));
+    await expect(dialog.getByRole("button", { name: "Saving…" })).toBeDisabled({ timeout: 500 });
+    await expect(dialog.getByText("Saving settings…")).toBeVisible({ timeout: 500 });
+    await expect(dialog.getByText("Could not save settings")).toHaveCount(0);
+    await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  }
+  await expect(dialog).toBeHidden({ timeout: 30_000 });
+  expect(Date.now() - savedAt).toBeGreaterThanOrEqual(18_500);
+  await expect(page.getByText("Could not save settings")).toHaveCount(0);
+  expect(api.puts).toEqual([{ claudeToken: { value: tokenU } }]);
+  const reopened = await openSettings(page);
+  await expect(reopened.getByText("A token is saved: ••••uvst.", { exact: true })).toBeVisible();
+  await expect(reopened).not.toContainText("AI reviews are unavailable");
+});
+
 test("TC-013 (#265) a blank session input next to a typed token sends only the token", async ({ page, context }) => {
   const api = await mockApi(context, savedToken);
   const dialog = await openSettings(page);
