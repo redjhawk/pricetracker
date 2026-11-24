@@ -1,12 +1,14 @@
 # Functional specification: Secure session cookie behind an HTTPS reverse proxy
 
-Status: ready (issue #268)
+Status: FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 specified (issue #293, maintenance: no behaviour change)
 Owner: functional specification agent
-User decision/reference: GitHub issue #268 ("Session cookie: set Secure when the application is served over HTTPS by a reverse proxy").
+User decision/reference: GitHub issue #268 ("Session cookie: set Secure when the application is served over HTTPS by a reverse proxy"); GitHub issue #293 ("Restore the clientAddress doc comment in auth.go", from review comment R1-01 on PR #292).
 
 ## Purpose and scope
 
 The login session cookie is marked `Secure` (sent by the browser only over HTTPS) only when the application itself receives the HTTPS connection. In production HTTPS ends at the reverse proxy (Cloudflare), which forwards plain HTTP to the application, so the cookie is never `Secure`. The user asks that the cookie be `Secure` when the request reached the proxy over HTTPS, as stated by the proxy's `X-Forwarded-Proto: https` header, while plain HTTP access in development keeps working.
+
+Issue #293 (maintenance): the issue #268 change inserted `secureRequest` (the function that decides whether a request is an HTTPS request) and its comment between the doc comment of `clientAddress` (the client address of login limits, in `internal/httpapi/auth.go`) and `func clientAddress`. The doc comment of `secureRequest` now starts with the `clientAddress` text, and `clientAddress` has none. The comment lines are moved back; no behaviour changes.
 
 Actors: a person logging in or out (regular user or administrator), the browser, and the reverse proxy in front of the application.
 
@@ -30,6 +32,12 @@ Terms:
 | FR-COOKIE-005 | A logged-in person logs out. | The response that clears the session cookie is `Secure` under the same rule as login (FR-COOKIE-001 to 004), so the browser removes the cookie both over HTTPS behind the proxy and over plain HTTP. | Logout with `X-Forwarded-Proto: https` answers a clearing `Set-Cookie` with `Secure`; logout over plain HTTP without the header answers one without `Secure`; in both cases reloading shows the login screen (protected mode). |
 | FR-COOKIE-006 | Any session cookie the application sets or clears. | Only the `Secure` attribute depends on the request; name, value, `HttpOnly`, `SameSite=Lax`, path `/` and lifetime (30 days at login, removal at logout) are as today. | The `Set-Cookie` of a login over plain HTTP and of a login with `X-Forwarded-Proto: https` differ only by `Secure`. |
 
+Issue #293 (maintenance, no behaviour change):
+
+- **FR-COOKIE-007** In `internal/httpapi/auth.go`, the two comment lines describing `clientAddress` ("clientAddress returns the client address of login limits: …" and "… else the connection host.") stand directly above `func clientAddress`, with no blank line between them and the function, so they are its doc comment.
+- **FR-COOKIE-008** The doc comment of `secureRequest` holds only its own two lines ("secureRequest reports whether the request reached the application over HTTPS: …" and "… (trusted like CF-Connecting-IP)."), and one blank line separates the end of `secureRequest` from the `clientAddress` doc comment.
+- **FR-COOKIE-009** The change's diff outside `doc/` only moves those comment lines in `internal/httpapi/auth.go`: no code line, comment wording or other file changes. FR-COOKIE-001–006 and the login attempt limits behave as before, the unit-test gate (`go vet ./...`, `go test ./...`) passes, and the operator observes no change in the application.
+
 ## States and corner cases
 
 - The header is trusted as sent: the application is reachable in production only through Cloudflare. A client reaching the application directly and sending `X-Forwarded-Proto: https` over plain HTTP only gets a `Secure` cookie its browser will not send back over HTTP, so it harms only that client.
@@ -43,3 +51,13 @@ Terms:
 - Direct TLS still gives a `Secure` cookie.
 - Plain HTTP without a header stating HTTPS gives a cookie without `Secure`, and login keeps working in development.
 - No other cookie attribute changes.
+
+Issue #293:
+
+- `go doc -u ./internal/httpapi clientAddress` shows the doc comment starting "clientAddress returns the client address of login limits" (FR-COOKIE-007).
+- The doc comment directly above `func secureRequest` starts with "secureRequest reports" and does not contain "clientAddress" (FR-COOKIE-008).
+- `git diff origin/master -- internal/httpapi/auth.go` only moves the two `clientAddress` comment lines and changes no code line; `git diff --name-only origin/master` outside `doc/` lists only `internal/httpapi/auth.go`; `gofmt -l internal/httpapi` prints nothing; `go vet ./...` and `go test ./...` succeed (FR-COOKIE-009).
+
+## Open questions
+
+None. Issue #293 states the expected result (each function keeps only its own doc comment) and asks for no behaviour change.
