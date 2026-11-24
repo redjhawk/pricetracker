@@ -475,6 +475,11 @@ func elementContentByID(page, id string) string {
 }
 
 func metaContent(page, property string) string {
+	return textContent(metaAttribute(page, property))
+}
+
+// metaAttribute returns the raw content attribute of the first <meta> with the given property or name.
+func metaAttribute(page, property string) string {
 	metas := regexp.MustCompile(`(?is)<meta\b[^>]*>`).FindAllString(page, -1)
 	for _, tag := range metas {
 		name := attribute(tag, "property")
@@ -482,7 +487,7 @@ func metaContent(page, property string) string {
 			name = attribute(tag, "name")
 		}
 		if strings.EqualFold(name, property) {
-			return textContent(attribute(tag, "content"))
+			return attribute(tag, "content")
 		}
 	}
 	return ""
@@ -511,23 +516,37 @@ func imageByID(page, id string) string {
 	return ""
 }
 
-func productImage(page string) *string {
-	image := imageByID(page, "landingImage")
-	if image == "" {
-		for _, tag := range imagePattern.FindAllString(page, -1) {
-			if attribute(tag, "data-a-dynamic-image") != "" {
-				image = attribute(tag, "src")
-				break
-			}
+// dynamicImage returns the src of the first <img> carrying data-a-dynamic-image.
+func dynamicImage(page string) string {
+	for _, tag := range imagePattern.FindAllString(page, -1) {
+		if attribute(tag, "data-a-dynamic-image") != "" {
+			return attribute(tag, "src")
 		}
 	}
-	if image == "" {
-		image = metaContent(page, "og:image")
+	return ""
+}
+
+// amazonImagePrefixes are the only thumbnail URL starts kept from an Amazon page (issue #275).
+var amazonImagePrefixes = []string{"https://m.media-amazon.com/", "https://images-eu.ssl-images-amazon.com/"}
+
+func acceptedImage(url string) bool {
+	for _, prefix := range amazonImagePrefixes {
+		if strings.HasPrefix(url, prefix) {
+			return true
+		}
 	}
-	if image == "" {
-		return nil
+	return false
+}
+
+// productImage returns the first image candidate served over HTTPS by an Amazon image host, if any.
+func productImage(page string) *string {
+	candidates := []string{imageByID(page, "landingImage"), dynamicImage(page), metaAttribute(page, "og:image")}
+	for _, image := range candidates {
+		if acceptedImage(image) {
+			return &image
+		}
 	}
-	return &image
+	return nil
 }
 
 type priceCandidate struct {
