@@ -170,12 +170,22 @@ const SecretHintMinLength = 16
 // SecretHint returns the last 4 characters of a saved secret, or nil when none is
 // saved or it is shorter than SecretHintMinLength.
 func SecretHint(value *string) *string {
-	return nil // not implemented (issue #265)
+	if value == nil {
+		return nil
+	}
+	runes := []rune(*value)
+	if len(runes) < SecretHintMinLength {
+		return nil
+	}
+	hint := string(runes[len(runes)-4:])
+	return &hint
 }
 
 // LeboncoinSession is the saved LeBoncoin datadome session as returned by the settings API.
 type LeboncoinSession struct {
-	Value       *string                  `json:"value"`
+	Value       *string                  `json:"-"` // never serialized (issue #265)
+	Saved       bool                     `json:"saved"`
+	Hint        *string                  `json:"hint"`
 	Revision    int64                    `json:"revision"`
 	UpdatedAt   *time.Time               `json:"updatedAt"`
 	Status      string                   `json:"status"` // none, active, expired or revoked
@@ -192,7 +202,9 @@ type LeboncoinSessionAttempt struct {
 
 // ClaudeToken is the saved Claude subscription token as returned by the settings API.
 type ClaudeToken struct {
-	Value          *string    `json:"value"`
+	Value          *string    `json:"-"` // never serialized (issue #265)
+	Saved          bool       `json:"saved"`
+	Hint           *string    `json:"hint"`
 	UpdatedAt      *time.Time `json:"updatedAt"`
 	LastRejectedAt *time.Time `json:"lastRejectedAt"`
 	Revision       int64      `json:"-"` // used by AI reviews to ignore outcomes for a replaced token

@@ -1,7 +1,8 @@
 {
   "issue": 265,
-  "stage": "implement",
+  "stage": "tests",
   "round": 0,
   "series_start": 0,
-  "pr": ""
+  "pr": "",
+  "test_problem_returns": 1
 }
