@@ -110,6 +110,8 @@ When a Claude token is saved, an AI review of a LeBoncoin item is requested auto
 
 The add-item form offers an optional **Purchase goal** field, saved for LeBoncoin items only. The LeBoncoin details page shows the goal in an editable field with a save action. A non-empty goal is sent with every review request; an empty goal means no goal. Details: [purchase goal](specifications/leboncoin-purchase-goal/functional.md).
 
+When adding a purchase goal, the operator can select an existing goal or type a new one when none fits (issue #304, draft pending open questions). Details: [purchase goal choice](specifications/purchase-goal-choice/functional.md).
+
 ### 5.6b Amazon failure stop
 
 The Amazon searches feature (issue #56) was removed in issue #111: no searches tab, saved searches and search-only items with their history and Amazon AI reviews are deleted, and tracked Amazon items are unchanged. Details: [Amazon searches removal](specifications/amazon-searches-removal/functional.md).
@@ -341,6 +343,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Masked secrets in Settings | [settings-secret-masking](specifications/settings-secret-masking/functional.md) | specified (issue #265); FR-SECRET-014 specified (issue #286) |
 | LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
+| Purchase goal choice | [purchase-goal-choice](specifications/purchase-goal-choice/functional.md) | draft (issue #304): open questions pending |
 | Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned; FR-AUTH-005 superseded by FR-LOGIN-LIM-* (issue #266) |
 | Login attempt limits | [login-attempt-limits](specifications/login-attempt-limits/functional.md) | specified (issue #266) |
 | Session cookie security | [session-cookie-security](specifications/session-cookie-security/functional.md) | specified (issue #268) |
