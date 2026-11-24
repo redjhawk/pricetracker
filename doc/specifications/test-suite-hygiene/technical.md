@@ -635,7 +635,7 @@ No test is added: the tests stage edits the subtest and writes `no-tests.md`. Ru
 
 | Test case | Proved by |
 | --- | --- |
-| TC-001 | Code check of the subtest "TC-003 temporary profile" in `internal/amazon/browser_profile_values_test.go`: `t.Cleanup` on the subtest's `t` right after `profileOf("")`, before the first `t.Fatal`; it returns on `""` or the system temporary folder and otherwise removes only `path`; `cleanup()`, the `os.Stat` check after it and every other check and message are unchanged; the other subtests are unchanged (TS-TEST-HYG-069–071) |
+| TC-001 | Code check of the subtest "TC-003 temporary profile" in `internal/amazon/browser_profile_values_test.go`: `t.Cleanup` on the subtest's `t` right after `profileOf("")`, before the first `t.Fatal`; it removes `path` only when `path` passes the subtest's location check (parent is `filepath.Clean(os.TempDir())`, base name starts with `pricefollower-browser-`) and otherwise removes nothing; `cleanup()`, the `os.Stat` check after it and every other check and message are unchanged; the other subtests are unchanged (TS-TEST-HYG-069–071) |
 | TC-002 | Fault injections 2–5 (tests stage, recorded in `no-tests.md`): each fails with its expected message and leaves the fresh `TMPDIR` empty, including with a non-empty profile; injection 2 without the `t.Cleanup` block leaves one `pricefollower-browser-*` directory |
 | TC-003 | Fault injection 6: one failure, `the cleanup did not remove the temporary profile: <nil>`, and the `TMPDIR` is empty afterwards |
 | TC-004 | Fault injection 7: the subtest fails on its existing checks, and the before/after listings of `internal/amazon` and of the `TMPDIR` are identical |
