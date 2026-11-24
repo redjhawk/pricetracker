@@ -36,7 +36,7 @@ type SessionInputError struct {
 func (e *SessionInputError) Error() string { return e.Message }
 
 // ParseSessionInput extracts the datadome value from a raw value or a cookie
-// string. An empty result without error means the session must be cleared.
+// string. An empty result without error means the input was blank.
 func ParseSessionInput(raw string) (string, error) {
 	if len(raw) > maxSessionInputLength {
 		return "", &SessionInputError{"The pasted text is too long (maximum 8192 characters)."}

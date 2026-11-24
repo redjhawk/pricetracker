@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "API_SPECIFICATION.md",
+    "line": 365,
+    "category": "spec",
+    "body": "The new sentence \"the 1024-character limit applies only to a value that is not whitespace only\" does not describe what the code does. `tokenChangeFor` trims the value first and then `validateClaudeToken` checks `len(token) > 1024` on the trimmed token. So `\"<2000 spaces>sk-ant-...\"` (more than 1024 characters, not whitespace only) is accepted and verified, not refused as too long. Suggested fix: \"the 1024-character limit applies to the trimmed value, so surrounding whitespace, and a whitespace-only value of any length, never makes it too long\". The session works differently: there the 8192 limit applies to the raw input, and the spec states that correctly."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/use-cases/settings-secret-masking/UC-SECRET-007-save-with-long-whitespace-only-input.md",
+    "line": 30,
+    "category": "spec",
+    "body": "This alternative says that any input longer than the maximum and containing another character is refused, and it cites FR-CLT-SET-004. That holds for the LeBoncoin session, whose raw length is checked before trimming. It does not hold for the Claude token, which is trimmed before its 1024-character check. For example, 2000 spaces followed by a short token is not refused as too long; the token is verified. Suggested fix: limit the sentence to the LeBoncoin input, or say that for the Claude token the limit applies after trimming surrounding whitespace. Make the same change to the matching FR-SECRET-014 wording (\"A non-empty input longer than the maximum is still rejected as before\") if it is meant to cover the token."
+  },
+  {
+    "id": "R1-03",
+    "file": "tests/claude-token-settings.spec.ts",
+    "line": 101,
+    "category": "test",
+    "body": "This assertion runs after `await expect(dialog).toBeHidden()`, so `Saving settings…` (which only appears inside the open modal) can never be found; the check is vacuous. It does not prove TC-005's corner case \"no progress for a verification\". The frontend makes no request when both entries are untouched (TS-SECRET-019), so the stronger and simpler proof is `expect(api.puts).toEqual([])`. Alternatively, check for the progress text before the modal closes. The `/too long/` part can stay."
+  }
+]

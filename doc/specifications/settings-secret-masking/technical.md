@@ -1,8 +1,8 @@
 # Technical specification: masked secrets in Settings
 
-Status: ready (issue #265)
-Functional specification: [functional.md](functional.md), FR-SECRET-001–013; amended rows of [LeBoncoin session settings](../leboncoin-session-settings/functional.md) (FR-LBC-SET-001, 004, 008, 015–018), [Claude token settings](../claude-token-settings/functional.md) (FR-CLT-SET-003–005, 007, 008) and [session capture](../leboncoin-session-capture/functional.md) (FR-LBC-CAP-013)
-Test cases: [testcases.md](../../changes/2026-11-23-2247-issue-265-settings-stop-returning-the-saved-claude/testcases.md), TC-001–019
+Status: ready (issue #265; TS-SECRET-017–019 added by issue #286)
+Functional specification: [functional.md](functional.md), FR-SECRET-001–014; amended rows of [LeBoncoin session settings](../leboncoin-session-settings/functional.md) (FR-LBC-SET-001, 004, 008, 015–018), [Claude token settings](../claude-token-settings/functional.md) (FR-CLT-SET-003–005, 007, 008) and [session capture](../leboncoin-session-capture/functional.md) (FR-LBC-CAP-013)
+Test cases: [testcases.md](../../changes/2026-11-23-2247-issue-265-settings-stop-returning-the-saved-claude/testcases.md), TC-001–019 (issue #265); [testcases.md](../../changes/2026-11-24-0036-issue-286-treat-long-whitespace-only-leboncoin-ses/testcases.md), TC-001–005 (issue #286)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), sections "Secret hint (issue #265)", "LeBoncoin session input", "Claude token object" and "Save settings"
 
 ## Summary
@@ -31,6 +31,9 @@ The server stops serializing the stored secrets. Both settings objects carry `sa
 | TS-SECRET-014 | SECRET-011, CLT-SET-008, LBC-SET-018 | Typed inputs and pending removals reset on close; no storage | `src/components/SettingsModal.tsx` | TC-017 |
 | TS-SECRET-015 | SECRET-013 | Hint and pending text in the input's accessible description, polite live region, named toggle buttons | `src/components/SettingsModal.tsx` | TC-018 |
 | TS-SECRET-016 | SECRET-012, LBC-CAP-013 | Operator guide describes the hint, keeping and "Remove session" (updated in this technical stage) | `doc/leboncoin-session.md` | TC-019 |
+| TS-SECRET-017 | SECRET-014, SECRET-004, SECRET-008, LBC-SET-006 | `sessionChangeFor` returns "untouched" for a whitespace-only `value` before `ParseSessionInput`, so the 8192-character input limit applies only to input that is not whitespace only (issue #286) | `internal/service/settings.go`, `internal/leboncoin/session.go` (doc comment only) | TC-001, TC-002, TC-004 of #286 |
+| TS-SECRET-018 | SECRET-014, SECRET-004, CLT-SET-004 | Claude token: already trimmed before the 1024-character check, so a whitespace-only token of any length is untouched; no code change | none | TC-003 of #286 |
+| TS-SECRET-019 | SECRET-014, LBC-SET-006, CLT-SET-004 | Frontend already sends no part for a blank input (`trim()`) and has no length check; no code change | none | TC-005 of #286 |
 
 ## API
 
@@ -225,12 +228,58 @@ await saveSettings({ ...(leboncoinSession ? { leboncoinSession } : {}), ...(clau
 
 The developer stage cannot edit `doc/leboncoin-session.md`, so this technical stage updates it. "Paste it into Settings", "Check the result", "Renew or clear" and "Keep the value secret" now say that Settings shows a masked hint (the last 4 characters) instead of the session, that leaving the input empty keeps the saved session, that pasting a new value replaces it, and that the session is cleared with **Remove session** then **Save**. The guide no longer says to clear by saving an empty field or that anyone can read the value in Settings. The TC-019 test reads that file and uses in-test fixtures for its negative cases.
 
+## Long whitespace-only input (issue #286)
+
+Defect: `PUT /api/v1/settings` with `{"leboncoinSession": {"value": "<9000 spaces>", "revision": r}}` answers `400 INVALID_SESSION` "The pasted text is too long", because `leboncoin.ParseSessionInput` checks `len(raw) > 8192` before trimming. FR-SECRET-014 requires such an input to be untouched.
+
+### Backend (TS-SECRET-017, TS-SECRET-018)
+
+`internal/service/settings.go`, `sessionChangeFor`, after the `Remove` branch and before `ParseSessionInput`:
+
+```go
+if strings.TrimSpace(input.Value) == "" {
+	return nil, nil // whitespace only, any length: untouched, no revision check (FR-SECRET-014)
+}
+```
+
+- The function's doc comment becomes "…or nil when the session is untouched (no input, or a whitespace-only value of any length)."
+- Rule order for a `value`: whitespace only → untouched; otherwise `ParseSessionInput` unchanged (raw length check first, then trimming, prefixes, extraction, validation). So `W9000` + `abc` stays `INVALID_SESSION` "too long" and is never trimmed into `abc`; `W100` + `datadome=N` + `W100` stays a replacement.
+- The rule uses `strings.TrimSpace`, the trimming `ParseSessionInput` and `tokenChangeFor` already apply to short input, so "blank" means the same at every length (spaces, tabs, `\n`, `\r` and other Unicode white space, like the frontend's `trim()`).
+- `ParseSessionInput` keeps its behaviour and tests. Only its stale doc comment is corrected to "An empty result without error means the input was blank." (the "session must be cleared" meaning was dropped by issue #265).
+- An untouched session gives `sessionChange = nil`, so `store.SaveSettings` only reads the session: value, `revision`, `updatedAt`, status, expiry, revocation and `lastAttempt` are kept, no revision check runs, and a concurrent renewal is kept (FR-SECRET-008). A token part in the same request is processed as before.
+- Claude token (TS-SECRET-018): `tokenChangeFor` already trims before `validateClaudeToken`; no change.
+- Request size limit unchanged: a body over 32 768 bytes is still `413 REQUEST_TOO_LARGE` in the handler, before the service runs; nothing is saved.
+- No persistence, migration, concurrency or logging change.
+
+### API
+
+Compatible behaviour change: a whitespace-only session `value` longer than 8192 characters, formerly `400 INVALID_SESSION` "too long", is now `200` and untouched. `API_SPECIFICATION.md` ("LeBoncoin session input", "Save settings") says that a whitespace-only value is untouched whatever its length and that the 8192 / 1024-character limits apply only to input that is not whitespace only. No field, status code or message changes.
+
+### Frontend (TS-SECRET-019)
+
+Not affected: `SettingsModal` sends a part only when `value.trim()` / `claudeValue.trim()` is non-empty, has no length check of its own, and closes without a request when both entries are untouched. A long blank paste therefore sends no part and shows no message. TC-005 adds e2e tests only.
+
+### Tests (issue #286)
+
+Test names start with `TestLongWhitespace_TC00n_` (Go) or `long whitespace TC-00n` (Playwright), so they do not collide with the #265 `TC-` numbers.
+
+| Test case | Test file(s) |
+| --- | --- |
+| TC-001 | `internal/service/long_whitespace_test.go` (new, `package service`, table test calling `sessionChangeFor` directly) |
+| TC-002 | `internal/httpapi/secret_masking_test.go` (existing helpers `withSecretNet`, `storeSecrets`, `finishSessionAttempt`, `rejectStoredToken`, `assertStoredSession`, `assertStoredToken`, `assertLastCookie`, `assertNoSecret`; a 40 000-space value for `413`) |
+| TC-003 | `internal/httpapi/secret_masking_test.go` (`secretNet.setClaude`, `verifications`) |
+| TC-004 | `internal/httpapi/secret_masking_test.go` (renewal to Y through `store.FinishLeboncoinSessionAttempt`) |
+| TC-005 | `tests/leboncoin-session-settings.spec.ts` (session cases, both blank, too long non-blank, Cancel); `tests/claude-token-settings.spec.ts` (`C1025` alone, `W9000` with U) |
+
+The existing check `internal/httpapi/settings_test.go:127` (8193 `v` → too long) stays valid. Commands: `go test ./...`, `go vet ./...`, `npm run build`, `npx playwright test`.
+
 ## Files to change
 
 - Backend: `internal/model/model.go`, `internal/store/store.go`, `internal/store/claude_token.go`, `internal/service/settings.go`, `internal/service/service.go`, `internal/httpapi/settings.go`, `internal/httpapi/server.go`.
 - Frontend: `src/api/settings.ts`, `src/components/SettingsModal.tsx`, `src/index.css` (only if needed).
 - Documentation: `doc/leboncoin-session.md` (done in this stage), this file, and the amendment notes in the [LeBoncoin session settings](../leboncoin-session-settings/technical.md), [Claude token settings](../claude-token-settings/technical.md) and [session capture](../leboncoin-session-capture/technical.md) technical specifications.
 - No change to the schema, the collector, AI reviews, auth, `playwright.config.ts`, `package.json` or `scripts/`.
+- Issue #286: `internal/service/settings.go` (rule and doc comment), `internal/leboncoin/session.go` (doc comment only), tests listed in "Tests (issue #286)"; `API_SPECIFICATION.md` and the TS-LBC-SET-009 / TS-CLT-SET-011 rows are updated in this technical stage. No frontend, schema or refactoring change; no manual follow-up.
 
 ## Tests
 

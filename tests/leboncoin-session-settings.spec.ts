@@ -593,6 +593,79 @@ test("TC-013 (#265) saving in progress blocks closing, removal and duplicate sav
   expect(api.puts).toHaveLength(1);
 });
 
+// Issue #286: a whitespace-only input of any length leaves the saved secret untouched.
+const blankW9000 = " ".repeat(9000);
+const blankC1025 = " ".repeat(1025);
+const tooLongSession = { status: 400, json: { error: { code: "INVALID_SESSION", message: "The pasted text is too long (maximum 8192 characters)." } } };
+const warnedSession = { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } };
+const warnedToken = { ...savedToken, lastRejectedAt: "2026-10-03T20:00:00Z" };
+
+// No request replaces or removes a secret, or carries a long blank input.
+function expectNoSecretChangeSent(puts: SaveBody[]) {
+  for (const put of puts) {
+    expect(put.leboncoinSession?.remove).toBeFalsy();
+    expect(put.leboncoinSession?.value?.trim() ?? "").toBe("");
+    expect(put.claudeToken?.remove).toBeFalsy();
+    expect(put.claudeToken?.value?.trim() ?? "").toBe("");
+  }
+  expect(JSON.stringify(puts)).not.toContain(" ".repeat(1025));
+}
+
+async function expectUntouchedAfterReopening(page: Page) {
+  const dialog = await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/LeBoncoin rejected this session on 03 Oct 2026, 20:00 UTC/)).toBeVisible();
+  await expect(dialog.getByText(/Claude rejected this token for an AI review on 03 Oct 2026, 20:00 UTC/)).toBeVisible();
+}
+
+for (const { name, session, token } of [
+  { name: "a 9000-space session paste", session: blankW9000, token: "" },
+  { name: "both inputs filled with long whitespace", session: blankW9000, token: blankC1025 },
+]) {
+  test(`long whitespace TC-005 ${name} saves without a "too long" message and changes nothing`, async ({ page, context }) => {
+    const api = await mockApi(context, warnedSession, warnedToken);
+    await page.goto("/");
+    const dialog = await openLoaded(page);
+    await sessionField(page).fill(session);
+    await tokenField(page).fill(token);
+    await saveButton(page).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText(/too long/i)).toHaveCount(0);
+    expectNoSecretChangeSent(api.puts);
+    await expectUntouchedAfterReopening(page);
+  });
+}
+
+test("long whitespace TC-005 a long paste that is not whitespace only shows the server's too long message", async ({ page, context }) => {
+  const api = await mockApi(context);
+  api.putReplies.push(tooLongSession);
+  const value = `${blankW9000}abc`;
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(value);
+  await saveButton(page).click();
+  await expect(sessionField(page)).toHaveAttribute("aria-invalid", "true");
+  await expect(dialog.getByText("The pasted text is too long (maximum 8192 characters).")).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(sessionField(page)).toHaveValue(value);
+  await expect(tokenField(page)).not.toHaveAttribute("aria-invalid", "true");
+  expect(api.puts).toEqual([{ leboncoinSession: { value, revision: 7 } }]);
+});
+
+test("long whitespace TC-005 Cancel after a 9000-space paste sends nothing; reopening shows an empty input", async ({ page, context }) => {
+  const api = await mockApi(context, warnedSession, warnedToken);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(blankW9000);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expectUntouchedAfterReopening(page);
+  expect(api.puts).toEqual([]);
+});
+
 const notUsed = "It is no longer used. Capture a new session and save it here, or remove it.";
 const hintCases: { name: string; session: Session; state: string; text: string | RegExp | null }[] = [
   { name: "rejected", session: { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } }, state: sessionHint("9f3a"),

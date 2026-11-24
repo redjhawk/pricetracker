@@ -1,6 +1,6 @@
 # Functional specification: masked secrets in Settings
 
-Status: ready (issue #265)
+Status: ready (issue #265; FR-SECRET-014 added by issue #286)
 Owner: functional specification agent
 User decision/reference: GitHub issue #265 ("Settings: stop returning the saved Claude token and LeBoncoin session in full").
 
@@ -35,6 +35,7 @@ This specification supersedes the parts of [LeBoncoin session settings](../lebon
 | FR-SECRET-011 | The browser, after the modal closes. | Apart from what the operator types into an input before saving, the browser never holds a full secret; typed input is discarded when the modal closes. | After saving or cancelling, browser storage and the page contain no full secret; reopening Settings shows empty inputs. |
 | FR-SECRET-012 | The operator reads the operator guide (FR-LBC-CAP-013). | The guide describes the masked hint, that an empty input keeps the saved secret, and removal with the remove action; it no longer says to clear the session by saving an empty field. | The guide's Settings instructions mention the remove action and do not mention clearing by saving an empty field. |
 | FR-SECRET-013 | Keyboard, assistive technology, about 400 px viewport. | FR-LBC-SET-019 rules apply to the hints and remove actions. | Each hint is text associated with its entry and read by assistive technology. Each remove action and its undo are reachable by keyboard, and their accessible names name the secret concerned. A requested removal is stated in text, not only by colour. At about 400 px the hints and actions are usable without horizontal page scrolling. |
+| FR-SECRET-014 | The operator saves with an entry whose input contains only whitespace (spaces, tabs, line breaks), of any length (issue #286). | The entry is untouched (FR-SECRET-004), whatever the input's length: the maximum input length of FR-LBC-SET-006 (and of the Claude token, FR-CLT-SET-004) applies only to an input that is not whitespace only, so a long whitespace-only input is never rejected as too long. A non-empty input longer than the maximum is still rejected as before. | Given saved session S, saving with the LeBoncoin input made of more than 8192 spaces and no removal requested succeeds: no "too long" or other error is shown, the modal closes, and reopening shows S's hint and warnings unchanged; LeBoncoin checks keep using S, and another modal opened before that save can still replace S without the "session changed" warning. The same holds for a Claude input of more than 1024 spaces: the token is unchanged and not verified again. |
 
 ## States and corner cases
 
@@ -44,6 +45,7 @@ This specification supersedes the parts of [LeBoncoin session settings](../lebon
 - Replacing one secret and removing the other in one Save is allowed; an error in either saves neither (FR-CLT-SET-006).
 - The operator cannot check whether a new input equals the saved secret other than by the last characters of the hint.
 - The administrator has no Settings and is not affected.
+- Whitespace-only input of any length is untouched (FR-SECRET-014). The overall size limit of one save request is unchanged: a save too large to be accepted at all is refused and saves nothing, as for any other input.
 
 ## Open questions
 
@@ -52,6 +54,7 @@ None.
 ## Traceability
 
 - Request: GitHub issue #265, recorded in the [change folder](../../changes/2026-11-23-2247-issue-265-settings-stop-returning-the-saved-claude/issue.md).
+- FR-SECRET-014: GitHub issue #286 (from review comment R1-01 on #285), recorded in the [change folder](../../changes/2026-11-24-0036-issue-286-treat-long-whitespace-only-leboncoin-ses/issue.md). Clarifies FR-LBC-SET-006 and FR-CLT-SET-004.
 - Amends [LeBoncoin session settings](../leboncoin-session-settings/functional.md) FR-LBC-SET-001, 004, 008, 015, 016, 017, 018 and [Claude token settings](../claude-token-settings/functional.md) FR-CLT-SET-003, 004, 005, 007, 008.
 - Amends the operator guide part of [session capture](../leboncoin-session-capture/functional.md) FR-LBC-CAP-013.
 - Related: [session collection](../leboncoin-session-collection/functional.md) FR-LBC-COL-011/014/015, [LeBoncoin AI review](../leboncoin-ai-review/functional.md) FR-LBC-AIR-008, [multi-user login](../multi-user-login/functional.md) FR-SETTINGS-001.

@@ -91,6 +91,36 @@ test("TC-013 (#265) a blank session input next to a typed token sends only the t
   expect(api.puts).toEqual([{ claudeToken: { value: `  ${tokenU}  ` } }]);
 });
 
+// Issue #286: a whitespace-only input of any length leaves the saved secret untouched.
+test("long whitespace TC-005 a 1025-space token input sends no replacement, shows no message and closes", async ({ page, context }) => {
+  const api = await mockApi(context, { ...savedToken, lastRejectedAt: "2026-10-03T20:00:00Z" });
+  const dialog = await openSettings(page);
+  await dialog.getByRole("textbox", { name: "Claude token" }).fill(" ".repeat(1025));
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText(/too long|Saving settings…/i)).toHaveCount(0);
+  for (const put of api.puts) {
+    expect(put.claudeToken?.remove).toBeFalsy();
+    expect(put.claudeToken?.value?.trim() ?? "").toBe("");
+  }
+  expect(JSON.stringify(api.puts)).not.toContain(" ".repeat(1025));
+  const reopened = await openSettings(page);
+  await expect(reopened.getByRole("textbox", { name: "Claude token" })).toHaveValue("");
+  await expect(reopened.getByText("A token is saved: ••••wxyz.", { exact: true })).toBeVisible();
+  await expect(reopened.getByText(/Claude rejected this token for an AI review on 03 Oct 2026, 20:00 UTC/)).toBeVisible();
+});
+
+test("long whitespace TC-005 a 9000-space session input next to a typed token sends only the token", async ({ page, context }) => {
+  const api = await mockApi(context, savedToken);
+  const dialog = await openSettings(page);
+  await dialog.getByRole("textbox", { name: "LeBonCoin session" }).fill(" ".repeat(9000));
+  await dialog.getByRole("textbox", { name: "Claude token" }).fill(tokenU);
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText(/too long/i)).toHaveCount(0);
+  expect(api.puts).toEqual([{ claudeToken: { value: tokenU } }]);
+});
+
 test("TC-016 (#265) the saved token is shown by its hint with its rejected warning; an untouched Save sends nothing", async ({ page, context }) => {
   const api = await mockApi(context, { ...savedToken, lastRejectedAt: "2026-10-03T20:00:00Z" });
   const dialog = await openSettings(page);

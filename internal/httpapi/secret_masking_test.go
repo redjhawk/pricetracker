@@ -1225,3 +1225,324 @@ func TestSecretMasking_TC010_PreviouslySavedSecretsKeepWorkingAfterRestarts(t *t
 		})
 	}
 }
+
+// Issue #286: a whitespace-only secret input of any length leaves the secret untouched.
+
+// longBlank returns n characters mixing spaces, tabs, "\n" and "\r\n".
+func longBlank(n int) string {
+	var builder strings.Builder
+	for builder.Len() < n {
+		builder.WriteString(" \t\n\r\n")
+	}
+	return builder.String()[:n]
+}
+
+var (
+	blankW9000 = strings.Repeat(" ", 9000)
+	blankC2000 = strings.Repeat(" ", 2000)
+)
+
+// assertUntouchedSave checks that a save answers 200 with the objects loaded before it,
+// that a following load shows them too, and that nothing stored changed.
+func assertUntouchedSave(t *testing.T, server *Server, database *store.Store, body string, loadedSession, loadedToken map[string]any, storedSession model.LeboncoinSession, storedToken model.ClaudeToken) {
+	t.Helper()
+	recorder := putSettings(t, server, body, "")
+	if recorder.Code != http.StatusOK || recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("save %.80q: status %d, want 200: %s", body, recorder.Code, recorder.Body.String())
+	}
+	assertNoSecret(t, "untouched save", responseText(recorder), secretS, secretT)
+	session, token := decodeObject(t, recorder, "session"), decodeObject(t, recorder, "claudeToken")
+	assertMaskedObjects(t, session, token)
+	if !reflect.DeepEqual(session, loadedSession) || !reflect.DeepEqual(token, loadedToken) {
+		t.Fatalf("save answer changed:\n session %v\n    want %v\n token %v\n  want %v", session, loadedSession, token, loadedToken)
+	}
+	session, token = loadSettings(t, server, "")
+	if !reflect.DeepEqual(session, loadedSession) || !reflect.DeepEqual(token, loadedToken) {
+		t.Fatalf("reload changed:\n session %v\n    want %v\n token %v\n  want %v", session, loadedSession, token, loadedToken)
+	}
+	assertStoredSession(t, database, 0, storedSession)
+	assertStoredToken(t, database, 0, storedToken)
+}
+
+// TC-002
+func TestLongWhitespace_TC002_LongBlankSessionKeepsTheSessionUntouched(t *testing.T) {
+	for _, test := range []struct{ name, value string }{
+		{"9000 spaces", blankW9000},
+		{"9000 mixed blanks", longBlank(9000)},
+		{"8193 spaces", strings.Repeat(" ", 8193)},
+		{"8192 spaces", strings.Repeat(" ", 8192)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, database := newSettingsServer(t)
+			fake := withSecretNet(t, 200)
+			insertItem(t, database, "lbc", "leboncoin")
+			storeSecrets(t, database, 0, text(secretS), text(secretT))
+			rejectStoredToken(t, database, 0)
+			finishSessionAttempt(t, database, 0, store.LeboncoinSessionOutcome{Attempt: "rejected"})
+			beforeSession, beforeToken := storedSecrets(t, database, 0)
+			loadedSession, loadedToken := loadSettings(t, server, "")
+			assertHint(t, "session", loadedSession, true, "9f3a")
+			assertHint(t, "token", loadedToken, true, "wxyz")
+			if loadedSession["lastAttempt"] == nil || loadedToken["lastRejectedAt"] == nil {
+				t.Fatalf("fixture warnings missing: %v %v", loadedSession, loadedToken)
+			}
+
+			for round := 0; round < 3; round++ {
+				assertUntouchedSave(t, server, database, settingsBody(sessionPart(test.value, beforeSession.Revision)), loadedSession, loadedToken, beforeSession, beforeToken)
+			}
+			if got := fake.verifications(); len(got) != 0 {
+				t.Fatalf("verification calls %q", got)
+			}
+			server.service.Collect(context.Background(), "lbc")
+			assertLastCookie(t, fake, "datadome="+secretS)
+		})
+	}
+}
+
+// TC-002
+func TestLongWhitespace_TC002_ExpiredAndRevokedSessionsKeepTheirState(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		outcome store.LeboncoinSessionOutcome
+		status  string
+	}{
+		{"expired", store.LeboncoinSessionOutcome{Attempt: "accepted", Renewed: true, Value: secretS, ExpiresAt: timeFromNow(-time.Minute)}, "expired"},
+		{"revoked", store.LeboncoinSessionOutcome{Attempt: "rejected", Revoked: true}, "revoked"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, database := newSettingsServer(t)
+			fake := withSecretNet(t, 200)
+			storeSecrets(t, database, 0, text(secretS), text(secretT))
+			finishSessionAttempt(t, database, 0, test.outcome)
+			beforeSession, beforeToken := storedSecrets(t, database, 0)
+			if beforeSession.Status != test.status {
+				t.Fatalf("fixture status %q", beforeSession.Status)
+			}
+			loadedSession, loadedToken := loadSettings(t, server, "")
+			assertUntouchedSave(t, server, database, settingsBody(sessionPart(blankW9000, beforeSession.Revision)), loadedSession, loadedToken, beforeSession, beforeToken)
+			if loadedSession["status"] != test.status {
+				t.Fatalf("session state %v", loadedSession)
+			}
+			if got := fake.verifications(); len(got) != 0 {
+				t.Fatalf("verification calls %q", got)
+			}
+		})
+	}
+}
+
+// TC-002
+func TestLongWhitespace_TC002_NoSessionSavedStaysUnsaved(t *testing.T) {
+	server, database := newSettingsServer(t)
+	withSecretNet(t, 200)
+	beforeSession, beforeToken := storedSecrets(t, database, 0)
+	loadedSession, loadedToken := loadSettings(t, server, "")
+	assertHint(t, "session", loadedSession, false, "")
+	assertUntouchedSave(t, server, database, settingsBody(sessionPart(blankW9000, 0)), loadedSession, loadedToken, beforeSession, beforeToken)
+}
+
+// TC-002
+func TestLongWhitespace_TC002_OversizedBlankBodyIsRefused(t *testing.T) {
+	server, database := newSettingsServer(t)
+	withSecretNet(t, 200)
+	storeSecrets(t, database, 0, text(secretS), text(secretT))
+	beforeSession, beforeToken := storedSecrets(t, database, 0)
+	recorder := putSettings(t, server, settingsBody(sessionPart(strings.Repeat(" ", 40_000), beforeSession.Revision)), "")
+	assertError(t, recorder, 413, "REQUEST_TOO_LARGE", "")
+	assertNoSecret(t, "refused save", responseText(recorder), secretS, secretT)
+	assertStoredSession(t, database, 0, beforeSession)
+	assertStoredToken(t, database, 0, beforeToken)
+}
+
+// TC-003
+func TestLongWhitespace_TC003_LongBlankTokenAndBothBlank(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		body func(revision int64) string
+	}{
+		{"1025 spaces token", func(int64) string { return settingsBody(tokenPart(strings.Repeat(" ", 1025))) }},
+		{"2000 spaces token", func(int64) string { return settingsBody(tokenPart(blankC2000)) }},
+		{"mixed blank token", func(int64) string { return settingsBody(tokenPart(longBlank(1500))) }},
+		{"both long blank", func(revision int64) string {
+			return settingsBody(sessionPart(blankW9000, revision), tokenPart(blankC2000))
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, database := newSettingsServer(t)
+			fake := withSecretNet(t, 200)
+			storeSecrets(t, database, 0, text(secretS), text(secretT))
+			rejectStoredToken(t, database, 0)
+			beforeSession, beforeToken := storedSecrets(t, database, 0)
+			loadedSession, loadedToken := loadSettings(t, server, "")
+			if loadedToken["lastRejectedAt"] == nil {
+				t.Fatalf("fixture token warning missing: %v", loadedToken)
+			}
+			assertUntouchedSave(t, server, database, test.body(beforeSession.Revision), loadedSession, loadedToken, beforeSession, beforeToken)
+			if got := fake.verifications(); len(got) != 0 {
+				t.Fatalf("verification calls %q", got)
+			}
+		})
+	}
+}
+
+// TC-003
+func TestLongWhitespace_TC003_LongBlankSessionWithANewToken(t *testing.T) {
+	t.Run("claude accepts", func(t *testing.T) {
+		server, database := newSettingsServer(t)
+		fake := withSecretNet(t, 200)
+		storeSecrets(t, database, 0, text(secretS), text(secretT))
+		rejectStoredToken(t, database, 0)
+		beforeSession, _ := storedSecrets(t, database, 0)
+		session, token := saveSettingsOK(t, server, settingsBody(sessionPart(blankW9000, beforeSession.Revision), tokenPart(secretU)), "")
+		assertHint(t, "kept session", session, true, "9f3a")
+		assertHint(t, "saved token", token, true, "uvst")
+		if token["lastRejectedAt"] != nil || session["revision"] != float64(beforeSession.Revision) {
+			t.Fatalf("answer session %v token %v", session, token)
+		}
+		if got := fake.verifications(); !reflect.DeepEqual(got, []string{secretU}) {
+			t.Fatalf("verification calls %q, want one with U", got)
+		}
+		assertStoredSession(t, database, 0, beforeSession)
+		if _, stored := storedSecrets(t, database, 0); storedValue(stored.Value) != secretU || stored.LastRejectedAt != nil {
+			t.Fatalf("stored token %+v, want U without lastRejectedAt", stored)
+		}
+	})
+	t.Run("claude unreachable", func(t *testing.T) {
+		server, database := newSettingsServer(t)
+		fake := withSecretNet(t, 0)
+		storeSecrets(t, database, 0, text(secretS), text(secretT))
+		beforeSession, beforeToken := storedSecrets(t, database, 0)
+		recorder := putSettings(t, server, settingsBody(sessionPart(blankW9000, beforeSession.Revision), tokenPart(secretU)), "")
+		assertError(t, recorder, 502, "CLAUDE_UNREACHABLE", "")
+		assertNoSecret(t, "refused save", responseText(recorder), secretS, secretT, secretU)
+		if got := fake.verifications(); !reflect.DeepEqual(got, []string{secretU}) {
+			t.Fatalf("verification calls %q, want one with U", got)
+		}
+		assertStoredSession(t, database, 0, beforeSession)
+		assertStoredToken(t, database, 0, beforeToken)
+	})
+}
+
+// TC-003
+func TestLongWhitespace_TC003_LongBlankTokenWithASessionChange(t *testing.T) {
+	t.Run("new session", func(t *testing.T) {
+		server, database := newSettingsServer(t)
+		fake := withSecretNet(t, 200)
+		storeSecrets(t, database, 0, text(secretS), text(secretT))
+		rejectStoredToken(t, database, 0)
+		beforeSession, beforeToken := storedSecrets(t, database, 0)
+		session, token := saveSettingsOK(t, server, settingsBody(tokenPart(blankC2000), sessionPart("datadome="+secretN, beforeSession.Revision)), "")
+		assertHint(t, "saved session", session, true, "n0p1")
+		assertHint(t, "kept token", token, true, "wxyz")
+		if session["revision"] != float64(beforeSession.Revision+1) || token["lastRejectedAt"] == nil {
+			t.Fatalf("answer session %v token %v", session, token)
+		}
+		if after, _ := storedSecrets(t, database, 0); storedValue(after.Value) != secretN || after.Revision != beforeSession.Revision+1 {
+			t.Fatalf("stored session %+v, want N at revision %d", after, beforeSession.Revision+1)
+		}
+		assertStoredToken(t, database, 0, beforeToken)
+		if got := fake.verifications(); len(got) != 0 {
+			t.Fatalf("verification calls %q", got)
+		}
+	})
+	t.Run("invalid session", func(t *testing.T) {
+		server, database := newSettingsServer(t)
+		fake := withSecretNet(t, 200)
+		storeSecrets(t, database, 0, text(secretS), text(secretT))
+		beforeSession, beforeToken := storedSecrets(t, database, 0)
+		assertError(t, putSettings(t, server, settingsBody(tokenPart(blankC2000), sessionPart("a=1; b=2", beforeSession.Revision)), ""), 400, "INVALID_SESSION", "No datadome cookie was found in the pasted text.")
+		assertStoredSession(t, database, 0, beforeSession)
+		assertStoredToken(t, database, 0, beforeToken)
+		if got := fake.verifications(); len(got) != 0 {
+			t.Fatalf("verification calls %q", got)
+		}
+	})
+}
+
+// TC-003
+func TestLongWhitespace_TC003_LongNonBlankTokenIsStillTooLong(t *testing.T) {
+	server, database := newSettingsServer(t)
+	fake := withSecretNet(t, 200)
+	storeSecrets(t, database, 0, text(secretS), text(secretT))
+	beforeSession, beforeToken := storedSecrets(t, database, 0)
+	assertError(t, putSettings(t, server, settingsBody(tokenPart(strings.Repeat("u", 1025))), ""), 400, "INVALID_CLAUDE_TOKEN", "The Claude token is too long (maximum 1024 characters).")
+	assertStoredSession(t, database, 0, beforeSession)
+	assertStoredToken(t, database, 0, beforeToken)
+	if got := fake.verifications(); len(got) != 0 {
+		t.Fatalf("verification calls %q", got)
+	}
+}
+
+// TC-004
+func TestLongWhitespace_TC004_LongBlankSaveKeepsAConcurrentRenewal(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		token []string
+	}{
+		{"session part only", nil},
+		{"with a new token", []string{tokenPart(secretU)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, database := newSettingsServer(t)
+			fake := withSecretNet(t, 200)
+			storeSecrets(t, database, 0, text(secretS), text(secretT))
+			modalA, _ := loadSettings(t, server, "")
+			revision := int64(modalA["revision"].(float64))
+			finishSessionAttempt(t, database, 0, store.LeboncoinSessionOutcome{Attempt: "accepted", Renewed: true, Value: secretY})
+			renewed, _ := storedSecrets(t, database, 0)
+			if storedValue(renewed.Value) != secretY || renewed.Revision != revision+1 {
+				t.Fatalf("fixture %+v", renewed)
+			}
+
+			parts := append([]string{sessionPart(blankW9000, revision)}, test.token...)
+			recorder := putSettings(t, server, settingsBody(parts...), "")
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("save: status %d, want 200 without SESSION_CHANGED: %s", recorder.Code, recorder.Body.String())
+			}
+			session := decodeObject(t, recorder, "session")
+			assertHint(t, "renewed session", session, true, "y7k2")
+			if session["revision"] != float64(renewed.Revision) || session["status"] != renewed.Status {
+				t.Fatalf("session in the answer %v, stored %+v", session, renewed)
+			}
+			assertStoredSession(t, database, 0, renewed)
+			if test.token != nil {
+				assertHint(t, "saved token", decodeObject(t, recorder, "claudeToken"), true, "uvst")
+				if _, stored := storedSecrets(t, database, 0); storedValue(stored.Value) != secretU {
+					t.Fatalf("stored token %q, want U", storedValue(stored.Value))
+				}
+				if got := fake.verifications(); !reflect.DeepEqual(got, []string{secretU}) {
+					t.Fatalf("verification calls %q, want one with U", got)
+				}
+			}
+		})
+	}
+}
+
+// TC-004
+func TestLongWhitespace_TC004_LongBlankSaveKeepsTheRevisionForOtherClients(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		modalB func(revision int64) string
+		hint   string
+	}{
+		{"replacement", func(revision int64) string { return settingsBody(sessionPart("datadome="+secretN, revision)) }, "n0p1"},
+		{"removal", func(revision int64) string { return settingsBody(sessionRemoval(revision)) }, ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, database := newSettingsServer(t)
+			withSecretNet(t, 200)
+			storeSecrets(t, database, 0, text(secretS), text(secretT))
+			modalA, _ := loadSettings(t, server, "")
+			modalB, _ := loadSettings(t, server, "")
+			before, _ := storedSecrets(t, database, 0)
+
+			session, _ := saveSettingsOK(t, server, settingsBody(sessionPart(blankW9000, int64(modalA["revision"].(float64)))), "")
+			if session["revision"] != float64(before.Revision) {
+				t.Fatalf("revision after the blank save %v, want %d", session["revision"], before.Revision)
+			}
+			assertStoredSession(t, database, 0, before)
+
+			session, _ = saveSettingsOK(t, server, test.modalB(int64(modalB["revision"].(float64))), "")
+			assertHint(t, "modal B session", session, test.hint != "", test.hint)
+		})
+	}
+}

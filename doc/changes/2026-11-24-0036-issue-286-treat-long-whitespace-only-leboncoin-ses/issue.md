@@ -1,0 +1,13 @@
+# Issue #286 Treat long whitespace-only LeBoncoin session values as unchanged
+
+**Problem:** `PUT /api/v1/settings` with `{"leboncoinSession":{"value":"<9000 spaces>","revision":r}}` returns `400 INVALID_SESSION` ("The pasted text is too long") because `leboncoin.ParseSessionInput` (internal/leboncoin/session.go:41) checks `len(raw) > 8192` before `strings.TrimSpace`. API_SPECIFICATION.md says an empty or whitespace-only value leaves the session unchanged, and it also lists "longer than 8192 characters" as a 400 case, so the two rules overlap for this input.
+
+**Suggested work:**
+- In `sessionChangeFor` (internal/service/settings.go:68-84), return `nil, nil` when `strings.TrimSpace(input.Value) == ""` before calling `ParseSessionInput`, the same way `tokenChangeFor` trims first.
+- In API_SPECIFICATION.md ("LeBoncoin session input"), say that a whitespace-only value is unchanged whatever its length.
+- Add a test case with a long whitespace-only value (over 8192 characters) to TC-005/TC-007: expect `200` and the session left untouched (same value and revision).
+
+From review comment R1-01 on #285 (`doc/todo/issue-265-r1-01.md`).
+
+## Comments by trusted authors
+
