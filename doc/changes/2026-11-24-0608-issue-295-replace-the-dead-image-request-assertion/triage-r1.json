@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: functional.md line 3 still reads 'FR-TEST-HYG-037–039 specified (issue #295)' and technical.md line 3 'TS-TEST-HYG-044–047 ready (issue #295)', while technical.md line 204 (Development stage) and the 'Files to change' row at line 308 require the development stage to set both to implemented. The technical specification's deliverable is unmet, and merging would leave the spec status wrong; the test change itself (tests/platform-tabs.spec.ts:361) is correct.",
+    "title": "",
+    "todo": ""
+  }
+]
