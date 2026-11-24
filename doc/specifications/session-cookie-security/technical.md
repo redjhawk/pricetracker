@@ -1,6 +1,6 @@
 # Technical specification: Secure session cookie behind an HTTPS reverse proxy
 
-Status: TS-COOKIE-001–005 implemented (issue #268); TS-COOKIE-006–008 ready (issue #293, maintenance: no behaviour change)
+Status: TS-COOKIE-001–005 implemented (issue #268); TS-COOKIE-006–008 implemented (issue #293, maintenance: no behaviour change)
 Functional specification: [functional.md](functional.md) (FR-COOKIE-001..009).
 Test cases: issue #268 [testcases.md](../../changes/2026-11-24-0159-issue-268-session-cookie-set-secure-when-the-appli/testcases.md) (TC-001..TC-011); issue #293 [testcases.md](../../changes/2026-11-24-0841-issue-293-restore-the-clientaddress-doc-comment-in/testcases.md) (TC-001..TC-004).
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Users and login", "Modes, session and access".

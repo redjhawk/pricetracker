@@ -1,6 +1,6 @@
 # Functional specification: Secure session cookie behind an HTTPS reverse proxy
 
-Status: FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 specified (issue #293, maintenance: no behaviour change)
+Status: FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 implemented (issue #293, maintenance: no behaviour change)
 Owner: functional specification agent
 User decision/reference: GitHub issue #268 ("Session cookie: set Secure when the application is served over HTTPS by a reverse proxy"); GitHub issue #293 ("Restore the clientAddress doc comment in auth.go", from review comment R1-01 on PR #292).
 

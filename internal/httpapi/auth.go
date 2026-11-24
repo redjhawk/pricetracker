@@ -183,8 +183,6 @@ func allowMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	return false
 }
 
-// clientAddress returns the client address of login limits: the CF-Connecting-IP header when it is
-// a bare IP address (the application is only reachable through Cloudflare), else the connection host.
 // secureRequest reports whether the request reached the application over HTTPS: directly over TLS,
 // or through the reverse proxy, whose first X-Forwarded-Proto entry is https (trusted like CF-Connecting-IP).
 func secureRequest(r *http.Request) bool {
@@ -195,6 +193,8 @@ func secureRequest(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(proto), "https")
 }
 
+// clientAddress returns the client address of login limits: the CF-Connecting-IP header when it is
+// a bare IP address (the application is only reachable through Cloudflare), else the connection host.
 func clientAddress(r *http.Request) string {
 	if addr, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); err == nil {
 		return addr.WithZone("").Unmap().String()
