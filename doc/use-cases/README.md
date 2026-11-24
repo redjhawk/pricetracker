@@ -49,6 +49,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-SECRET-004 — Remove a saved secret](settings-secret-masking/UC-SECRET-004-remove-a-saved-secret.md)
 - [UC-SECRET-005 — Change the LeBoncoin session after it changed since Settings opened](settings-secret-masking/UC-SECRET-005-change-session-after-it-changed-since-opening.md)
 - [UC-SECRET-006 — Follow the operator guide to renew or remove the session](settings-secret-masking/UC-SECRET-006-follow-operator-guide-for-settings-secrets.md)
+- [UC-SECRET-007 — Save with a long whitespace-only input](settings-secret-masking/UC-SECRET-007-save-with-long-whitespace-only-input.md)
 
 ## Price collection
 
