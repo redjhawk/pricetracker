@@ -311,8 +311,8 @@ GET /api/v1/settings/leboncoin-session
 
 `PUT /api/v1/settings/leboncoin-session` was removed by issue #265 (it returned the full value and cleared the session on an empty value); the path now answers `405 METHOD_NOT_ALLOWED` with `Allow: GET` to `PUT`. The session is saved only through `PUT /api/v1/settings`, whose `leboncoinSession.value` follows these rules:
 
-- The server trims surrounding whitespace and accepts either the raw value or a cookie string (optionally prefixed with `Cookie:` or `Set-Cookie:`, case-insensitive) from which it extracts the `datadome` pair; other pairs and attributes are discarded and never stored. An empty or whitespace-only string leaves the session unchanged (issue #265).
-- `400 INVALID_SESSION` when the input is unusable: longer than 8192 characters; cookie string without `datadome`; empty `datadome` value; several different `datadome` values; value with whitespace, control characters, non-ASCII characters, `;`, `,`, `"`, `\` or other invalid cookie characters; value longer than 4096 characters. Example message: “No datadome cookie was found in the pasted text.” Messages never repeat the input.
+- The server trims surrounding whitespace and accepts either the raw value or a cookie string (optionally prefixed with `Cookie:` or `Set-Cookie:`, case-insensitive) from which it extracts the `datadome` pair; other pairs and attributes are discarded and never stored. An empty or whitespace-only string leaves the session unchanged (issue #265), whatever its length: a whitespace-only string is never rejected as too long (issue #286).
+- `400 INVALID_SESSION` when the input is unusable: longer than 8192 characters and not whitespace only; cookie string without `datadome`; empty `datadome` value; several different `datadome` values; value with whitespace, control characters, non-ASCII characters, `;`, `,`, `"`, `\` or other invalid cookie characters; value longer than 4096 characters. Example message: “No datadome cookie was found in the pasted text.” Messages never repeat the input.
 - A replaced session has `status: "active"`, `expiresAt: null`, `revokedAt: null`, `lastAttempt: null` and an incremented `revision`; a removed session has `saved: false`, `hint: null`, `status: "none"`. Saving never starts a price check; the next LeBoncoin check (scheduled or requested) uses the new state.
 
 ### Effect on existing endpoints
@@ -359,12 +359,12 @@ Request (JSON, at most 32 768 bytes). Each part is optional; an absent part leav
 ```
 
 - `leboncoinSession` (optional): `revision` (integer ≥ 0, required) is the `revision` received when Settings was loaded, plus exactly one of:
-  - `value` (string): the input as typed, under the rules of "LeBoncoin session input". A non-empty value replaces the session, even when it equals the stored one (new `revision`, warnings cleared). An empty or whitespace-only value leaves the session unchanged and is not checked against `revision`.
+  - `value` (string): the input as typed, under the rules of "LeBoncoin session input". A non-empty value replaces the session, even when it equals the stored one (new `revision`, warnings cleared). An empty or whitespace-only value, of any length, leaves the session unchanged and is not checked against `revision` (issue #286).
   - `remove` (`true`): removes the session (no change when none is saved).
 - `claudeToken` (optional), exactly one of:
-  - `value` (string): the input as typed. The server trims surrounding whitespace. A non-empty value is validated and always verified with a minimal Claude request before storing, even when it equals the stored token; storing clears `lastRejectedAt`. An empty or whitespace-only value leaves the token unchanged and makes no verification.
+  - `value` (string): the input as typed. The server trims surrounding whitespace. A non-empty value is validated and always verified with a minimal Claude request before storing, even when it equals the stored token; storing clears `lastRejectedAt`. An empty or whitespace-only value, of any length, leaves the token unchanged and makes no verification; the 1024-character limit applies only to a value that is not whitespace only (issue #286).
   - `remove` (`true`): removes the token without verification (no change when none is saved).
-- An untouched secret (part absent, or empty `value`) keeps its value, `revision`, `updatedAt` and warnings (`lastRejectedAt`; session `status`, `expiresAt`, `revokedAt`, `lastAttempt`). The LeBoncoin `revision` is checked only when the session is replaced or removed.
+- An untouched secret (part absent, or empty or whitespace-only `value`) keeps its value, `revision`, `updatedAt` and warnings (`lastRejectedAt`; session `status`, `expiresAt`, `revokedAt`, `lastAttempt`). The LeBoncoin `revision` is checked only when the session is replaced or removed.
 - `{}`, or both parts untouched, is valid: nothing changes and the current objects are returned.
 - Validation order: request shape, LeBoncoin input, Claude token format, Claude verification, then one transaction (LeBoncoin revision check and both writes). The first error is returned and **nothing** is saved. Error messages never repeat the submitted input.
 
