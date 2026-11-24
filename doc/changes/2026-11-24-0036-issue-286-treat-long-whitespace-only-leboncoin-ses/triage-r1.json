@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The same bullet (API_SPECIFICATION.md:365) already says \"The server trims surrounding whitespace\" before validation, and the added clause (the limit applies only to a value that is not whitespace only) is true of `tokenChangeFor`/`validateClaudeToken` (internal/service/settings.go:99-113). It does not say the raw length is measured. The wording is imprecise, but the contract is not violated and the code is unchanged.",
+    "title": "Say that the Claude token 1024-character limit applies to the trimmed value",
+    "todo": "**Problem:** API_SPECIFICATION.md:365 (\"Save settings\", `claudeToken.value`) says \"the 1024-character limit applies only to a value that is not whitespace only\". A reader can take this to mean the raw length is checked, as for the LeBoncoin session (8192 on the raw input). The server actually trims first and checks the trimmed token (`tokenChangeFor` and `validateClaudeToken`, internal/service/settings.go:99-113), so `\"<2000 spaces>sk-ant-...\"` is accepted and verified.\n\n**Suggested work:** Reword it as \"the 1024-character limit applies to the trimmed value, so surrounding whitespace, and a whitespace-only value of any length, never makes it too long\". Make the matching sentence in doc/specifications/settings-secret-masking/technical.md:256 (\"the 8192 / 1024-character limits apply only to input that is not whitespace only\") say the same thing. Documentation only."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "The token behaviour is unchanged by this PR: it is trimmed before the 1024 check (internal/service/settings.go:99-103), as FR-CLT-SET-004's technical rule says (claude-token-settings/technical.md:129). The UC/FR sentence says \"as before\", which points back to that rule. No test asserts the literal reading. This is a precision issue in the docs, not an unmet requirement or a code defect.",
+    "title": "Limit UC-SECRET-007 and FR-SECRET-014 \"too long\" wording to untrimmed LeBoncoin input",
+    "todo": "**Problem:** doc/use-cases/settings-secret-masking/UC-SECRET-007-save-with-long-whitespace-only-input.md:30 (\"Too long and not whitespace only\") says that any input longer than the maximum that contains another character is refused, citing FR-CLT-SET-004. FR-SECRET-014 (doc/specifications/settings-secret-masking/functional.md:38) says \"A non-empty input longer than the maximum is still rejected as before\". This holds for the LeBoncoin session, whose raw length is checked. It does not hold for the Claude token, which is trimmed before the 1024-character check: 2000 spaces followed by a short token is verified, not refused.\n\n**Suggested work:** In the UC alternative and in FR-SECRET-014, say that the LeBoncoin limit applies to the input as pasted and that the Claude token limit applies after surrounding whitespace is trimmed. Alternatively, limit the sentence to the LeBoncoin input. Documentation only; keep the existing IDs."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "The reviewer is right: `Saving settings…` (src/components/SettingsModal.tsx:211) is only rendered inside the modal, so checking for it after `toBeHidden()` proves nothing. The test still proves the case through its other assertions. The modal closes, so no error was shown. The loop over `api.puts` shows that no non-blank token or removal was sent, so no verification could be requested. The vacuous check is redundant, not a missing proof.",
+    "title": "Replace the vacuous progress check in the long whitespace TC-005 token e2e test",
+    "todo": "**Problem:** In tests/claude-token-settings.spec.ts:101, `await expect(page.getByText(/too long|Saving settings…/i)).toHaveCount(0)` runs after `await expect(dialog).toBeHidden()`. The `Saving settings…` progress is only rendered inside the open modal (src/components/SettingsModal.tsx:211), so that part can never match.\n\n**Suggested work:** The frontend sends no request when both entries are untouched (TS-SECRET-019), so assert `expect(api.puts).toEqual([])` instead of the loop and the progress text. Alternatively, check for the progress text before the modal closes. Keep the `/too long/` check."
+  }
+]
