@@ -376,6 +376,13 @@ Also fix the blocking review comments in $CHANGE_DIR/blocking.md."
           *) die "could not prepare a worktree of $BASE_BRANCH to check the developer's report: $(tail -5 <<<"$out")" ;;
         esac
       fi
+      # A step no stage may take (a dependency or lockfile update, CI): the owner does it, so neither a retry
+      # nor a repair helps. The owner's answer resumes here, with the owner's commit on the branch.
+      if grep -qiE '^Category:[[:space:]]*owner' <<<"$blocked"; then
+        stop_for_user needs-human manual-step "The change needs a step that no factory stage may take. Do it on \`$BRANCH\`, push it, then answer here:
+
+$blocked"
+      fi
       stop_for_user blocked blocked-env "The developer cannot finish for a reason outside this change:
 
 $blocked

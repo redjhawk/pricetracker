@@ -109,7 +109,7 @@ The supervisor runs whenever a `fabrica`, `repair` or `release` run ends, which 
 | Tests fail on `master` and not because of the change | the factory opens a "Tests fail on master" issue with `ai-dev`, so the factory fixes it. The blocked issue resumes once that issue is closed |
 | The runner cannot run agents | opens one `factory-infra` issue, relaunches nothing, and closes the issue when the runner works again |
 | An owner comment or an `ai-dev` label started no run | starts the run itself |
-| Functional questions, a failed gate, a merge conflict, sensitive files | waits for you |
+| Functional questions, a failed gate, a manual step, a merge conflict, sensitive files | waits for you |
 
 ### The queue
 
