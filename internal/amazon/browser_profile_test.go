@@ -497,7 +497,11 @@ func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			executable := refusalStubBrowser(t, row.stub)
-			run := runBrowserOnProfile(t, executable, profile, server, path, 2*time.Second)
+			wait := 15 * time.Second // as the fixture sanity check; a stub that exits ends the run at once
+			if row.stub.Hold {
+				wait = 2 * time.Second // a held stub runs until the end of the wait
+			}
+			run := runBrowserOnProfile(t, executable, profile, server, path, wait)
 			got := fixtureCheckFailure(run, "otherhost")
 
 			if run.output != row.stub.Stderr {
