@@ -3,7 +3,9 @@ package amazon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -340,9 +343,20 @@ func TestBrowserProfile_TC001_OnlyLockMarksAreDiscardedBeforeStart(t *testing.T)
 	})
 }
 
-// assertBrowserRefusesProfile starts the browser directly on profile and checks that it does not
-// open url, because the profile is in use on another computer.
-func assertBrowserRefusesProfile(t *testing.T, executable, profile string, server *amazontest.Server, path string) {
+// lockRefusal is the part of Chromium's refusal of a profile locked by host on another computer
+// that names that host.
+func lockRefusal(host string) string { return "on another computer (" + host + ")" }
+
+// browserRun is what one run of the browser on the locked profile showed.
+type browserRun struct {
+	pid       int    // process ID and process group of the run, killed and waited for
+	requested bool   // the page was requested while the browser ran
+	output    string // standard output and standard error, read after Wait returned
+}
+
+// runBrowserOnProfile starts executable on profile with url server.URL+path in its own process group,
+// waits until it exits or wait has passed, kills the group and waits for it.
+func runBrowserOnProfile(t *testing.T, executable, profile string, server *amazontest.Server, path string, wait time.Duration) browserRun {
 	t.Helper()
 	cmd := exec.Command(executable, "--headless=new", "--user-data-dir="+profile, "--no-sandbox", "--no-first-run", server.URL+path) // #nosec G204 -- test browser
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -356,12 +370,168 @@ func assertBrowserRefusesProfile(t *testing.T, executable, profile string, serve
 	go func() { _ = cmd.Wait(); close(exited) }()
 	select {
 	case <-exited:
-	case <-time.After(15 * time.Second):
+	case <-time.After(wait):
 	}
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	<-exited
-	if server.Count(path) != before {
-		t.Fatalf("fixture check: the browser opened the page on a profile locked by another computer; output:\n%s", output.String())
+	return browserRun{pid: cmd.Process.Pid, requested: server.Count(path) != before, output: output.String()}
+}
+
+// fixtureCheckFailure returns why run does not prove that the browser refused the profile because
+// host locks it, or "" when it does.
+func fixtureCheckFailure(run browserRun, host string) string {
+	var failed []string
+	if run.requested {
+		failed = append(failed, "the browser opened the page on a profile locked by another computer")
+	}
+	if !strings.Contains(run.output, lockRefusal(host)) {
+		failed = append(failed, fmt.Sprintf("the browser output does not hold the lock refusal message %q", lockRefusal(host)))
+	}
+	if len(failed) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("fixture check: %s; browser output (%d bytes):\n%s", strings.Join(failed, "; "), len(run.output), run.output)
+}
+
+// assertBrowserRefusesProfile starts the browser directly on profile and checks that it does not
+// open the page and says that host on another computer holds the profile.
+func assertBrowserRefusesProfile(t *testing.T, executable, profile, host string, server *amazontest.Server, path string) {
+	t.Helper()
+	if failure := fixtureCheckFailure(runBrowserOnProfile(t, executable, profile, server, path, 15*time.Second), host); failure != "" {
+		t.Fatal(failure)
+	}
+}
+
+const refusalStubVariable = "PRICEFOLLOWER_REFUSAL_STUB"
+
+// refusalStub tells the stub started in place of the browser by the fixture check tests what to do.
+type refusalStub struct {
+	Request bool   `json:"request"` // GET the last argument (the page URL) and read the body first
+	Stderr  string `json:"stderr"`  // written to standard error, after the request
+	Hold    bool   `json:"hold"`    // then sleep one minute instead of exiting (killed by the check)
+	Exit    int    `json:"exit"`    // exit status otherwise
+}
+
+// refusalStubBrowser writes an executable that runs this test binary as stub, and returns it.
+func refusalStubBrowser(t *testing.T, stub refusalStub) string {
+	t.Helper()
+	encoded, err := json.Marshal(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(refusalStubVariable, string(encoded))
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(t.TempDir(), "refusal-stub")
+	script := "#!/bin/sh\nexec '" + binary + "' '-test.run=^TestBrowserProfile_Issue195_RefusalStubProcess$' -- \"$@\"\n"
+	if err := os.WriteFile(executable, []byte(script), 0o755); err != nil { // #nosec G306 -- test executable
+		t.Fatal(err)
+	}
+	return executable
+}
+
+// TestBrowserProfile_Issue195_RefusalStubProcess is the stub of refusalStubBrowser; it does nothing
+// in a normal run.
+func TestBrowserProfile_Issue195_RefusalStubProcess(t *testing.T) {
+	encoded := os.Getenv(refusalStubVariable)
+	if encoded == "" {
+		return
+	}
+	fail := func(err error) {
+		fmt.Fprintln(os.Stderr, "refusal stub:", err)
+		os.Exit(2)
+	}
+	var stub refusalStub
+	if err := json.Unmarshal([]byte(encoded), &stub); err != nil {
+		fail(err)
+	}
+	if stub.Request {
+		client := &http.Client{Timeout: 10 * time.Second}
+		response, err := client.Get(os.Args[len(os.Args)-1]) // #nosec G107 -- fixture server of the test
+		if err != nil {
+			fail(err)
+		}
+		_, err = io.Copy(io.Discard, response.Body)
+		response.Body.Close()
+		if err != nil {
+			fail(err)
+		}
+	}
+	io.WriteString(os.Stderr, stub.Stderr)
+	if stub.Hold {
+		time.Sleep(time.Minute)
+	}
+	os.Exit(stub.Exit)
+}
+
+// TC-001, TC-002 and TC-003 of issue #195
+func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
+	const (
+		refusal = "[1:1:ERROR:process_singleton_posix.cc(358)] The profile appears to be in use by another Chromium process (12345) on another computer (otherhost). Chromium has locked the profile so that it doesn't get corrupted.\n"
+		opened  = "the browser opened the page on a profile locked by another computer"
+		path    = "/dp/B0PRICE001"
+	)
+	missing := fmt.Sprintf("the browser output does not hold the lock refusal message %q", lockRefusal("otherhost"))
+	server := amazontest.NewServer(t, profileFixtureHandler(t))
+	profile := filepath.Join(t.TempDir(), "profile")
+	writeStaleLock(t, profile, "otherhost")
+
+	rows := []struct {
+		name   string
+		stub   refusalStub
+		failed []string // conditions named by the failure, in order; none when the check passes
+	}{
+		{"TC-001 refusal, then exit", refusalStub{Stderr: refusal, Exit: 21}, nil},
+		{"TC-001 refusal, then still running at the end of the wait", refusalStub{Stderr: refusal, Hold: true}, nil},
+		{"TC-002 exit at once without output", refusalStub{Exit: 1}, []string{missing}},
+		{"TC-002 missing library", refusalStub{Stderr: "error while loading shared libraries: libnss3.so: cannot open shared object file: No such file or directory\n", Exit: 127}, []string{missing}},
+		{"TC-002 unknown option", refusalStub{Stderr: "unknown option --headless=new\n", Exit: 1}, []string{missing}},
+		{"TC-002 slow start", refusalStub{Hold: true}, []string{missing}},
+		{"TC-002 generic lock error only", refusalStub{Stderr: "Failed to create a ProcessSingleton for your profile directory.\n", Exit: 21}, []string{missing}},
+		{"TC-002 refusal naming another host", refusalStub{Stderr: strings.Replace(refusal, "(otherhost)", "(elsewhere)", 1), Exit: 21}, []string{missing}},
+		{"TC-003 page requested with the refusal", refusalStub{Request: true, Stderr: refusal}, []string{opened}},
+		{"TC-003 page requested without output", refusalStub{Request: true}, []string{opened, missing}},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			executable := refusalStubBrowser(t, row.stub)
+			run := runBrowserOnProfile(t, executable, profile, server, path, 2*time.Second)
+			got := fixtureCheckFailure(run, "otherhost")
+
+			if run.output != row.stub.Stderr {
+				t.Errorf("captured output %q, want %q", run.output, row.stub.Stderr)
+			}
+			if run.requested != row.stub.Request {
+				t.Errorf("page requested: %v, want %v", run.requested, row.stub.Request)
+			}
+			if err := syscall.Kill(-run.pid, 0); !errors.Is(err, syscall.ESRCH) {
+				t.Errorf("the process group %d of the stub is still there: %v", run.pid, err)
+				_ = syscall.Kill(-run.pid, syscall.SIGKILL)
+			}
+
+			if row.failed == nil {
+				if got != "" {
+					t.Fatalf("the check failed on a refusal without page request: %s", got)
+				}
+				return
+			}
+			if !strings.HasPrefix(got, "fixture check: ") {
+				t.Errorf("the failure does not start with %q: %q", "fixture check: ", got)
+			}
+			for _, condition := range []string{opened, missing} {
+				if named, want := strings.Contains(got, condition), slices.Contains(row.failed, condition); named != want {
+					t.Errorf("condition %q named: %v, want %v, in %q", condition, named, want, got)
+				}
+			}
+			if suffix := "browser output (" + strconv.Itoa(len(run.output)) + " bytes):\n" + run.output; !strings.HasSuffix(got, suffix) {
+				t.Errorf("the failure does not end with the browser output %q: %q", suffix, got)
+			}
+			if want := "fixture check: " + strings.Join(row.failed, "; ") + "; browser output (" + strconv.Itoa(len(run.output)) + " bytes):\n" + run.output; got != want {
+				t.Errorf("failure %q, want %q", got, want)
+			}
+		})
 	}
 }
 
@@ -373,7 +543,7 @@ func TestBrowserProfile_TC002_LockOfAnotherHostDoesNotPreventTheCheck(t *testing
 	assertPriceFound(t, "first check", browserCheck(t, NewBrowserCollector(options), item))
 
 	writeStaleLock(t, options.ProfileDir, "otherhost")
-	assertBrowserRefusesProfile(t, options.ExecPath, options.ProfileDir, server, "/dp/B0PRICE001")
+	assertBrowserRefusesProfile(t, options.ExecPath, options.ProfileDir, "otherhost", server, "/dp/B0PRICE001")
 	writeStaleLock(t, options.ProfileDir, "otherhost")
 
 	server.Reset()
