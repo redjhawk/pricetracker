@@ -73,7 +73,7 @@ Conventions:
 - Given the existing Amazon fixture pages used by the current parser tests (price found, second-hand offer sold by Amazon, second-hand offer by another seller, price not found, listing unavailable), served by the fixture server
 - When the browser collector checks each page
 - Then each `CollectionResult` (result, amount, currency, second-hand status, amount and condition) equals the result the current parser gives for the same HTML
-- Corner cases: page with a price but no second-hand offer; page with a second-hand offer and no new price; title and thumbnail kept as today.
+- Corner cases: page with a price but no second-hand offer; page with a second-hand offer and no new price; title and thumbnail kept as today; product page answered with HTTP 404 or HTTP 410 gives "listing unavailable" (an Amazon answer, not a failure).
 
 ### TC-005 — Browser success is stored like today
 
@@ -88,7 +88,7 @@ Conventions:
 
 - Covers: FR-AMZ-HCHK-003, FR-AMZ-STOP-001
 - Level: integration (browser test)
-- Given a fixture server answering, in separate sub-tests, HTTP 503, HTTP 404 for the product page, and HTTP 200 with an Amazon robot-check (captcha) page
+- Given a fixture server answering, in separate sub-tests, HTTP 503, HTTP 403 for the product page, and HTTP 200 with an Amazon robot-check (captcha) page
 - When the browser collector checks the page
 - Then the result is a failure (not success, not price not found, not unavailable), with the request URL, HTTP status and a response excerpt for the log
 - Corner cases: the log line contains no cookie values or session secrets (FR-AMZ-HUMAN-012).
