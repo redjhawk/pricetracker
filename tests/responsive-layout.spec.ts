@@ -118,10 +118,10 @@ async function mockApi(context: BrowserContext, options: MockOptions = {}) {
       return route.fulfill({ json: { users: options.users ?? [{ username: longUsername, role: "user", lastLoginAt: timestamp }] } });
     }
     if (path === "/api/v1/settings/leboncoin-session") {
-      return route.fulfill({ json: { session: { value: null, revision: 0, updatedAt: null, status: "none", expiresAt: null, revokedAt: null, lastAttempt: null } } });
+      return route.fulfill({ json: { session: { saved: false, hint: null, revision: 0, updatedAt: null, status: "none", expiresAt: null, revokedAt: null, lastAttempt: null } } });
     }
     if (path === "/api/v1/settings/claude-token") {
-      return route.fulfill({ json: { claudeToken: { value: null, updatedAt: null, lastRejectedAt: null } } });
+      return route.fulfill({ json: { claudeToken: { saved: false, hint: null, updatedAt: null, lastRejectedAt: null } } });
     }
     return route.fulfill({ status: 500, json: { error: { code: "UNEXPECTED", message: path } } });
   });

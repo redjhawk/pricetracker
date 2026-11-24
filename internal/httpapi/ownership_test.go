@@ -53,7 +53,7 @@ func TestUsersSeeOnlyTheirOwnItemsAndSettings(t *testing.T) {
 	if recorder := request(t, server, http.MethodGet, "/api/v1/items/open-item", "", alice); recorder.Code != http.StatusOK {
 		t.Fatalf("alice lost her item: %s", recorder.Body.String())
 	}
-	if recorder := request(t, server, http.MethodPut, settingsPath, `{"value":"","revision":0}`, bob); recorder.Code != http.StatusOK {
+	if recorder := request(t, server, http.MethodPut, "/api/v1/settings", `{"leboncoinSession":{"remove":true,"revision":0}}`, bob); recorder.Code != http.StatusOK {
 		t.Fatalf("bob settings: %s", recorder.Body.String())
 	}
 	bobSession := "bob-session"

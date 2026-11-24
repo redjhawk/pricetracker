@@ -11,18 +11,33 @@ const item = {
   secondHandOffer: null, lastAttempt: { result: "success", timestamp, message: null },
   nextCheckAt: null, addedAt: timestamp, purchaseGoal: "",
 };
+// Issue #265: the API returns whether each secret is saved and a hint (its last 4
+// characters), never the secret itself.
+const tokenT = "sk-ant-oat01-synthetic-token-wxyz"; // saved Claude token (hint wxyz)
+const tokenU = "sk-ant-oat01-synthetic-new-uvst"; // new Claude token
+const sessionN = "synthetic-renewed-or-new-n0p1"; // new LeBoncoin session
 const noSession = {
-  value: null as string | null, revision: 0, updatedAt: null as string | null,
+  saved: false, hint: null as string | null, revision: 0, updatedAt: null as string | null,
   status: "none" as string, expiresAt: null as string | null, revokedAt: null as string | null,
   lastAttempt: null as { outcome: string; attemptedAt: string } | null,
 };
-const activeSession = { ...noSession, value: "Synthetic~Value_123", revision: 3, updatedAt: timestamp, status: "active" };
+// The saved session S ends with 9f3a.
+const activeSession = { ...noSession, saved: true, hint: "9f3a" as string | null, revision: 7, updatedAt: timestamp, status: "active" };
+const noClaudeToken = { saved: false, hint: null as string | null, updatedAt: null as string | null, lastRejectedAt: null as string | null };
+const savedToken = { ...noClaudeToken, saved: true, hint: "wxyz", updatedAt: timestamp };
 type Session = typeof noSession;
+type Token = typeof noClaudeToken;
 type PutReply = { status: number; json: unknown } | "echo";
+type SaveBody = {
+  leboncoinSession?: { value?: string; remove?: boolean; revision: number };
+  claudeToken?: { value?: string; remove?: boolean };
+};
 
 const settingsPath = "/api/v1/settings/leboncoin-session";
 const claudeTokenPath = "/api/v1/settings/claude-token";
-const noClaudeToken = { value: null, updatedAt: null, lastRejectedAt: null };
+const sessionChanged = { status: 409, json: { error: { code: "SESSION_CHANGED", message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." } } };
+const serverFailure = { status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } };
+const invalidSession = { status: 400, json: { error: { code: "INVALID_SESSION", message: "No datadome cookie was found in the pasted text." } } };
 const unexpectedRequests = new WeakMap<BrowserContext, string[]>();
 
 test.afterEach(async ({ context }) => {
@@ -34,9 +49,14 @@ function extracted(value: string) {
   return match ? match[1] : value.trim();
 }
 
-async function mockApi(context: BrowserContext, session: Session = activeSession) {
+function hintOf(value: string) {
+  return value.length >= 16 ? value.slice(-4) : null;
+}
+
+async function mockApi(context: BrowserContext, session: Session = activeSession, token: Token = savedToken) {
   const state = {
     session: structuredClone(session),
+    token: structuredClone(token),
     getError: false,
     getGate: Promise.resolve(),
     putGate: Promise.resolve(),
@@ -44,7 +64,8 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
     listGate: Promise.resolve(),
     listError: false,
     gets: 0,
-    puts: [] as unknown[],
+    puts: [] as SaveBody[],
+    responses: [] as string[],
     unexpected: [] as string[],
   };
   unexpectedRequests.set(context, state.unexpected);
@@ -59,40 +80,45 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
       await route.continue();
       return;
     }
-    if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
+    const fulfill = (reply: { status?: number; json: unknown }) => {
+      state.responses.push(JSON.stringify(reply.json));
+      return route.fulfill(reply);
+    };
+    if (url.pathname === "/api/v1/auth/session") return fulfill({ json: { mode: "open", user: null } });
     const method = request.method();
     const path = url.pathname + url.search;
     if (method === "GET" && path === "/api/v1/items") {
       await state.listGate;
-      await route.fulfill(state.listError
+      await fulfill(state.listError
         ? { status: 500, json: { error: { code: "TEST_FAILURE", message: "Fixture retrieval failed." } } }
         : { json: { items: [item] } });
     } else if (method === "GET" && path === `/api/v1/items/${item.id}`) {
-      await route.fulfill({ json: { ...item, priceHistory: item.lastThreeDetections } });
+      await fulfill({ json: { ...item, priceHistory: item.lastThreeDetections } });
     } else if (method === "GET" && path === settingsPath) {
       state.gets += 1;
       await state.getGate;
-      await route.fulfill(state.getError
-        ? { status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } }
-        : { json: { session: state.session } });
+      await fulfill(state.getError ? serverFailure : { json: { session: state.session } });
     } else if (method === "GET" && path === claudeTokenPath) {
       await state.getGate;
-      await route.fulfill(state.getError
-        ? { status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } }
-        : { json: { claudeToken: noClaudeToken } });
+      await fulfill(state.getError ? serverFailure : { json: { claudeToken: state.token } });
     } else if (method === "PUT" && path === "/api/v1/settings") {
-      const body = (request.postDataJSON() as { leboncoinSession: { value: string; revision: number } }).leboncoinSession;
+      const body = request.postDataJSON() as SaveBody;
       state.puts.push(body);
       await state.putGate;
       const reply = state.putReplies.shift() ?? "echo";
       if (reply === "echo") {
-        const value = extracted(body.value);
-        state.session = value
-          ? { ...noSession, value, revision: state.session.revision + 1, updatedAt: timestamp, status: "active" }
-          : { ...noSession, revision: state.session.revision + 1, updatedAt: timestamp };
-        await route.fulfill({ json: { session: state.session, claudeToken: noClaudeToken } });
+        const sessionPart = body.leboncoinSession;
+        if (sessionPart?.remove) {
+          state.session = { ...noSession, revision: state.session.revision + 1, updatedAt: timestamp };
+        } else if (sessionPart?.value?.trim()) {
+          state.session = { ...noSession, saved: true, hint: hintOf(extracted(sessionPart.value)), revision: state.session.revision + 1, updatedAt: timestamp, status: "active" };
+        }
+        const tokenPart = body.claudeToken;
+        if (tokenPart?.remove) state.token = { ...noClaudeToken, updatedAt: timestamp };
+        else if (tokenPart?.value?.trim()) state.token = { ...noClaudeToken, saved: true, hint: hintOf(tokenPart.value.trim()), updatedAt: timestamp };
+        await fulfill({ json: { session: state.session, claudeToken: state.token } });
       } else {
-        await route.fulfill(reply);
+        await fulfill(reply);
       }
     } else {
       state.unexpected.push(`${method} ${path}`);
@@ -120,6 +146,39 @@ function sessionField(page: Page) {
 
 function saveButton(page: Page) {
   return page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: /^Sav(e|ing…)$/ });
+}
+
+function tokenField(page: Page) {
+  return page.getByRole("dialog", { name: "Settings" }).getByRole("textbox", { name: "Claude token" });
+}
+
+function dialogButton(page: Page, name: string) {
+  return page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name, exact: true });
+}
+
+const sessionHint = (hint: string) => `A session is saved: ••••${hint}.`;
+const tokenHint = (hint: string) => `A token is saved: ••••${hint}.`;
+const sessionPending = "The saved session will be removed when you save.";
+const tokenPending = "The saved token will be removed when you save.";
+const stateLine = /^(A (session|token) is saved|No (session|token) is saved|The saved (session|token) will be removed)/;
+
+async function openLoaded(page: Page) {
+  const dialog = await openSettings(page);
+  await expect(sessionField(page)).toBeEnabled();
+  return dialog;
+}
+
+// No remove or undo action can be used (loading, load failure or nothing saved).
+async function expectNoUsableRemoveAction(page: Page) {
+  const actions = page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: /^(Remove|Undo) (session|token)( removal)?$/ });
+  for (const action of await actions.all()) await expect(action).toBeDisabled();
+}
+
+// The request bodies never carry a hint or the masked hint text.
+function expectNoHintSent(puts: SaveBody[], ...hints: string[]) {
+  const sent = JSON.stringify(puts);
+  expect(sent).not.toContain("••••");
+  for (const hint of hints) expect(sent).not.toContain(hint);
 }
 
 test("header menu: visible on every page, Information and Settings entries, keyboard and dismissal", async ({ page, context }) => {
@@ -168,7 +227,7 @@ test("header menu: visible on every page, Information and Settings entries, keyb
   await expect(page).toHaveURL(`/items/${item.id}`);
 });
 
-test("settings modal: loading, full value, help text, session and Claude token fields", async ({ page, context }) => {
+test("TC-012 (#265) settings shows the hints as text, empty inputs and help texts saying an empty input keeps the secret", async ({ page, context }) => {
   const api = await mockApi(context);
   let release!: () => void;
   api.getGate = new Promise<void>((resolve) => { release = resolve; });
@@ -177,18 +236,51 @@ test("settings modal: loading, full value, help text, session and Claude token f
   await expect(dialog.getByText("Loading settings…")).toBeVisible();
   await expect(saveButton(page)).toBeDisabled();
   await expect(sessionField(page)).toBeDisabled();
-  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toBeDisabled();
+  await expect(dialog.getByText(stateLine)).toHaveCount(0);
+  await expectNoUsableRemoveAction(page);
   release();
-  await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
   await expect(sessionField(page)).toBeEnabled();
-  await expect(dialog.getByRole("textbox")).toHaveCount(2);
-  await expect(dialog).toContainText("datadome=");
-  await expect(dialog).toContainText(/empty field to remove the session/);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
+  await expect(dialog).toContainText("Paste the datadome value or a cookie string containing datadome=…. Leave it empty to keep the saved session.");
+  await expect(dialog).toContainText("Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Leave it empty to keep the saved token.");
+  await expect(dialog).not.toContainText("AI reviews are unavailable");
+  await expect(dialog).not.toContainText(/empty field|save an empty/i);
+  await expect(dialogButton(page, "Remove session")).toBeEnabled();
+  await expect(dialogButton(page, "Remove token")).toBeEnabled();
   await expect(saveButton(page)).toBeEnabled();
   await expect(dialog.getByText(/rejected|failed|expired|revoked/)).toHaveCount(0);
+  expect(api.puts).toEqual([]);
 });
 
-test("load failure disables saving; cancel closes and reopening retries", async ({ page, context }) => {
+test("TC-012 (#265) nothing saved: each entry says none is saved and offers no remove action", async ({ page, context }) => {
+  const api = await mockApi(context, noSession, noClaudeToken);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await expect(dialog.getByText("No session is saved.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("No token is saved.", { exact: true })).toBeVisible();
+  await expect(dialog).toContainText("AI reviews are unavailable until a token is saved.");
+  await expect(dialog.getByRole("button", { name: /^Remove (session|token)$/ })).toHaveCount(0);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  expect(api.puts).toEqual([]);
+});
+
+test("TC-012 (#265) a short secret is shown as saved without any character", async ({ page, context }) => {
+  await mockApi(context, { ...activeSession, hint: null }, { ...savedToken, hint: null });
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await expect(dialog.getByText("A session is saved.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("A token is saved.", { exact: true })).toBeVisible();
+  await expect(dialog).not.toContainText("••••");
+  await expect(dialogButton(page, "Remove session")).toBeEnabled();
+  await expect(dialogButton(page, "Remove token")).toBeEnabled();
+});
+
+test("TC-012 (#265) load failure disables saving; cancel closes and reopening retries", async ({ page, context }) => {
   const api = await mockApi(context);
   api.getError = true;
   await page.goto("/");
@@ -196,126 +288,302 @@ test("load failure disables saving; cancel closes and reopening retries", async 
   await expect(dialog.getByText("Could not load settings")).toBeVisible();
   await expect(dialog).toContainText("The server could not complete the request.");
   await expect(dialog.getByRole("textbox")).toHaveCount(0);
+  await expect(dialog.getByText(stateLine)).toHaveCount(0);
+  await expectNoUsableRemoveAction(page);
   await expect(saveButton(page)).toBeDisabled();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   await expect(menuTrigger(page)).toBeFocused();
   api.getError = false;
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
+  await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
   expect(api.gets).toBe(2);
   expect(api.puts).toEqual([]);
 });
 
-test("saving sends the text and revision, closes, and reopening reloads", async ({ page, context }) => {
+test("TC-013 (#265) saving a session sends only the typed session and its revision; reopening shows the new hint", async ({ page, context }) => {
   const api = await mockApi(context);
   await page.goto("/");
-  await openSettings(page);
-  await sessionField(page).fill("Cookie: a=1; datadome=New~Synthetic_456; b=2");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
   await saveButton(page).click();
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
-  expect(api.puts).toEqual([{ value: "Cookie: a=1; datadome=New~Synthetic_456; b=2", revision: 3 }]);
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { value: `datadome=${sessionN}`, revision: 7 } }]);
+  expectNoHintSent(api.puts, "wxyz", "9f3a");
   await expect(menuTrigger(page)).toBeFocused();
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("New~Synthetic_456");
+  await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await expect(dialog.getByText(sessionHint("n0p1"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
   expect(api.gets).toBe(2);
 });
 
-test("saving an empty field clears the session", async ({ page, context }) => {
+test("TC-013 (#265) a cookie string is sent as typed", async ({ page, context }) => {
   const api = await mockApi(context);
   await page.goto("/");
-  await openSettings(page);
-  await sessionField(page).fill("");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`Cookie: a=1; datadome=${sessionN}; b=2`);
   await saveButton(page).click();
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
-  expect(api.puts).toEqual([{ value: "", revision: 3 }]);
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("");
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { value: `Cookie: a=1; datadome=${sessionN}; b=2`, revision: 7 } }]);
 });
 
-test("invalid session shows the server message on the field and keeps input", async ({ page, context }) => {
-  const api = await mockApi(context);
-  api.putReplies.push({ status: 400, json: { error: { code: "INVALID_SESSION", message: "No datadome cookie was found in the pasted text." } } });
+test("TC-013 (#265) both inputs empty or blank and no removal: no request, the modal closes and nothing changes", async ({ page, context }) => {
+  const api = await mockApi(context, { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } },
+    { ...savedToken, lastRejectedAt: "2026-10-03T20:00:00Z" });
   await page.goto("/");
-  await openSettings(page);
+  let dialog = await openLoaded(page);
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  dialog = await openLoaded(page);
+  await sessionField(page).fill("   \n  ");
+  await tokenField(page).fill("   ");
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([]);
+  dialog = await openLoaded(page);
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/LeBoncoin rejected this session on 03 Oct 2026, 20:00 UTC/)).toBeVisible();
+  await expect(dialog.getByText(/Claude rejected this token for an AI review on 03 Oct 2026, 20:00 UTC/)).toBeVisible();
+});
+
+test("TC-013 (#265) invalid session shows the server message on the field and keeps input", async ({ page, context }) => {
+  const api = await mockApi(context);
+  api.putReplies.push(invalidSession);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
   await sessionField(page).fill("a=1; b=2");
   await saveButton(page).click();
   await expect(sessionField(page)).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByRole("dialog", { name: "Settings" }).getByText("No datadome cookie was found in the pasted text.")).toBeVisible();
+  await expect(dialog.getByText("No datadome cookie was found in the pasted text.")).toBeVisible();
   await expect(sessionField(page)).toHaveValue("a=1; b=2");
-  await sessionField(page).fill("a=1; b=2; datadome=Fixed~Synthetic");
+  await expect(tokenField(page)).not.toHaveAttribute("aria-invalid", "true");
+  await sessionField(page).fill(`a=1; b=2; datadome=${sessionN}`);
   await expect(sessionField(page)).not.toHaveAttribute("aria-invalid", "true");
   await saveButton(page).click();
-  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
-  expect(api.puts).toHaveLength(2);
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([
+    { leboncoinSession: { value: "a=1; b=2", revision: 7 } },
+    { leboncoinSession: { value: `a=1; b=2; datadome=${sessionN}`, revision: 7 } },
+  ]);
 });
 
-test("server failure keeps input and allows retry", async ({ page, context }) => {
+test("TC-013 (#265) server failure keeps input and a retry sends the same request", async ({ page, context }) => {
   const api = await mockApi(context);
-  api.putReplies.push({ status: 500, json: { error: { code: "INTERNAL_ERROR", message: "The server could not complete the request." } } });
+  api.putReplies.push(serverFailure);
   await page.goto("/");
-  const dialog = await openSettings(page);
-  await sessionField(page).fill("Retry~Synthetic");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
   await saveButton(page).click();
   await expect(dialog.getByText("Could not save settings")).toBeVisible();
-  await expect(sessionField(page)).toHaveValue("Retry~Synthetic");
+  await expect(sessionField(page)).toHaveValue(`datadome=${sessionN}`);
   await expect(saveButton(page)).toBeEnabled();
   await saveButton(page).click();
   await expect(dialog).toBeHidden();
-  expect(api.puts).toEqual([{ value: "Retry~Synthetic", revision: 3 }, { value: "Retry~Synthetic", revision: 3 }]);
+  const request = { leboncoinSession: { value: `datadome=${sessionN}`, revision: 7 } };
+  expect(api.puts).toEqual([request, request]);
 });
 
-test("changed session warns, keeps input, blocks save until reopened", async ({ page, context }) => {
+test("TC-015 (#265) changed session warns when replacing, keeps input, blocks save until reopened", async ({ page, context }) => {
   const api = await mockApi(context);
-  api.putReplies.push({ status: 409, json: { error: { code: "SESSION_CHANGED", message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." } } });
+  api.putReplies.push(sessionChanged);
   await page.goto("/");
-  const dialog = await openSettings(page);
-  await sessionField(page).fill("Mine~Synthetic");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
   await saveButton(page).click();
   await expect(dialog.getByText("Session changed", { exact: true })).toBeVisible();
   await expect(dialog).toContainText("close and reopen Settings before saving");
-  await expect(sessionField(page)).toHaveValue("Mine~Synthetic");
+  await expect(sessionField(page)).toHaveValue(`datadome=${sessionN}`);
   await expect(sessionField(page)).toBeEditable();
   await expect(saveButton(page)).toBeDisabled();
-  api.session = { ...activeSession, value: "Renewed~Synthetic", revision: 4 };
+  api.session = { ...activeSession, hint: "y7k2", revision: 8, lastAttempt: { outcome: "accepted", attemptedAt: timestamp } };
   await dialog.getByRole("button", { name: "Cancel" }).click();
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("Renewed~Synthetic");
+  await openLoaded(page);
+  await expect(dialog.getByText(sessionHint("y7k2"), { exact: true })).toBeVisible();
   await expect(dialog.getByText("Session changed", { exact: true })).toHaveCount(0);
+  await expect(sessionField(page)).toHaveValue("");
+  await sessionField(page).fill(`datadome=${sessionN}`);
   await saveButton(page).click();
   await expect(dialog).toBeHidden();
-  expect(api.puts).toEqual([{ value: "Mine~Synthetic", revision: 3 }, { value: "Renewed~Synthetic", revision: 4 }]);
+  expect(api.puts).toEqual([
+    { leboncoinSession: { value: `datadome=${sessionN}`, revision: 7 } },
+    { leboncoinSession: { value: `datadome=${sessionN}`, revision: 8 } },
+  ]);
 });
 
-test("cancel and Escape discard edits without saving", async ({ page, context }) => {
+test("TC-015 (#265) changed session warns when removing and keeps the pending removal", async ({ page, context }) => {
+  const api = await mockApi(context);
+  api.putReplies.push(sessionChanged);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove session").click();
+  await saveButton(page).click();
+  await expect(dialog.getByText("Session changed", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toBeVisible();
+  await expect(dialogButton(page, "Undo session removal")).toBeVisible();
+  await expect(saveButton(page)).toBeDisabled();
+  api.session = { ...activeSession, hint: "y7k2", revision: 8 };
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await openLoaded(page);
+  await expect(dialog.getByText(sessionHint("y7k2"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toHaveCount(0);
+  await dialogButton(page, "Remove session").click();
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { remove: true, revision: 7 } }, { leboncoinSession: { remove: true, revision: 8 } }]);
+});
+
+test("TC-015 (#265) a token-only save asks for no session check and shows no warning", async ({ page, context }) => {
   const api = await mockApi(context);
   await page.goto("/");
-  let dialog = await openSettings(page);
-  await sessionField(page).fill("Discarded~One");
+  const dialog = await openLoaded(page);
+  await tokenField(page).fill(tokenU);
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ claudeToken: { value: tokenU } }]);
+  await expect(page.getByText("Session changed", { exact: true })).toHaveCount(0);
+});
+
+test("TC-014 (#265) Remove session marks the session for removal; Save sends only the removal", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove session").click();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toBeVisible();
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toHaveCount(0);
+  await expect(sessionField(page)).toBeDisabled();
+  await expect(dialogButton(page, "Undo session removal")).toBeEnabled();
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { remove: true, revision: 7 } }]);
+  await openLoaded(page);
+  await expect(dialog.getByText("No session is saved.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /session/ })).toHaveCount(0);
+  await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
+});
+
+test("TC-014 (#265) undoing a session removal makes the input usable and Save then sends no removal", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove session").click();
+  await dialogButton(page, "Undo session removal").click();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await expect(sessionField(page)).toBeEnabled();
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(dialogButton(page, "Remove session")).toBeEnabled();
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts.filter((body) => body.leboncoinSession)).toEqual([]);
+});
+
+test("TC-014 (#265) Cancel or Escape discards a pending removal without a request", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  let dialog = await openLoaded(page);
+  await dialogButton(page, "Remove session").click();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
-  dialog = await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
-  await sessionField(page).fill("Discarded~Two");
+  dialog = await openLoaded(page);
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toHaveCount(0);
+  await dialogButton(page, "Remove session").click();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(menuTrigger(page)).toBeFocused();
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
+  dialog = await openLoaded(page);
+  await expect(dialog.getByText(sessionPending, { exact: true })).toHaveCount(0);
+  await expect(dialogButton(page, "Remove session")).toBeEnabled();
+  await expect(sessionField(page)).toBeEnabled();
   expect(api.puts).toEqual([]);
 });
 
-test("saving in progress blocks closing and duplicate saves", async ({ page, context }) => {
+test("TC-014 (#265) removing the token and pasting a new session send one request with both", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove token").click();
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { value: `datadome=${sessionN}`, revision: 7 }, claudeToken: { remove: true } }]);
+});
+
+test("TC-014 (#265) text typed before choosing Remove session is not sent", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await dialogButton(page, "Remove session").click();
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(sessionField(page)).toBeDisabled();
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([{ leboncoinSession: { remove: true, revision: 7 } }]);
+  expect(JSON.stringify(api.puts)).not.toContain(sessionN);
+});
+
+test("TC-014 (#265) a refused save keeps the pending removals for a retry", async ({ page, context }) => {
+  const api = await mockApi(context);
+  api.putReplies.push(invalidSession, serverFailure);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove token").click();
+  await sessionField(page).fill("a=1; b=2");
+  await saveButton(page).click();
+  await expect(dialog.getByText("No datadome cookie was found in the pasted text.")).toBeVisible();
+  await expect(dialog.getByText(tokenPending, { exact: true })).toBeVisible();
+  await expect(dialogButton(page, "Undo token removal")).toBeEnabled();
+  await expect(tokenField(page)).toBeDisabled();
+  await dialogButton(page, "Remove session").click();
+  await saveButton(page).click();
+  await expect(dialog.getByText("Could not save settings")).toBeVisible();
+  await expect(dialog.getByText(tokenPending, { exact: true })).toBeVisible();
+  await expect(dialog.getByText(sessionPending, { exact: true })).toBeVisible();
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  const both = { leboncoinSession: { remove: true, revision: 7 }, claudeToken: { remove: true } };
+  expect(api.puts).toEqual([{ leboncoinSession: { value: "a=1; b=2", revision: 7 }, claudeToken: { remove: true } }, both, both]);
+});
+
+test("TC-012 (#265) cancel and Escape discard typed text; reopening shows empty inputs", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  let dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await tokenField(page).fill(tokenU);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  dialog = await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(menuTrigger(page)).toBeFocused();
+  await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  expect(api.puts).toEqual([]);
+});
+
+test("TC-013 (#265) saving in progress blocks closing, removal and duplicate saves", async ({ page, context }) => {
   const api = await mockApi(context);
   let release!: () => void;
   api.putGate = new Promise<void>((resolve) => { release = resolve; });
   await page.goto("/");
-  const dialog = await openSettings(page);
-  await sessionField(page).fill("Pending~Synthetic");
+  const dialog = await openLoaded(page);
+  await sessionField(page).fill(`datadome=${sessionN}`);
   await saveButton(page).click();
   await expect(saveButton(page)).toHaveText("Saving…");
   await expect(saveButton(page)).toBeDisabled();
   await expect(sessionField(page)).toBeDisabled();
+  await expect(dialogButton(page, "Remove session")).toBeDisabled();
+  await expect(dialogButton(page, "Remove token")).toBeDisabled();
   await saveButton(page).click({ force: true });
   await page.keyboard.press("Escape");
   await dialog.getByRole("button", { name: "Cancel" }).click({ force: true });
@@ -325,27 +593,34 @@ test("saving in progress blocks closing and duplicate saves", async ({ page, con
   expect(api.puts).toHaveLength(1);
 });
 
-const hintCases: { name: string; session: Session; text: RegExp | null }[] = [
-  { name: "rejected", session: { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } },
+const notUsed = "It is no longer used. Capture a new session and save it here, or remove it.";
+const hintCases: { name: string; session: Session; state: string; text: string | RegExp | null }[] = [
+  { name: "rejected", session: { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } }, state: sessionHint("9f3a"),
     text: /LeBoncoin rejected this session on 03 Oct 2026, 20:00 UTC\. Capture a new session and save it here\./ },
-  { name: "failed", session: { ...activeSession, lastAttempt: { outcome: "failed", attemptedAt: "2026-10-03T20:00:00Z" } },
+  { name: "failed", session: { ...activeSession, lastAttempt: { outcome: "failed", attemptedAt: "2026-10-03T20:00:00Z" } }, state: sessionHint("9f3a"),
     text: /The last LeBoncoin check using this session failed on 03 Oct 2026, 20:00 UTC for a reason other than a rejection\./ },
   { name: "expired", session: { ...activeSession, status: "expired", expiresAt: "2026-10-02T10:00:00Z",
-    lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } },
-    text: /This session expired on 02 Oct 2026, 10:00 UTC\. It is no longer used\./ },
-  { name: "revoked", session: { ...activeSession, status: "revoked", revokedAt: "2026-10-03T21:00:00Z" },
-    text: /LeBoncoin revoked this session on 03 Oct 2026, 21:00 UTC\. It is no longer used\./ },
-  { name: "accepted", session: { ...activeSession, lastAttempt: { outcome: "accepted", attemptedAt: timestamp } }, text: null },
-  { name: "unused", session: activeSession, text: null },
-  { name: "none", session: noSession, text: null },
+    lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } }, state: sessionHint("9f3a"),
+    text: `This session expired on 02 Oct 2026, 10:00 UTC. ${notUsed}` },
+  { name: "revoked", session: { ...activeSession, status: "revoked", revokedAt: "2026-10-03T21:00:00Z" }, state: sessionHint("9f3a"),
+    text: `LeBoncoin revoked this session on 03 Oct 2026, 21:00 UTC. ${notUsed}` },
+  { name: "revoked without a remaining value", session: { ...noSession, revision: 8, status: "revoked", revokedAt: "2026-10-03T21:00:00Z" },
+    state: "No session is saved.", text: `LeBoncoin revoked this session on 03 Oct 2026, 21:00 UTC. ${notUsed}` },
+  { name: "renewed", session: { ...activeSession, hint: "y7k2", revision: 8, lastAttempt: { outcome: "accepted", attemptedAt: timestamp } },
+    state: sessionHint("y7k2"), text: null },
+  { name: "accepted", session: { ...activeSession, lastAttempt: { outcome: "accepted", attemptedAt: timestamp } }, state: sessionHint("9f3a"), text: null },
+  { name: "unused", session: activeSession, state: sessionHint("9f3a"), text: null },
+  { name: "none", session: noSession, state: "No session is saved.", text: null },
 ];
 
-for (const { name, session, text } of hintCases) {
-  test(`hint for ${name} session`, async ({ page, context }) => {
+for (const { name, session, state, text } of hintCases) {
+  test(`TC-016 (#265) hint and warning for ${name} session`, async ({ page, context }) => {
     await mockApi(context, session);
     await page.goto("/");
-    const dialog = await openSettings(page);
-    await expect(sessionField(page)).toHaveValue(session.value ?? "");
+    const dialog = await openLoaded(page);
+    await expect(sessionField(page)).toHaveValue("");
+    await expect(dialog.getByText(state, { exact: true })).toBeVisible();
+    await expect(dialog).not.toContainText(/empty field/i);
     if (text) {
       await expect(dialog.getByText(text)).toBeVisible();
       await expect(dialog.getByText(/rejected|failed|expired|revoked/)).toHaveCount(1);
@@ -354,6 +629,19 @@ for (const { name, session, text } of hintCases) {
     }
   });
 }
+
+test("TC-016 (#265) after a successful replacement the reopened modal shows no warning", async ({ page, context }) => {
+  await mockApi(context, { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } });
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await expect(dialog.getByText(/LeBoncoin rejected this session/)).toBeVisible();
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await saveButton(page).click();
+  await expect(dialog).toBeHidden();
+  await openLoaded(page);
+  await expect(dialog.getByText(sessionHint("n0p1"), { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/rejected|failed|expired|revoked/)).toHaveCount(0);
+});
 
 test("menu cannot be used while another modal is open", async ({ page, context }) => {
   await mockApi(context);
@@ -367,7 +655,7 @@ test("menu cannot be used while another modal is open", async ({ page, context }
 });
 
 test("narrow viewport keeps the menu and modal usable without horizontal scroll", async ({ page, context }) => {
-  await mockApi(context, { ...activeSession, value: "Long~Synthetic_".repeat(40) });
+  await mockApi(context, { ...activeSession, lastAttempt: { outcome: "rejected", attemptedAt: "2026-10-03T20:00:00Z" } });
   await page.setViewportSize({ width: 400, height: 800 });
   await page.goto("/");
   const trigger = menuTrigger(page);
@@ -383,21 +671,147 @@ test("narrow viewport keeps the menu and modal usable without horizontal scroll"
   expect(menuBox.x).toBeGreaterThanOrEqual(0);
   expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(400);
   await page.getByRole("menuitem", { name: "Settings" }).click();
-  await expect(sessionField(page)).toHaveValue("Long~Synthetic_".repeat(40));
+  await expect(sessionField(page)).toBeEnabled();
+  await expect(sessionField(page)).toHaveValue("");
   await expect(saveButton(page)).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("session value is not kept in browser storage", async ({ page, context }) => {
-  await mockApi(context);
-  await page.goto("/");
-  await openSettings(page);
-  await expect(sessionField(page)).toHaveValue("Synthetic~Value_123");
-  await page.keyboard.press("Escape");
+// Everything the page keeps after the modal closed: storage, IndexedDB, cookies, DOM, form values and URL.
+async function browserState(page: Page) {
+  const pageState = await page.evaluate(async () => {
+    const databases = indexedDB.databases ? await indexedDB.databases() : [];
+    const values = [...document.querySelectorAll("input, textarea")].map((field) => (field as HTMLInputElement).value);
+    return JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, databases, values })
+      + document.documentElement.outerHTML + location.href;
+  });
+  return pageState + JSON.stringify(await page.context().cookies());
+}
+
+async function expectNoTypedSecret(page: Page) {
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
-  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
-  expect(stored).not.toContain("Synthetic~Value_123");
-  expect(await page.getByText("Synthetic~Value_123").count()).toBe(0);
+  const state = await browserState(page);
+  for (const secret of [tokenU, sessionN]) expect(state).not.toContain(secret);
+}
+
+async function typeBothSecrets(page: Page) {
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await sessionField(page).fill(`datadome=${sessionN}`);
+  await tokenField(page).fill(tokenU);
+}
+
+async function secretLifecycle(page: Page, api: Awaited<ReturnType<typeof mockApi>>) {
+  let dialog = await openLoaded(page);
+  await typeBothSecrets(page);
+  await saveButton(page).click();
+  await expectNoTypedSecret(page);
+  dialog = await openLoaded(page);
+  await typeBothSecrets(page);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expectNoTypedSecret(page);
+  api.putReplies.push(serverFailure);
+  dialog = await openLoaded(page);
+  await typeBothSecrets(page);
+  await saveButton(page).click();
+  await expect(dialog.getByText("Could not save settings")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expectNoTypedSecret(page);
+  await openLoaded(page);
+  await expect(sessionField(page)).toHaveValue("");
+  await expect(tokenField(page)).toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expectNoTypedSecret(page);
+}
+
+test("TC-017 (#265) the browser holds no full secret after the modal closes", async ({ page, context }) => {
+  const api = await mockApi(context);
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) apiRequests.push(`${request.method()} ${url.pathname}`);
+  });
+  await page.goto("/");
+  await secretLifecycle(page, api);
+  expect(api.puts).toHaveLength(2);
+  for (const response of api.responses) {
+    for (const secret of [tokenT, tokenU, sessionN]) expect(response).not.toContain(secret);
+  }
+  expect(apiRequests.filter((request) => request.startsWith("PUT ") && request !== "PUT /api/v1/settings")).toEqual([]);
+});
+
+test("TC-017 (#265) narrow viewport and page reload give the same result", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.setViewportSize({ width: 400, height: 800 });
+  await page.goto("/");
+  await secretLifecycle(page, api);
+  await page.reload();
+  await expect(menuTrigger(page)).toBeVisible();
+  await expectNoTypedSecret(page);
+  await secretLifecycle(page, api);
+  expect(api.puts).toHaveLength(4);
+});
+
+// Tabs forward until the focused element has the given accessible text.
+async function tabTo(page: Page, name: string) {
+  for (let i = 0; i < 25; i += 1) {
+    await page.keyboard.press("Tab");
+    const focused = await page.evaluate(() => (document.activeElement?.closest("[role=dialog]") ? document.activeElement.textContent?.trim() : null));
+    if (focused === name) return;
+  }
+  throw new Error(`Tab did not reach "${name}" in the Settings dialog`);
+}
+
+test("TC-018 (#265) hints are the inputs' descriptions; remove and undo work from the keyboard", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await expect(sessionField(page)).toHaveAccessibleDescription(/A session is saved: ••••9f3a\./);
+  await expect(tokenField(page)).toHaveAccessibleDescription(/A token is saved: ••••wxyz\./);
+
+  await tabTo(page, "Remove session");
+  await expect(dialogButton(page, "Remove session")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialogButton(page, "Undo session removal")).toBeFocused();
+  await expect(sessionField(page)).toHaveAccessibleDescription(new RegExp(sessionPending.replace(/\./g, "\\.")));
+  await expect(dialog.locator("[aria-live=polite]").filter({ hasText: sessionPending })).toHaveCount(1);
+  await page.keyboard.press("Space");
+  await expect(dialogButton(page, "Remove session")).toBeFocused();
+  await expect(sessionField(page)).toHaveAccessibleDescription(/A session is saved: ••••9f3a\./);
+  await expect(dialog.locator("[aria-live=polite]").filter({ hasText: sessionHint("9f3a") })).toHaveCount(1);
+
+  await tabTo(page, "Remove token");
+  await page.keyboard.press("Space");
+  await expect(dialogButton(page, "Undo token removal")).toBeFocused();
+  await expect(tokenField(page)).toHaveAccessibleDescription(new RegExp(tokenPending.replace(/\./g, "\\.")));
+  await expect(dialog.locator("[aria-live=polite]").filter({ hasText: tokenPending })).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(dialogButton(page, "Remove token")).toBeFocused();
+  await expect(tokenField(page)).toBeEnabled();
+
+  await expectTabbingStaysInDialog(page);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  expect(api.puts).toEqual([]);
+});
+
+test("TC-018 (#265) at 400 px the hints, actions and inputs fit without horizontal scrolling", async ({ page, context }) => {
+  await mockApi(context, { ...activeSession, status: "expired", expiresAt: "2026-10-02T10:00:00Z" }, { ...savedToken, lastRejectedAt: "2026-10-03T20:00:00Z" });
+  await page.setViewportSize({ width: 400, height: 800 });
+  await page.goto("/");
+  const dialog = await openLoaded(page);
+  await dialogButton(page, "Remove session").click();
+  for (const target of [
+    dialog.getByText(sessionPending, { exact: true }), dialog.getByText(tokenHint("wxyz"), { exact: true }),
+    dialogButton(page, "Undo session removal"), dialogButton(page, "Remove token"), sessionField(page), tokenField(page),
+  ]) {
+    await target.scrollIntoViewIfNeeded();
+    await expect(target).toBeVisible();
+    const box = (await target.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(400);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 // Focus may move asynchronously (Carbon initial focus), so each assertion waits for it to settle.

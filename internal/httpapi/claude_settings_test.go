@@ -36,7 +36,7 @@ func callPath(server *Server, method, path, body string) *httptest.ResponseRecor
 func TestGetClaudeTokenEmptyAndMethod(t *testing.T) {
 	server, _ := newSettingsServer(t)
 	recorder := callPath(server, http.MethodGet, "/api/v1/settings/claude-token", "")
-	want := `{"claudeToken":{"value":null,"updatedAt":null,"lastRejectedAt":null}}`
+	want := `{"claudeToken":{"saved":false,"hint":null,"updatedAt":null,"lastRejectedAt":null}}`
 	if recorder.Code != 200 || recorder.Header().Get("Cache-Control") != "no-store" || strings.TrimSpace(recorder.Body.String()) != want {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
@@ -64,15 +64,17 @@ func TestPutSettingsSavesBothEntries(t *testing.T) {
 	if recorder.Code != 200 || recorder.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"value":"synthetic-lbc"`) || !strings.Contains(recorder.Body.String(), `"claudeToken":{"value":"sk-ant-oat01-synthetic"`) {
+	// Issue #265: the answer carries the hints, never the values.
+	if !strings.Contains(recorder.Body.String(), `"session":{"saved":true,"hint":null,`) || !strings.Contains(recorder.Body.String(), `"claudeToken":{"saved":true,"hint":"etic"`) ||
+		strings.Contains(recorder.Body.String(), "synthetic-lbc") || strings.Contains(recorder.Body.String(), "sk-ant-oat01-synthetic") {
 		t.Fatalf("body %s", recorder.Body.String())
 	}
 	if *calls != 1 {
 		t.Fatalf("verification calls %d", *calls)
 	}
 	got := callPath(server, http.MethodGet, "/api/v1/settings/claude-token", "")
-	if !strings.Contains(got.Body.String(), `"value":"sk-ant-oat01-synthetic"`) {
-		t.Fatalf("token not persisted: %s", got.Body.String())
+	if !strings.Contains(got.Body.String(), `"saved":true,"hint":"etic"`) || strings.Contains(got.Body.String(), "sk-ant-oat01-synthetic") {
+		t.Fatalf("token not persisted or returned in full: %s", got.Body.String())
 	}
 	items := callPath(server, http.MethodGet, "/api/v1/items", "")
 	if strings.Contains(items.Body.String(), "sk-ant-oat01-synthetic") || strings.Contains(logs.String(), "sk-ant-oat01-synthetic") {
@@ -91,7 +93,6 @@ func TestPutSettingsErrors(t *testing.T) {
 	}{
 		{"invalid json", `{`, 200, 400, "INVALID_JSON"},
 		{"two values", `{} {}`, 200, 400, "INVALID_JSON"},
-		{"no part", `{}`, 200, 400, "INVALID_REQUEST"},
 		{"token without value", `{"claudeToken":{}}`, 200, 400, "INVALID_REQUEST"},
 		{"token wrong type", `{"claudeToken":{"value":1}}`, 200, 400, "INVALID_REQUEST"},
 		{"session without revision", `{"leboncoinSession":{"value":""}}`, 200, 400, "INVALID_REQUEST"},
@@ -111,7 +112,7 @@ func TestPutSettingsErrors(t *testing.T) {
 		}
 	}
 	got := callPath(server, http.MethodGet, "/api/v1/settings/claude-token", "")
-	if !strings.Contains(got.Body.String(), `"value":null`) {
+	if !strings.Contains(got.Body.String(), `"saved":false`) {
 		t.Fatalf("a failed save stored the token: %s", got.Body.String())
 	}
 }

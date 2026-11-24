@@ -42,24 +42,26 @@ The `datadome=…` line is the only output on standard output; all messages go t
 
 1. Copy the whole `datadome=…` line.
 2. In PriceFollower, select the profile icon at the top right of the header, then **Settings**.
-3. Paste the line into **LeBonCoin session** and save. The application keeps only the datadome value. You can also paste the raw value or a cookie string containing `datadome=…`.
+3. Paste the line into **LeBonCoin session** and save. The application keeps only the datadome value. You can also paste the raw value or a cookie string containing `datadome=…`. Pasting a new value replaces the saved session.
 
 The session is stored in the application's database and applies to the next LeBoncoin price check, without a restart. Saving does not start a check by itself.
+
+Settings never shows the saved session again: it shows a masked hint with only the last 4 characters (for example `A session is saved: ••••9f3a.`), and the **LeBonCoin session** input is always empty. Leaving the input empty keeps the saved session when you save, so you can change other settings without pasting it again.
 
 ## Check the result
 
 Refresh a LeBoncoin item from its details page, or use the main refresh control, then check the attempt status and the newly detected price. A rejected attempt keeps the last successful price.
 
-Reopen **Settings**: if the most recent attempt that used the saved session failed, the modal shows when, and whether LeBoncoin rejected the session. If it says the session is expired or revoked, it is no longer used.
+Reopen **Settings**: the hint shows the last 4 characters of the session currently saved, which change when the application saves a renewed session. If the most recent attempt that used the saved session failed, the modal shows when, and whether LeBoncoin rejected the session. If it says the session is expired or revoked, it is no longer used.
 
 ## Renew or clear
 
 - **Renew** when Settings reports a rejection, expiry or revocation, or when LeBoncoin checks fail with a verification challenge: run the helper again and paste the new line into Settings. The application also saves renewed cookies that LeBoncoin sends during successful checks.
-- **Clear** by saving an empty **LeBonCoin session** field. LeBoncoin checks then run without a session.
+- **Clear** by selecting **Remove session**, then **Save**. Until you save, **Undo session removal** keeps the session, and **Cancel** discards the removal. LeBoncoin checks then run without a session.
 
 ## Keep the value secret
 
-The printed value gives access to your verified LeBoncoin session. It stays in your terminal scrollback and clipboard: do not paste it into chats, tickets, URLs or shared logs. Anyone who can open the PriceFollower interface can read it in Settings.
+The printed value gives access to your verified LeBoncoin session. It stays in your terminal scrollback and clipboard: do not paste it into chats, tickets, URLs or shared logs. Once saved, PriceFollower never shows or returns it in full, not even in Settings.
 
 ## Failure messages
 

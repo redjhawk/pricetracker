@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115); Amazon human-like checks behaviour defined 2026-11-20 (agent-defined, issue #168, no shape change); Amazon success response not opened as a page defined 2026-11-22 (agent-defined, issue #186, no shape change); Amazon unavailable listing on the browser's error page defined 2026-11-23 (agent-defined, issue #187, no shape change).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115); Amazon human-like checks behaviour defined 2026-11-20 (agent-defined, issue #168, no shape change); Amazon success response not opened as a page defined 2026-11-22 (agent-defined, issue #186, no shape change); Amazon unavailable listing on the browser's error page defined 2026-11-23 (agent-defined, issue #187, no shape change); masked Settings secrets defined 2026-11-23 (agent-defined, issue #265: settings objects return `saved`/`hint` instead of `value`, `PUT /api/v1/settings` gains explicit removal and treats an empty value as unchanged, `PUT /api/v1/settings/leboncoin-session` removed).
 
 ## Conventions
 
@@ -256,14 +256,24 @@ Only euro-priced marketplaces are supported in v1: `amazon.de`, `amazon.fr`, `am
 
 **Status: approved by the user on 2026-10-03** (proposal revision 1, unchanged) for change [leboncoin-session-settings](doc/changes/2026-10-03-1741-leboncoin-session-settings/index.md); approval evidence in its [API record](doc/changes/2026-10-03-1741-leboncoin-session-settings/api-step.md). Technical sources: [settings](doc/specifications/leboncoin-session-settings/technical.md), [collection rev. 2](doc/specifications/leboncoin-session-collection/technical.md).
 
-The application stores one global LeBoncoin `datadome` session value in SQLite. These endpoints read and replace it. There is no authentication (as for all endpoints); the full value is returned by design (user decision 2 of 2026-10-03) and appears in no other response. Responses carry the existing `Cache-Control: no-store`.
+The application stores one LeBoncoin `datadome` session value per settings owner in SQLite (see "Users and login"). Since issue #265 the saved value never leaves the server: responses state whether a value is saved and give only its hint (see "Secret hint"). Responses carry the existing `Cache-Control: no-store`.
+
+### Secret hint (issue #265)
+
+The saved LeBoncoin session value and the saved Claude token are never returned, in any response. Each settings object instead carries:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `saved` | boolean | `true` when a value is stored (whatever its `status`). |
+| `hint` | string or `null` | The last 4 characters of the stored value when it is at least 16 characters long; `null` when nothing is saved or the value is shorter than 16 characters. Never more than 4 characters. It is display text only: clients must never send it back as a value. |
 
 ### Session settings object
 
 ```json
 {
   "session": {
-    "value": "Xyz~AbC123_example",
+    "saved": true,
+    "hint": "mple",
     "revision": 7,
     "updatedAt": "2026-10-03T18:00:00.000Z",
     "status": "active",
@@ -279,10 +289,10 @@ The application stores one global LeBoncoin `datadome` session value in SQLite. 
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `value` | string or `null` | Saved `datadome` value (1–4096 characters), `null` when no session is saved. |
-| `revision` | integer ≥ 0 | Change token. Increases when the operator saves or clears the session, when collection stores a renewed value, and when LeBoncoin revokes the session. Must be sent back on save. |
+| `saved`, `hint` | boolean, string or `null` | See "Secret hint". The stored `datadome` value (1–4096 characters) itself is never returned (issue #265; it replaced the former `value` field). |
+| `revision` | integer ≥ 0 | Change token. Increases when the operator replaces or removes the session, when collection stores a renewed value, and when LeBoncoin revokes the session. Must be sent back when replacing or removing the session. |
 | `updatedAt` | string or `null` | Time of the last stored change; `null` if never set. |
-| `status` | `none` \| `active` \| `expired` \| `revoked` | `none`: no value. `active`: value used for LeBoncoin checks. `expired`: a known expiry supplied by LeBoncoin has passed. `revoked`: LeBoncoin deleted the cookie. `expired`/`revoked` values are kept for display but not used; LeBoncoin checks record `request_error` until a new value or an empty value is saved. |
+| `status` | `none` \| `active` \| `expired` \| `revoked` | `none`: no value. `active`: value used for LeBoncoin checks. `expired`: a known expiry supplied by LeBoncoin has passed. `revoked`: LeBoncoin deleted the cookie. `expired`/`revoked` values are kept (and shown by their hint) but not used; LeBoncoin checks record `request_error` until a new value is saved or the session is removed. |
 | `expiresAt` | string or `null` | Known expiry from a LeBoncoin renewal; `null` for a pasted value or a session cookie. |
 | `revokedAt` | string or `null` | When LeBoncoin revoked the value; non-null only with `status: "revoked"`. |
 | `lastAttempt` | object or `null` | Latest LeBoncoin check that sent this session (since it was last saved by the operator); `null` when unused. `outcome`: `accepted` (LeBoncoin returned the requested listing), `rejected` (HTTP 403 or verification challenge), `failed` (any other failure, including network errors and unavailable listings). `attemptedAt`: UTC time. |
@@ -295,36 +305,15 @@ The UI shows a warning for `status` `expired`/`revoked`, otherwise for `lastAtte
 GET /api/v1/settings/leboncoin-session
 ```
 
-`200 OK` with the session settings object. With no saved session: `{"session": {"value": null, "revision": 0, "updatedAt": null, "status": "none", "expiresAt": null, "revokedAt": null, "lastAttempt": null}}` (revision may be higher if a session was saved and cleared before). `500 INTERNAL_ERROR` if it cannot be read.
+`200 OK` with the session settings object. With no saved session: `{"session": {"saved": false, "hint": null, "revision": 0, "updatedAt": null, "status": "none", "expiresAt": null, "revokedAt": null, "lastAttempt": null}}` (revision may be higher if a session was saved and removed before). `405 METHOD_NOT_ALLOWED` for any other method (`Allow: GET`). `500 INTERNAL_ERROR` if it cannot be read.
 
-### Save or clear the LeBoncoin session
+### LeBoncoin session input (used by `PUT /api/v1/settings`)
 
-```text
-PUT /api/v1/settings/leboncoin-session
-```
+`PUT /api/v1/settings/leboncoin-session` was removed by issue #265 (it returned the full value and cleared the session on an empty value); the path now answers `405 METHOD_NOT_ALLOWED` with `Allow: GET` to `PUT`. The session is saved only through `PUT /api/v1/settings`, whose `leboncoinSession.value` follows these rules:
 
-Request (JSON, at most 32 768 bytes):
-
-```json
-{ "value": "Cookie: a=1; datadome=Xyz~AbC123_example; b=2", "revision": 7 }
-```
-
-- `value` (string, required): the field content as typed. The server trims surrounding whitespace and accepts either the raw value or a cookie string (optionally prefixed with `Cookie:` or `Set-Cookie:`, case-insensitive) from which it extracts the `datadome` pair; other pairs and attributes are discarded and never stored. An empty or whitespace-only string clears the session.
-- `revision` (integer, required): the `revision` received when the settings were loaded.
-
-Success `200 OK` with the new session settings object: the extracted value, `status: "active"`, `expiresAt: null`, `revokedAt: null`, `lastAttempt: null`, and an incremented `revision`; or, for a clear, `value: null` and `status: "none"`. Clearing when no value is saved returns the unchanged object. Saving never starts a price check; the next LeBoncoin check (scheduled or requested) uses the new state.
-
-Errors (existing error envelope):
-
-| Status | `code` | When | Example `message` (safe to display) |
-| --- | --- | --- | --- |
-| 400 | `INVALID_JSON` | Body is not one JSON value | “Request body must be valid JSON.” |
-| 400 | `INVALID_REQUEST` | `value` not a string, or `revision` missing / not a non-negative integer | “Request must include a session value (use an empty string to remove it) and the revision from Settings.” |
-| 400 | `INVALID_SESSION` | Input unusable: longer than 8192 characters; cookie string without `datadome`; empty `datadome` value; several different `datadome` values; value with whitespace, control characters, `;`, `,`, `"`, `\` or other invalid cookie characters; value longer than 4096 characters | “No datadome cookie was found in the pasted text.” |
-| 409 | `SESSION_CHANGED` | `revision` differs from the stored one (another save, automatic renewal, or revocation since loading). Nothing is changed. | “The LeBoncoin session changed after Settings was opened. Reopen Settings before saving.” |
-| 413 | `REQUEST_TOO_LARGE` | Body over 32 768 bytes | “Request body is too large.” |
-| 405 | `METHOD_NOT_ALLOWED` | Method other than GET/PUT (`Allow: GET, PUT`) | “This method is not allowed for the route.” |
-| 500 | `INTERNAL_ERROR` | Storage failure; nothing is partially saved | “The server could not complete the request.” |
+- The server trims surrounding whitespace and accepts either the raw value or a cookie string (optionally prefixed with `Cookie:` or `Set-Cookie:`, case-insensitive) from which it extracts the `datadome` pair; other pairs and attributes are discarded and never stored. An empty or whitespace-only string leaves the session unchanged (issue #265).
+- `400 INVALID_SESSION` when the input is unusable: longer than 8192 characters; cookie string without `datadome`; empty `datadome` value; several different `datadome` values; value with whitespace, control characters, non-ASCII characters, `;`, `,`, `"`, `\` or other invalid cookie characters; value longer than 4096 characters. Example message: “No datadome cookie was found in the pasted text.” Messages never repeat the input.
+- A replaced session has `status: "active"`, `expiresAt: null`, `revokedAt: null`, `lastAttempt: null` and an incremented `revision`; a removed session has `saved: false`, `hint: null`, `status: "none"`. Saving never starts a price check; the next LeBoncoin check (scheduled or requested) uses the new state.
 
 ### Effect on existing endpoints
 
@@ -337,13 +326,13 @@ No item endpoint, field, status or result value changes. For LeBoncoin items che
 ### Claude token object
 
 ```json
-{ "claudeToken": { "value": "sk-ant-oat01-example", "updatedAt": "2026-10-04T09:00:00.000Z", "lastRejectedAt": null } }
+{ "claudeToken": { "saved": true, "hint": "mple", "updatedAt": "2026-10-04T09:00:00.000Z", "lastRejectedAt": null } }
 ```
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `value` | string or `null` | Saved Claude subscription token (1–1024 characters), `null` when none. Returned in full by design (D-2); appears in no other response. |
-| `updatedAt` | string or `null` | Last save/clear time. |
+| `saved`, `hint` | boolean, string or `null` | See "Secret hint" (issue #265). The stored Claude subscription token (1–1024 characters) itself is never returned; it replaced the former `value` field. |
+| `updatedAt` | string or `null` | Last replacement/removal time. |
 | `lastRejectedAt` | string or `null` | Time of the latest AI review attempt where Claude rejected this token (HTTP 401/403) or reported a usage limit (429). Cleared by any save and by a later successful review. The UI shows a replace-token warning when non-null. |
 
 ### Get the Claude token
@@ -352,7 +341,7 @@ No item endpoint, field, status or result value changes. For LeBoncoin items che
 GET /api/v1/settings/claude-token
 ```
 
-`200 OK` with the Claude token object (`{"claudeToken": {"value": null, "updatedAt": null, "lastRejectedAt": null}}` when never set). `405` for other methods (`Allow: GET`). `500 INTERNAL_ERROR` on storage failure.
+`200 OK` with the Claude token object (`{"claudeToken": {"saved": false, "hint": null, "updatedAt": null, "lastRejectedAt": null}}` when never set). `405` for other methods (`Allow: GET`). `500 INTERNAL_ERROR` on storage failure.
 
 ### Save settings (both Settings entries, atomically)
 
@@ -360,35 +349,41 @@ GET /api/v1/settings/claude-token
 PUT /api/v1/settings
 ```
 
-Request (JSON, at most 32 768 bytes); at least one part required:
+Request (JSON, at most 32 768 bytes). Each part is optional; an absent part leaves that secret exactly as it is (issue #265). A present part either replaces (`value`) or removes (`"remove": true`) its secret:
 
 ```json
 {
   "leboncoinSession": { "value": "datadome=Xyz~AbC123_example", "revision": 7 },
-  "claudeToken": { "value": "sk-ant-oat01-example" }
+  "claudeToken": { "remove": true }
 }
 ```
 
-- `leboncoinSession` (optional): same `value`/`revision` semantics and validation as `PUT /api/v1/settings/leboncoin-session`.
-- `claudeToken` (optional): `value` string as typed. The server trims surrounding whitespace; empty clears the token (no verification). A non-empty value equal to the stored token changes nothing and is not verified. Otherwise the server verifies it with a minimal Claude request before storing.
-- Validation order: LeBoncoin input, Claude token format, Claude verification, then one transaction (LeBoncoin revision check and both writes). The first error is returned and **nothing** is saved.
+- `leboncoinSession` (optional): `revision` (integer ≥ 0, required) is the `revision` received when Settings was loaded, plus exactly one of:
+  - `value` (string): the input as typed, under the rules of "LeBoncoin session input". A non-empty value replaces the session, even when it equals the stored one (new `revision`, warnings cleared). An empty or whitespace-only value leaves the session unchanged and is not checked against `revision`.
+  - `remove` (`true`): removes the session (no change when none is saved).
+- `claudeToken` (optional), exactly one of:
+  - `value` (string): the input as typed. The server trims surrounding whitespace. A non-empty value is validated and always verified with a minimal Claude request before storing, even when it equals the stored token; storing clears `lastRejectedAt`. An empty or whitespace-only value leaves the token unchanged and makes no verification.
+  - `remove` (`true`): removes the token without verification (no change when none is saved).
+- An untouched secret (part absent, or empty `value`) keeps its value, `revision`, `updatedAt` and warnings (`lastRejectedAt`; session `status`, `expiresAt`, `revokedAt`, `lastAttempt`). The LeBoncoin `revision` is checked only when the session is replaced or removed.
+- `{}`, or both parts untouched, is valid: nothing changes and the current objects are returned.
+- Validation order: request shape, LeBoncoin input, Claude token format, Claude verification, then one transaction (LeBoncoin revision check and both writes). The first error is returned and **nothing** is saved. Error messages never repeat the submitted input.
 
-Success `200 OK`: `{ "session": <session settings object>, "claudeToken": <Claude token object content> }`. Saving never starts a price check or an AI review.
+Success `200 OK`: `{ "session": <session settings object>, "claudeToken": <Claude token object content> }`, both masked (`saved`/`hint`). Saving never starts a price check or an AI review.
 
 | Status | `code` | When | Example `message` (safe to display) |
 | --- | --- | --- | --- |
 | 400 | `INVALID_JSON` | Body is not one JSON value | "Request body must be valid JSON." |
-| 400 | `INVALID_REQUEST` | No part present, or a part with missing/wrongly typed fields | "Request must include the LeBoncoin session and/or the Claude token to save." |
-| 400 | `INVALID_SESSION` | As in the LeBoncoin session endpoint | "No datadome cookie was found in the pasted text." |
+| 400 | `INVALID_REQUEST` | A part that is not an object; with neither or both of `value` and `remove`; with `remove` other than `true`; with a wrongly typed field; or a `leboncoinSession` without a non-negative integer `revision` | "Each Settings entry sent must have either a value or \"remove\": true, and the LeBoncoin session needs the revision from Settings." |
+| 400 | `INVALID_SESSION` | As in "LeBoncoin session input" | "No datadome cookie was found in the pasted text." |
 | 400 | `INVALID_CLAUDE_TOKEN` | Token contains whitespace, control or non-ASCII characters, or exceeds 1024 characters | "The Claude token must not contain spaces, line breaks or other control characters." |
 | 422 | `CLAUDE_TOKEN_REJECTED` | Claude answered 401/403 to the verification request | "Claude refused this token. Create a new one with claude setup-token." |
 | 502 | `CLAUDE_UNREACHABLE` | Network error, timeout (20 s), 429, 5xx or other unexpected answer during verification | "The token could not be verified because Claude could not be reached. Try again." |
-| 409 | `SESSION_CHANGED` | LeBoncoin `revision` is stale | "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." |
+| 409 | `SESSION_CHANGED` | The session is replaced or removed and the LeBoncoin `revision` is stale (another save or removal, automatic renewal, or revocation since loading) | "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving." |
 | 413 | `REQUEST_TOO_LARGE` | Body over 32 768 bytes | "Request body is too large." |
 | 405 | `METHOD_NOT_ALLOWED` | Method other than PUT (`Allow: PUT`) | "This method is not allowed for the route." |
 | 500 | `INTERNAL_ERROR` | Storage failure; nothing partially saved | "The server could not complete the request." |
 
-`PUT /api/v1/settings/leboncoin-session` remains available with its existing behavior.
+Compatibility (issue #265): both settings objects return `saved`/`hint` instead of `value`; an empty `value` no longer removes a secret; `{}` is no longer `INVALID_REQUEST`; an equal Claude token is verified again; `PUT /api/v1/settings/leboncoin-session` is removed. The embedded frontend changes in the same release; there is no other client.
 
 ### AI review in the item details response
 
