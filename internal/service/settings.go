@@ -65,13 +65,16 @@ func (s *Service) SaveSettings(ctx context.Context, input SettingsInput) (model.
 }
 
 // sessionChangeFor returns the session change to save, or nil when the session
-// is untouched (no input or a blank value).
+// is untouched (no input, or a whitespace-only value of any length).
 func sessionChangeFor(input *SessionInput) (*store.SessionChange, error) {
 	if input == nil {
 		return nil, nil
 	}
 	if input.Remove {
 		return &store.SessionChange{ExpectedRevision: input.Revision}, nil
+	}
+	if strings.TrimSpace(input.Value) == "" {
+		return nil, nil
 	}
 	value, err := leboncoin.ParseSessionInput(input.Value)
 	var inputError *leboncoin.SessionInputError
