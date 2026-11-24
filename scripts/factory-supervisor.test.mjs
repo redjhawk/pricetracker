@@ -134,7 +134,7 @@ test('a base-bug stop waits until the blocking issue is closed', () => {
 });
 
 test('stops that need the owner are not relaunched', () => {
-  for (const reason of ['questions', 'test-problem', 'max-rounds', 'sensitive', 'security', 'merge-conflict']) {
+  for (const reason of ['questions', 'test-problem', 'max-rounds', 'manual-step', 'sensitive', 'security', 'merge-conflict']) {
     assert.equal(decide(snapshot({ runs: [run(300)], comments: [stop(200, { reason, stage: 'x', round: 0 })] })).action, 'none', reason);
   }
 });
