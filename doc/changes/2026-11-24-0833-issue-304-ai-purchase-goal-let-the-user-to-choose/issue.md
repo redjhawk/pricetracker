@@ -17,3 +17,8 @@ Managing the list. Should the user be able to rename or remove a goal from the l
 Order and display of options. >> alphabetically 
 Amazon URLs.  >> the field is always shown, you can always show the option
 
+### redjhawk at 2026-11-24T15:51:07Z
+
+Long goals in the drop-down. >> just the first 4 words
+Changing the wording of the current goal on the details page >> the usercan select "new goal" and write a new one, or select an existing one and modify the text. Modifying the text of an existing one does not impact on other item goal description
+
