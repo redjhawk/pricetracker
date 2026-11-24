@@ -28,8 +28,6 @@ func readClaudeToken(ctx context.Context, q rowQuerier, ownerID int64) (model.Cl
 		return model.ClaudeToken{}, err
 	}
 	token.Value = nullString(value)
-	token.Saved = token.Value != nil
-	token.Hint = model.SecretHint(token.Value)
 	token.UpdatedAt = optionalTimestamp(updatedAt)
 	token.LastRejectedAt = optionalTimestamp(lastRejectedAt)
 	return token, nil

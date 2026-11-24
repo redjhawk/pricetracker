@@ -954,8 +954,6 @@ func (row leboncoinSessionRow) model(now time.Time) model.LeboncoinSession {
 		ExpiresAt: optionalTimestamp(row.expiresAt),
 		RevokedAt: optionalTimestamp(row.revokedAt),
 	}
-	session.Saved = session.Value != nil
-	session.Hint = model.SecretHint(session.Value)
 	switch {
 	case session.Value == nil:
 		session.Status = "none"

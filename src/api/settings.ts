@@ -1,9 +1,7 @@
 import { request } from "./client";
 
-// The server never returns a saved secret: only whether one is saved and its masked hint (issue #265).
 export interface LeboncoinSessionSettings {
-  saved: boolean;
-  hint: string | null;
+  value: string | null;
   revision: number;
   updatedAt: string | null;
   status: "none" | "active" | "expired" | "revoked";
@@ -12,14 +10,23 @@ export interface LeboncoinSessionSettings {
   lastAttempt: { outcome: "accepted" | "rejected" | "failed"; attemptedAt: string } | null;
 }
 
+const sessionPath = "/api/v1/settings/leboncoin-session";
+
 export async function getLeboncoinSession(): Promise<LeboncoinSessionSettings> {
-  const response = await request<{ session: LeboncoinSessionSettings }>("/api/v1/settings/leboncoin-session");
+  const response = await request<{ session: LeboncoinSessionSettings }>(sessionPath);
+  return response.session;
+}
+
+export async function saveLeboncoinSession(value: string, revision: number): Promise<LeboncoinSessionSettings> {
+  const response = await request<{ session: LeboncoinSessionSettings }>(sessionPath, {
+    method: "PUT",
+    body: JSON.stringify({ value, revision }),
+  });
   return response.session;
 }
 
 export interface ClaudeTokenSettings {
-  saved: boolean;
-  hint: string | null;
+  value: string | null;
   updatedAt: string | null;
   lastRejectedAt: string | null;
 }
@@ -29,15 +36,12 @@ export async function getClaudeToken(): Promise<ClaudeTokenSettings> {
   return response.claudeToken;
 }
 
-// An absent entry is left unchanged; `value` replaces the secret and `remove` removes it.
-export interface SettingsChange {
-  leboncoinSession?: { value: string; revision: number } | { remove: true; revision: number };
-  claudeToken?: { value: string } | { remove: true };
-}
-
-export function saveSettings(change: SettingsChange): Promise<{ session: LeboncoinSessionSettings; claudeToken: ClaudeTokenSettings }> {
+export function saveSettings(input: {
+  leboncoinSession?: { value: string; revision: number };
+  claudeToken?: { value: string };
+}): Promise<{ session: LeboncoinSessionSettings; claudeToken: ClaudeTokenSettings }> {
   return request<{ session: LeboncoinSessionSettings; claudeToken: ClaudeTokenSettings }>("/api/v1/settings", {
     method: "PUT",
-    body: JSON.stringify(change),
+    body: JSON.stringify(input),
   });
 }

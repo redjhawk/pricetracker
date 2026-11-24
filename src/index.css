@@ -406,14 +406,6 @@ input {
   margin-block-start: var(--cds-spacing-06);
 }
 
-.settings-secret-state {
-  display: block;
-}
-
-.settings-secret-remove {
-  margin-block-start: var(--cds-spacing-03);
-}
-
 .preview-note {
   margin: var(--cds-spacing-05) 0 0;
   color: var(--cds-text-secondary);

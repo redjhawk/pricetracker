@@ -679,12 +679,13 @@ test("narrow viewport keeps the menu and modal usable without horizontal scroll"
 
 // Everything the page keeps after the modal closed: storage, IndexedDB, cookies, DOM, form values and URL.
 async function browserState(page: Page) {
-  return page.evaluate(async () => {
+  const pageState = await page.evaluate(async () => {
     const databases = indexedDB.databases ? await indexedDB.databases() : [];
     const values = [...document.querySelectorAll("input, textarea")].map((field) => (field as HTMLInputElement).value);
     return JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, databases, values })
       + document.documentElement.outerHTML + location.href;
-  }) + JSON.stringify(await page.context().cookies());
+  });
+  return pageState + JSON.stringify(await page.context().cookies());
 }
 
 async function expectNoTypedSecret(page: Page) {

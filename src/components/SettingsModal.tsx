@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Button, FeatureFlags, InlineLoading, InlineNotification, Modal, TextArea, TextInput } from "@carbon/react";
+import { FeatureFlags, InlineLoading, InlineNotification, Modal, TextArea, TextInput } from "@carbon/react";
 import { ApiError } from "../api/client";
 import {
   getClaudeToken,
@@ -7,7 +7,6 @@ import {
   saveSettings,
   type ClaudeTokenSettings,
   type LeboncoinSessionSettings,
-  type SettingsChange,
 } from "../api/settings";
 
 const claudeErrorCodes = ["INVALID_CLAUDE_TOKEN", "CLAUDE_TOKEN_REJECTED", "CLAUDE_UNREACHABLE"];
@@ -34,25 +33,8 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "The server could not be reached.";
 }
 
-// The state line of a secret entry: pending removal, saved (with its masked hint when the server gives one) or none.
-// The hint is display text only; no request value is ever derived from it (issue #265).
-function secretState(noun: "session" | "token", secret: { saved: boolean; hint: string | null }, removing: boolean) {
-  if (removing) return `The saved ${noun} will be removed when you save.`;
-  if (!secret.saved) return `No ${noun} is saved.`;
-  return secret.hint === null ? `A ${noun} is saved.` : `A ${noun} is saved: ••••${secret.hint}.`;
-}
-
-function helperText(state: string | null, help: string) {
-  return (
-    <>
-      {state && <span className="settings-secret-state" aria-live="polite">{state}</span>}
-      {help}
-    </>
-  );
-}
-
-function sessionWarning(settings: LeboncoinSessionSettings): string | null {
-  const notUsed = "It is no longer used. Capture a new session and save it here, or remove it.";
+function sessionHint(settings: LeboncoinSessionSettings): string | null {
+  const notUsed = "It is no longer used. Capture a new session and save it here, or save an empty field to stop using it.";
   if (settings.status === "revoked" && settings.revokedAt) {
     return `LeBoncoin revoked this session on ${formatDate(settings.revokedAt)}. ${notUsed}`;
   }
@@ -81,29 +63,26 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
   const [claudeToken, setClaudeToken] = useState<ClaudeTokenSettings | null>(null);
   const [claudeValue, setClaudeValue] = useState("");
   const [claudeInvalidMessage, setClaudeInvalidMessage] = useState("");
-  const [removeSession, setRemoveSession] = useState(false);
-  const [removeToken, setRemoveToken] = useState(false);
   const savingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     let active = true;
-    // The inputs always start empty: the server never returns a saved secret.
     Promise.all([getLeboncoinSession(), getClaudeToken()])
       .then(([loaded, loadedToken]) => {
         if (!active) return;
         setSettings(loaded);
+        setValue(loaded.value ?? "");
         setClaudeToken(loadedToken);
+        setClaudeValue(loadedToken.value ?? "");
       })
       .catch((error) => { if (active) setLoadError(errorMessage(error)); });
     return () => {
       active = false;
       setSettings(null);
       setValue("");
-      setRemoveSession(false);
       setClaudeToken(null);
       setClaudeValue("");
-      setRemoveToken(false);
       setClaudeInvalidMessage("");
       setLoadError(null);
       setInvalidMessage("");
@@ -119,23 +98,19 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
 
   async function save() {
     if (!settings || !claudeToken || changed || savingRef.current) return;
-    // Only replacements (non-blank inputs) and removals are sent; an untouched entry is left out.
-    const change: SettingsChange = {};
-    if (removeSession) change.leboncoinSession = { remove: true, revision: settings.revision };
-    else if (value.trim()) change.leboncoinSession = { value, revision: settings.revision };
-    if (removeToken) change.claudeToken = { remove: true };
-    else if (claudeValue.trim()) change.claudeToken = { value: claudeValue };
-    if (!change.leboncoinSession && !change.claudeToken) {
-      onClose();
-      return;
-    }
     savingRef.current = true;
     setSaving(true);
     setInvalidMessage("");
     setClaudeInvalidMessage("");
     setSaveError(null);
+    const claudeChanged = claudeValue.trim() !== (claudeToken.value ?? "");
+    // An unchanged session is not resent with a Claude-only change: resaving it resets its warnings (REV-002).
+    const sessionChanged = value !== (settings.value ?? "");
     try {
-      await saveSettings(change);
+      await saveSettings({
+        ...(sessionChanged || !claudeChanged ? { leboncoinSession: { value, revision: settings.revision } } : {}),
+        ...(claudeChanged ? { claudeToken: { value: claudeValue } } : {}),
+      });
       onClose();
     } catch (error) {
       if (error instanceof ApiError && error.code === "INVALID_SESSION") setInvalidMessage(error.message);
@@ -150,10 +125,9 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
 
   const loaded = Boolean(settings && claudeToken);
   const loading = open && !loaded && !loadError;
-  const claudeHelp = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Leave it empty to keep the saved token."
-    + (claudeToken && !claudeToken.saved ? " AI reviews are unavailable until a token is saved." : "");
-  const sessionHelp = "Paste the datadome value or a cookie string containing datadome=…. Leave it empty to keep the saved session.";
-  const warning = settings ? sessionWarning(settings) : null;
+  const claudeHelper = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Save an empty field to remove it."
+    + (claudeToken && claudeToken.value === null ? " AI reviews are unavailable until a token is saved." : "");
+  const hint = settings ? sessionHint(settings) : null;
 
   return (
     // Carbon's keyboard-based focus wrap (no sentinel spans) keeps Tab/Shift+Tab inside this modal
@@ -185,8 +159,8 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
             className="modal-notification"
           />
         )}
-        {warning && (
-          <InlineNotification kind="warning" subtitle={warning} lowContrast hideCloseButton className="modal-notification" />
+        {hint && (
+          <InlineNotification kind="warning" subtitle={hint} lowContrast hideCloseButton className="modal-notification" />
         )}
         {changed && (
           <InlineNotification
@@ -213,32 +187,17 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
           <TextArea
             id="leboncoin-session"
             labelText="LeBonCoin session"
-            helperText={helperText(settings && secretState("session", settings, removeSession), sessionHelp)}
+            helperText="Paste the datadome value or a cookie string containing datadome=…. Save an empty field to remove the session."
             rows={4}
             value={value}
             onChange={(event) => {
               setValue(event.target.value);
               setInvalidMessage("");
             }}
-            disabled={!loaded || saving || removeSession}
+            disabled={!loaded || saving}
             invalid={Boolean(invalidMessage)}
             invalidText={invalidMessage}
           />
-        )}
-        {!loadError && settings?.saved && (
-          <Button
-            kind="ghost"
-            size="sm"
-            className="settings-secret-remove"
-            disabled={!loaded || saving}
-            onClick={() => {
-              setRemoveSession(!removeSession);
-              setValue("");
-              setInvalidMessage("");
-            }}
-          >
-            {removeSession ? "Undo session removal" : "Remove session"}
-          </Button>
         )}
         {!loadError && (
           <div className="settings-claude-token">
@@ -254,7 +213,7 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
             <TextInput
               id="claude-token"
               labelText="Claude token"
-              helperText={helperText(claudeToken && secretState("token", claudeToken, removeToken), claudeHelp)}
+              helperText={claudeHelper}
               type="text"
               autoComplete="off"
               spellCheck={false}
@@ -263,25 +222,10 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
                 setClaudeValue(event.target.value);
                 setClaudeInvalidMessage("");
               }}
-              disabled={!loaded || saving || removeToken}
+              disabled={!loaded || saving}
               invalid={Boolean(claudeInvalidMessage)}
               invalidText={claudeInvalidMessage}
             />
-            {claudeToken?.saved && (
-              <Button
-                kind="ghost"
-                size="sm"
-                className="settings-secret-remove"
-                disabled={!loaded || saving}
-                onClick={() => {
-                  setRemoveToken(!removeToken);
-                  setClaudeValue("");
-                  setClaudeInvalidMessage("");
-                }}
-              >
-                {removeToken ? "Undo token removal" : "Remove token"}
-              </Button>
-            )}
           </div>
         )}
       </Modal>
