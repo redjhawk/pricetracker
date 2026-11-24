@@ -486,28 +486,6 @@ func (s *Service) LeboncoinSession(ctx context.Context) (model.LeboncoinSession,
 	return s.store.LeboncoinSession(ctx, ownerFrom(ctx))
 }
 
-// SaveLeboncoinSession saves pasted session input, or clears the session when
-// the input is blank. It never starts a price check.
-func (s *Service) SaveLeboncoinSession(ctx context.Context, raw string, revision int64) (model.LeboncoinSession, error) {
-	value, err := leboncoin.ParseSessionInput(raw)
-	var inputError *leboncoin.SessionInputError
-	if errors.As(err, &inputError) {
-		return model.LeboncoinSession{}, &Error{Status: 400, Code: "INVALID_SESSION", Message: inputError.Message}
-	}
-	if err != nil {
-		return model.LeboncoinSession{}, err
-	}
-	var stored *string
-	if value != "" {
-		stored = &value
-	}
-	session, err := s.store.SaveLeboncoinSession(ctx, ownerFrom(ctx), stored, revision, time.Now().UTC())
-	if errors.Is(err, store.ErrSessionChanged) {
-		return model.LeboncoinSession{}, &Error{Status: 409, Code: "SESSION_CHANGED", Message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving."}
-	}
-	return session, err
-}
-
 func (s *Service) releaseCollection(id string) {
 	s.mu.Lock()
 	delete(s.inFlight, id)

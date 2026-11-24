@@ -44,50 +44,66 @@ func (s *Service) ClaudeToken(ctx context.Context) (model.ClaudeToken, error) {
 	return s.store.ClaudeToken(ctx, ownerFrom(ctx))
 }
 
-// SaveSettings validates both entries, verifies a new Claude token, then saves
-// both in one transaction. The first error wins and nothing is saved. It never
+// SaveSettings validates the entries, verifies a replacement Claude token, then
+// saves them in one transaction. Untouched entries are neither parsed, verified
+// nor revision-checked. The first error wins and nothing is saved. It never
 // starts a price check or an AI review.
 func (s *Service) SaveSettings(ctx context.Context, input SettingsInput) (model.LeboncoinSession, model.ClaudeToken, error) {
-	var sessionChange *store.SessionChange
-	if input.LeboncoinSession != nil {
-		value, err := leboncoin.ParseSessionInput(input.LeboncoinSession.Value)
-		var inputError *leboncoin.SessionInputError
-		if errors.As(err, &inputError) {
-			return model.LeboncoinSession{}, model.ClaudeToken{}, &Error{Status: 400, Code: "INVALID_SESSION", Message: inputError.Message}
-		}
-		if err != nil {
-			return model.LeboncoinSession{}, model.ClaudeToken{}, err
-		}
-		sessionChange = &store.SessionChange{ExpectedRevision: input.LeboncoinSession.Revision}
-		if value != "" {
-			sessionChange.Value = &value
-		}
+	sessionChange, err := sessionChangeFor(input.LeboncoinSession)
+	if err != nil {
+		return model.LeboncoinSession{}, model.ClaudeToken{}, err
 	}
-	var tokenChange *store.TokenChange
-	if input.ClaudeToken != nil {
-		token := strings.TrimSpace(input.ClaudeToken.Value)
-		if err := validateClaudeToken(token); err != nil {
-			return model.LeboncoinSession{}, model.ClaudeToken{}, err
-		}
-		tokenChange = &store.TokenChange{}
-		if token != "" {
-			tokenChange.Value = &token
-			stored, err := s.store.ClaudeToken(ctx, ownerFrom(ctx))
-			if err != nil {
-				return model.LeboncoinSession{}, model.ClaudeToken{}, err
-			}
-			if stored.Value != nil && *stored.Value == token {
-				tokenChange = nil // unchanged: no verification and no change
-			} else if err := s.verifyClaudeToken(ctx, token); err != nil {
-				return model.LeboncoinSession{}, model.ClaudeToken{}, err
-			}
-		}
+	tokenChange, err := s.tokenChangeFor(ctx, input.ClaudeToken)
+	if err != nil {
+		return model.LeboncoinSession{}, model.ClaudeToken{}, err
 	}
 	session, token, err := s.store.SaveSettings(ctx, ownerFrom(ctx), sessionChange, tokenChange, time.Now().UTC())
 	if errors.Is(err, store.ErrSessionChanged) {
 		return model.LeboncoinSession{}, model.ClaudeToken{}, &Error{Status: 409, Code: "SESSION_CHANGED", Message: "The LeBoncoin session changed after Settings was opened. Reopen Settings before saving."}
 	}
 	return session, token, err
+}
+
+// sessionChangeFor returns the session change to save, or nil when the session
+// is untouched (no input or a blank value).
+func sessionChangeFor(input *SessionInput) (*store.SessionChange, error) {
+	if input == nil {
+		return nil, nil
+	}
+	if input.Remove {
+		return &store.SessionChange{ExpectedRevision: input.Revision}, nil
+	}
+	value, err := leboncoin.ParseSessionInput(input.Value)
+	var inputError *leboncoin.SessionInputError
+	if errors.As(err, &inputError) {
+		return nil, &Error{Status: 400, Code: "INVALID_SESSION", Message: inputError.Message}
+	}
+	if err != nil || value == "" {
+		return nil, err
+	}
+	return &store.SessionChange{Value: &value, ExpectedRevision: input.Revision}, nil
+}
+
+// tokenChangeFor returns the token change to save, or nil when the token is
+// untouched. A replacement is always verified with Claude; a removal never is.
+func (s *Service) tokenChangeFor(ctx context.Context, input *TokenInput) (*store.TokenChange, error) {
+	if input == nil {
+		return nil, nil
+	}
+	if input.Remove {
+		return &store.TokenChange{}, nil
+	}
+	token := strings.TrimSpace(input.Value)
+	if token == "" {
+		return nil, nil
+	}
+	if err := validateClaudeToken(token); err != nil {
+		return nil, err
+	}
+	if err := s.verifyClaudeToken(ctx, token); err != nil {
+		return nil, err
+	}
+	return &store.TokenChange{Value: &token}, nil
 }
 
 func validateClaudeToken(token string) error {
