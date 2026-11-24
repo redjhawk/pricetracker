@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: the index row at doc/FUNCTIONAL_SPECIFICATIONS.md:346 says FR-COOKIE-007–009 are \"specified\", but session-cookie-security/functional.md:3 and technical.md:3 say \"implemented (issue #293)\", and the auth.go comment move is in the diff. This is a stale status cell in a documentation index, not a bug, contract violation or unmet requirement. The detailed spec files are correct, and other index rows (e.g. login attempt limits) also lag behind.",
+    "title": "Align the session cookie security status in the functional specifications index",
+    "todo": "**Problem:** In `doc/FUNCTIONAL_SPECIFICATIONS.md` (line 346), the \"Session cookie security\" index row says `FR-COOKIE-007–009 specified (issue #293, …)`. But `doc/specifications/session-cookie-security/functional.md:3` and `technical.md:3` mark them implemented. The row also repeats the whole change description, so it is much longer than the other rows.\n\n**Suggested work:** Set the status cell to `FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 implemented (issue #293, maintenance, no behaviour change)` and leave the details to `functional.md`. Documentation only, no code change."
+  }
+]

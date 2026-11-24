@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/FUNCTIONAL_SPECIFICATIONS.md",
+    "line": 346,
+    "category": "nit",
+    "body": "Status mismatch: the index row says \"FR-COOKIE-007–009 specified (issue #293 …)\", but the PR implements them (the auth.go move is in the diff) and both `session-cookie-security/functional.md` and `technical.md` now say \"implemented (issue #293)\". The index row is also much longer than the other rows because it repeats the whole change description. Suggested fix: set the status cell to something like \"FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 implemented (issue #293, maintenance, no behaviour change)\" and leave the details to functional.md."
+  }
+]
