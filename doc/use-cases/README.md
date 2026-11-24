@@ -47,6 +47,14 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-COOKIE-002 — Log in over plain HTTP in development](session-cookie-security/UC-COOKIE-002-log-in-over-plain-http-in-development.md)
 - [UC-COOKIE-003 — Log out behind the HTTPS proxy or over plain HTTP](session-cookie-security/UC-COOKIE-003-log-out-behind-proxy-or-over-plain-http.md)
 
+## HTTP server timeouts
+
+- [UC-HTTP-TMO-001 — A client that sends its request too slowly is dropped](http-server-timeouts/UC-HTTP-TMO-001-slow-client-request-is-dropped.md)
+- [UC-HTTP-TMO-002 — A client that reads its response too slowly is cut off](http-server-timeouts/UC-HTTP-TMO-002-slow-reader-response-is-cut-off.md)
+- [UC-HTTP-TMO-003 — Send a request with large request headers](http-server-timeouts/UC-HTTP-TMO-003-request-with-large-headers.md)
+- [UC-HTTP-TMO-004 — Save the Claude token while Claude is slow to verify it](http-server-timeouts/UC-HTTP-TMO-004-save-claude-token-with-slow-verification.md)
+- [UC-HTTP-TMO-005 — Use the application normally with the time limits in place](http-server-timeouts/UC-HTTP-TMO-005-use-application-normally-with-limits.md)
+
 ## Masked secrets in Settings
 
 - [UC-SECRET-001 — See which secrets are saved in Settings](settings-secret-masking/UC-SECRET-001-see-which-secrets-are-saved.md)
