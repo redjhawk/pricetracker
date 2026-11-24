@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Correct: `imageRequests` only receives `imageUrl` (tests/platform-tabs.spec.ts:327-328), so the `every` check at line 361 cannot fail. The rest of the test still proves TC-010: it checks A's `img.item-thumbnail` `src`, B's placeholder, that B's details have no `img.detail-thumbnail`, and line 332 routes every foreign image request into `api.unexpected`, which line 362 asserts is empty. The dead line is a quality problem, not a missing proof.",
+    "title": "Replace the dead image-request assertion in the TC-010 e2e test",
+    "todo": "**Problem:** In `tests/platform-tabs.spec.ts:361`, `expect(imageRequests.every((url) => url === imageUrl)).toBe(true)` always passes, because the route handler (lines 327-328) only pushes `imageUrl` into `imageRequests`. Foreign image requests are already caught through `api.unexpected` (line 332).\n\n**Suggested work:** Replace the line with `expect(imageRequests.length).toBeGreaterThan(0)` so the test proves A's accepted image was actually requested, or delete it.\n\n**File:** `tests/platform-tabs.spec.ts:361`"
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Correct: the E2E convention in testcases.md:13 names `tests/amazon-thumbnail-urls.spec.ts` and `page.route`. No such file exists; TC-010 is in `tests/platform-tabs.spec.ts` and uses `context.route` through `mockApi`. This is only a documentation mismatch, and the test case's behaviour is implemented and covered.",
+    "title": "Point the issue #275 test-case E2E convention at the real spec file",
+    "todo": "**Problem:** The E2E convention in `doc/changes/2026-11-24-0248-issue-275-amazon-store-only-https-thumbnail-urls-f/testcases.md:13` (and the level line of TC-010 at line 133) says the test is in `tests/amazon-thumbnail-urls.spec.ts` and mocks with `page.route`. The real test is in `tests/platform-tabs.spec.ts` (test \"TC-010 Amazon list shows the accepted image or the placeholder\") and uses `context.route` via `mockApi`.\n\n**Suggested work:** Update both lines to name `tests/platform-tabs.spec.ts` and `context.route`.\n\n**File:** `doc/changes/2026-11-24-0248-issue-275-amazon-store-only-https-thumbnail-urls-f/testcases.md:13`, `:133`"
+  }
+]

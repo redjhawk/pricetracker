@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "tests/platform-tabs.spec.ts",
+    "line": 361,
+    "category": "test",
+    "body": "This assertion always passes. `imageRequests` only gets a URL pushed when `request.url() === imageUrl` (line 327-328), so `every((url) => url === imageUrl)` is true by construction, even when the list never requests A's image. Foreign image requests are already caught by `api.unexpected`, so the line proves nothing. Fix: assert what TC-010 needs instead, for example `expect(imageRequests.length).toBeGreaterThan(0)` to show that A's accepted image was really loaded, or drop the line."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/changes/2026-11-24-0248-issue-275-amazon-store-only-https-thumbnail-urls-f/testcases.md",
+    "line": 13,
+    "category": "nit",
+    "body": "The E2E convention says TC-010 lives in `tests/amazon-thumbnail-urls.spec.ts` and mocks the API with `page.route`. The technical specification and the implementation put it in `tests/platform-tabs.spec.ts` and use that file's `context.route`-based `mockApi`. Update the convention line so the test-case document points to the real test."
+  }
+]

@@ -85,3 +85,9 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-BRET-003 — Install or update the server so that Amazon checks work](amazon-browser-retrieval/UC-AMZ-BRET-003-install-server-for-amazon-checks.md)
 - [UC-AMZ-BRET-004 — Restart an Amazon item stopped by the retrieval errors](amazon-browser-retrieval/UC-AMZ-BRET-004-restart-amazon-item-stopped-by-retrieval-errors.md)
 - [UC-AMZ-BRET-005 — Use Google Chrome when a Chromium snap is installed](amazon-browser-retrieval/UC-AMZ-BRET-005-use-google-chrome-when-chromium-snap-is-installed.md)
+
+## Amazon thumbnail URLs
+
+- [UC-AMZ-THUMB-001 — Add an Amazon item whose page offers an Amazon image over HTTPS](amazon-thumbnail-urls/UC-AMZ-THUMB-001-add-amazon-item-with-amazon-image.md)
+- [UC-AMZ-THUMB-002 — Add an Amazon item whose page offers no accepted Amazon image](amazon-thumbnail-urls/UC-AMZ-THUMB-002-add-amazon-item-without-accepted-image.md)
+- [UC-AMZ-THUMB-003 — Re-check an Amazon item that already has a thumbnail](amazon-thumbnail-urls/UC-AMZ-THUMB-003-recheck-amazon-item-with-stored-thumbnail.md)
