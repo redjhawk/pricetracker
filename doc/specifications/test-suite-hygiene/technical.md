@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295); TS-TEST-HYG-048–055 implemented (issue #195)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295, issue #195.
 
 ## Design
 
@@ -205,6 +205,114 @@ After the last revert, TC-010 passes again (`--repeat-each=3`), and `git diff ma
 
 Refactoring: none.
 
+### TC-002's fixture sanity check proves the lock is the cause (issue #195)
+
+Only `internal/amazon/browser_profile_test.go` changes. On `master`, `assertBrowserRefusesProfile` (lines 343–366) starts the browser on the locked profile, waits up to 15 s, kills the process group, waits for `Wait`, and fails only when `server.Count(path)` changed. The browser output is captured but used only in the failure message.
+
+**Lock refusal message.** On Linux, Chromium's `ProcessSingleton` finds a `SingletonLock` naming a host other than its own and logs, at `ERROR` level on standard error, its `IDS_PROFILE_IN_USE_POSIX` string: `The profile appears to be in use by another <product> process (<pid>) on another computer (<host>). …`. The lock written by TC-002 is `otherhost-12345`, so the line holds `on another computer (otherhost)`. The check matches exactly that substring, built from the host the test wrote:
+
+```go
+// lockRefusal is the part of Chromium's refusal of a profile locked by host on another computer
+// that names that host.
+func lockRefusal(host string) string { return "on another computer (" + host + ")" }
+```
+
+It is case-sensitive and holds the host name, so a crash, a missing library, an unknown option, an empty output, `ProcessSingleton` alone or `Failed to create a ProcessSingleton …` (the generic lock-error line) do not match. The product name and the process ID are left out because they differ between Chromium and Chrome builds and are not what proves the cause.
+
+**Split of the check.** `assertBrowserRefusesProfile` is split into a run and a judgement, so the judgement can be tested without a real browser:
+
+```go
+// browserRun is what one run of the browser on the locked profile showed.
+type browserRun struct {
+	pid       int    // process ID and process group of the run, killed and waited for
+	requested bool   // the page was requested while the browser ran
+	output    string // standard output and standard error, read after Wait returned
+}
+
+// runBrowserOnProfile starts executable on profile with url server.URL+path in its own process group,
+// waits until it exits or wait has passed, kills the group and waits for it.
+func runBrowserOnProfile(t *testing.T, executable, profile string, server *amazontest.Server, path string, wait time.Duration) browserRun
+
+// fixtureCheckFailure returns why run does not prove that the browser refused the profile because
+// host locks it, or "" when it does.
+func fixtureCheckFailure(run browserRun, host string) string
+
+// assertBrowserRefusesProfile starts the browser directly on profile and checks that it does not
+// open the page and says that host on another computer holds the profile.
+func assertBrowserRefusesProfile(t *testing.T, executable, profile, host string, server *amazontest.Server, path string) {
+	t.Helper()
+	if failure := fixtureCheckFailure(runBrowserOnProfile(t, executable, profile, server, path, 15*time.Second), host); failure != "" {
+		t.Fatal(failure)
+	}
+}
+```
+
+- `runBrowserOnProfile` is the body of today's function, unchanged in order: same arguments to the browser, `Setpgid`, one `bytes.Buffer` for both streams, `before := server.Count(path)` read before `Start`, a `Wait` goroutine closing `exited`, `select` on `exited` or the wait, `syscall.Kill(-pid, SIGKILL)`, `<-exited`. Only then are `requested` (`server.Count(path) != before`) and `output` (`output.String()`) read, so the output is complete and the read happens after every write to the buffer (closing `exited` happens after `Wait` returned). The result does not depend on whether the process exited by itself or was killed. A `Start` error stays `t.Fatal(err)`.
+- `fixtureCheckFailure` collects the failed conditions in this order, then returns `""` when there is none, otherwise:
+
+  ```go
+  fmt.Sprintf("fixture check: %s; browser output (%d bytes):\n%s", strings.Join(failed, "; "), len(run.output), run.output)
+  ```
+
+  - `run.requested`: `the browser opened the page on a profile locked by another computer` (today's wording);
+  - `!strings.Contains(run.output, lockRefusal(host))`: `fmt.Sprintf("the browser output does not hold the lock refusal message %q", lockRefusal(host))`.
+
+  When both fail, both are named. The byte count makes an empty output visible.
+- TC-002 changes only at its call: `assertBrowserRefusesProfile(t, options.ExecPath, options.ProfileDir, "otherhost", server, "/dp/B0PRICE001")`. The `writeStaleLock` lines around it and everything after it stay as they are. The wait stays 15 s for the real browser.
+
+**Permanent unit test of the judgement on stub executables (TC-002, TC-003).** The cases run as an ordinary test with stubs, so the gate proves on every run that the new condition is not dead, and they need no Chromium.
+
+- **Stub.** The package test binary is run again in place of the browser, as the fake browser of issue #233 does, but without changing `TestMain` (`fake_browser_test.go` is outside the allowed diff). `refusalStubBrowser(t, stub refusalStub) string` encodes `stub` as JSON into the variable `PRICEFOLLOWER_REFUSAL_STUB` with `t.Setenv` (inherited by the started process, since `cmd.Env` is nil), and writes under `t.TempDir()` a `/bin/sh` script, mode `0o755` with `// #nosec G306 -- test executable`:
+
+  ```sh
+  #!/bin/sh
+  exec '<os.Executable()>' '-test.run=^TestBrowserProfile_Issue195_RefusalStubProcess$' -- "$@"
+  ```
+
+  The `--` stops the test flags, so the browser arguments do not reach the flag parser. `TestMain` sees no `PRICEFOLLOWER_FAKE_BROWSER` and runs `m.Run`, which runs only the stub test.
+- `TestBrowserProfile_Issue195_RefusalStubProcess` returns at once when `PRICEFOLLOWER_REFUSAL_STUB` is empty (a normal run, where it passes). Otherwise it decodes
+
+  ```go
+  type refusalStub struct {
+  	Request bool   `json:"request"` // GET the last argument (the page URL) and read the body first
+  	Stderr  string `json:"stderr"`  // written to standard error, after the request
+  	Hold    bool   `json:"hold"`    // then sleep one minute instead of exiting (killed by the check)
+  	Exit    int    `json:"exit"`    // exit status otherwise
+  }
+  ```
+
+  and does what it says, then `os.Exit(stub.Exit)`, so the testing package prints nothing of its own. The request uses an `http.Client` with a 10 s timeout (`// #nosec G107 -- fixture server of the test`). A decode or request error is written to standard error and exits 2, which the cases see as a missing refusal.
+- `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` uses the TC-002 fixture: `amazontest.NewServer(t, profileFixtureHandler(t))` and a profile under `t.TempDir()` prepared by `writeStaleLock(t, profile, "otherhost")`. Each subtest builds the stub, calls `runBrowserOnProfile(t, stub, profile, server, "/dp/B0PRICE001", 2*time.Second)` and `fixtureCheckFailure(run, "otherhost")`, and asserts the result. The refusal line used by the stubs is Chromium's: `[1:1:ERROR:process_singleton_posix.cc(358)] The profile appears to be in use by another Chromium process (12345) on another computer (otherhost). Chromium has locked the profile so that it doesn't get corrupted.`
+
+  | Subtest | Stub | Expected |
+  | --- | --- | --- |
+  | `refusal, then exit` | refusal line, exit 21 | `""`; not requested |
+  | `refusal, then still running at the end of the wait` | refusal line, hold | `""`; not requested |
+  | `exit at once without output` | exit 1 | missing message; output empty (`(0 bytes)`) |
+  | `missing library` | `error while loading shared libraries: libnss3.so: cannot open shared object file: No such file or directory`, exit 127 | missing message; output holds the error |
+  | `unknown option` | `unknown option --headless=new`, exit 1 | missing message; output holds the error |
+  | `slow start` | hold, no output | missing message; output empty |
+  | `generic lock error only` | `Failed to create a ProcessSingleton for your profile directory.`, exit 21 | missing message |
+  | `refusal naming another host` | the refusal line with `elsewhere` instead of `otherhost`, exit 21 | missing message |
+  | `page requested with the refusal` | request, refusal line, exit 0 | opened-page message only; requested |
+  | `page requested without output` | request, exit 0 | opened-page and missing messages |
+
+  For every failing row the test asserts that the result starts with `fixture check: `, holds exactly the condition texts of the Expected column (the other one is absent), and ends with `browser output (<len> bytes):\n` followed by the captured output. Rows without `request` also assert `run.requested == false`, which is the case where the check of `master` passed. After every row, `syscall.Kill(-run.pid, 0)` must return `syscall.ESRCH`: no process of the stub's group is left, including the held ones.
+- Run time: the two `hold` rows (`refusal, then still running …` and `slow start`) last the 2 s wait each; the others end when the stub exits. The test adds about 5 s to `go test ./internal/amazon`. It uses no `t.Parallel`, as `t.Setenv` requires.
+
+**Delivery (same as issues #251, #182 and #295).** The change is test code in the file that the TDD red commit locks, and the helper must stay in that file (FR-TEST-HYG-043), so the development stage could not write it after the lock. The **tests stage** delivers the whole change above, `gofmt`-clean, and writes `<change folder>/no-tests.md`: why the red phase is skipped, the real-browser runs below with their results, and where each TC is proved. The red gate is then skipped. The development stage writes no code.
+
+**Real-browser runs (tests stage, recorded in `no-tests.md`).**
+
+1. `go test ./internal/amazon -run 'TestBrowserProfile_TC002' -count=1 -v`, then `-count=3`: TC-002 passes every time (TC-004). The stage also records the refusal line the real browser wrote: it adds, temporarily, `t.Log(run.output)` in `assertBrowserRefusesProfile`, runs once, copies the line into `no-tests.md`, and reverts with `Edit`.
+2. Fault injection (TC-005): remove the first `writeStaleLock(t, options.ProfileDir, "otherhost")` of TC-002, run it once, record that it fails at the fixture check with `the browser opened the page on a profile locked by another computer` and the output, then revert with `Edit` and run 1 again.
+
+If the real browser's output does not hold `on another computer (otherhost)`, the stage does not loosen the match to a text that a crash or a start error could print. When the output holds a refusal line that names `otherhost` and "another computer" in another wording, the stage sets `lockRefusal` to the part of that line holding both, keeps it built from `host`, updates the stub refusal line to the real one, and records the line in `no-tests.md`; the development stage then updates this section and TS-TEST-HYG-049 to the recorded text. When no such line is written (for example the browser opens the page, or prints only the generic lock error), the lock refusal message of FR-TEST-HYG-040 cannot be observed with this browser: the stage writes `blocked.md` with `Category: owner`, quoting the captured output.
+
+- **Development stage.** No code. It sets FR-TEST-HYG-040–043 and TS-TEST-HYG-048–055 to implemented. It runs the gates and the repository checks of TC-001 and TC-006, and restores any file outside `doc/` that differs from `master` and is not `internal/amazon/browser_profile_test.go`.
+
+Refactoring: splitting `assertBrowserRefusesProfile` into `runBrowserOnProfile` and `fixtureCheckFailure`. Reason: the judgement must be testable with stubs and a short wait (TC-002, TC-003), while TC-002 keeps the 15 s wait. Scope: that function and its one caller in TC-002 (new `host` argument). Risk: low; the run keeps its steps and their order, and the process group is still killed and waited for before the result is read (FR-TEST-HYG-042). `killBrowserOnProfile`, `writeStaleLock`, `stubBrowser`, `assertNothingLeft` and the other tests are not edited.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -217,6 +325,7 @@ Refactoring: none.
 - Issue #181 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (the status classification of FR-AMZ-HCHK-012 and its tests stay as on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 - Issue #182 changes one `_test.go` file and adds another in `internal/service/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change. The tests run the existing scheduler, gate and Refresh price code on a temporary SQLite file, with a fake clock and a fake Amazon collector. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #295 changes one line of one Playwright spec. Frontend: not affected, as no view, component, state, style or asset changes; the spec keeps mocking the API and the image as before. Backend: not affected, as no Go file changes. API: not affected, as the mocked requests and responses are unchanged and `API_SPECIFICATION.md` is unchanged.
+- Issue #195 changes one `_test.go` file in `internal/amazon/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No production Go file changes, including the removal of the lock marks in `browser.go`; the server binary is the same, as `_test.go` files are not part of it. No validation, persistence, migration or application concurrency change; the only concurrency is in the test (the `Wait` goroutine, whose channel close orders the read of the output after its writes). API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -269,6 +378,14 @@ Refactoring: none.
 | TS-TEST-HYG-045 | FR-TEST-HYG-038 | In its place, `await expect.poll(() => imageRequests.length, { message: "the accepted Amazon image was requested" }).toBeGreaterThan(0)`. The route handler, which records only `imageUrl` and puts any other image into `api.unexpected`, and `expect(api.unexpected).toEqual([])` are kept. |
 | TS-TEST-HYG-046 | FR-TEST-HYG-038 (proof) | The tests stage writes `no-tests.md` (the change is test code, so the red phase cannot fail) and runs the three reverted fault injections (no push, no thumbnail, another Amazon image), recording each failure there. |
 | TS-TEST-HYG-047 | FR-TEST-HYG-039 | The diff outside `doc/` is `M tests/platform-tabs.spec.ts`, one line inside TC-010. No production, Go, frontend, dependency or `API_SPECIFICATION.md` change. The gates run the same test list as on `master`. |
+| TS-TEST-HYG-048 | FR-TEST-HYG-040 | `assertBrowserRefusesProfile(t, executable, profile, host, server, path)` fails unless `fixtureCheckFailure` returns `""`, which needs both `!run.requested` and `strings.Contains(run.output, lockRefusal(host))`. `runBrowserOnProfile` reads both only after the group kill and `<-exited`, whether the process exited by itself or was killed. |
+| TS-TEST-HYG-049 | FR-TEST-HYG-040, FR-TEST-HYG-041 | `lockRefusal(host)` is `on another computer (<host>)`, the host-naming part of Chromium's `IDS_PROFILE_IN_USE_POSIX` line; case-sensitive, so `ProcessSingleton` alone or the generic lock-error line do not match. Replaced only by the recorded real line under the rule of the issue #195 design. |
+| TS-TEST-HYG-050 | FR-TEST-HYG-041 | The failure is `fixture check: <failed conditions joined by "; ">; browser output (<n> bytes):\n<output>`, naming `the browser opened the page on a profile locked by another computer` and/or `the browser output does not hold the lock refusal message "<lockRefusal(host)>"`. |
+| TS-TEST-HYG-051 | FR-TEST-HYG-041 (proof) | `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` runs `runBrowserOnProfile` (2 s wait) and `fixtureCheckFailure` on ten stub runs of the package test binary (`refusalStubBrowser`, `PRICEFOLLOWER_REFUSAL_STUB`, `TestBrowserProfile_Issue195_RefusalStubProcess`), asserting the result, `requested` and that the process group is gone (`ESRCH`). |
+| TS-TEST-HYG-052 | FR-TEST-HYG-042 | TC-002 changes only at its call (new `"otherhost"` argument); the real browser keeps the 15 s wait, the arguments, `Setpgid`, the group kill and the wait for `Wait`, so no browser process of the profile is left. Proved by TC-002 runs with `-count=1` and `-count=3` (tests stage, recorded in `no-tests.md`) and by the gate. |
+| TS-TEST-HYG-053 | FR-TEST-HYG-041 (proof) | Reverted fault injection: without the first `writeStaleLock` of TC-002, TC-002 fails at the fixture check with the opened-page condition and the output. Recorded in `no-tests.md`. |
+| TS-TEST-HYG-054 | FR-TEST-HYG-040–042 (delivery) | The tests stage delivers all the code and writes `no-tests.md` (the change is locked test code, so the red phase cannot run); the development stage writes no code and sets the statuses. |
+| TS-TEST-HYG-055 | FR-TEST-HYG-043 | The diff outside `doc/` is `M internal/amazon/browser_profile_test.go`; `fake_browser_test.go`, its `TestMain` and every production file are unchanged. Ordinary tests (no build tag, flag, skip or `t.Parallel`) run by `go test ./...`; `gofmt -l internal/amazon` is empty; `go vet ./...` passes. New `#nosec` comments follow the file's style. |
 
 ## Files to change
 
@@ -306,8 +423,22 @@ Refactoring: none.
 | `tests/platform-tabs.spec.ts` | tests (issue #295) | TC-010: replace the `imageRequests.every` assertion with the `expect.poll` on `imageRequests.length` |
 | `doc/changes/2026-11-24-0608-issue-295-replace-the-dead-image-request-assertion/no-tests.md` | tests (issue #295) | explain why the red phase is skipped (the change is the locked test code itself); record the three fault injections and their failures; where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #295) | set the status of FR-TEST-HYG-037–039 and TS-TEST-HYG-044–047 to implemented |
+| `internal/amazon/browser_profile_test.go` | tests (issue #195) | split `assertBrowserRefusesProfile` into `runBrowserOnProfile` and `fixtureCheckFailure` with `lockRefusal` and a `host` parameter; TC-002 passes `"otherhost"`; new `refusalStub`, `refusalStubBrowser`, `TestBrowserProfile_Issue195_RefusalStubProcess` and `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal`; imports as needed (`encoding/json`, `fmt`) |
+| `doc/changes/2026-11-24-0917-issue-195-make-tc-002-s-fixture-sanity-check-prove/no-tests.md` | tests (issue #195) | explain why the red phase is skipped (the change is the locked test code itself); record the real refusal line, the TC-002 runs and the fault injection with its failure; where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #195) | set the status of FR-TEST-HYG-040–043 and TS-TEST-HYG-048–055 to implemented (and, only if `no-tests.md` records another refusal text, update TS-TEST-HYG-049 and the issue #195 design to it) |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. Issue #195 changes `internal/amazon/browser_profile_test.go` and no other test file. No test file is deleted.
+
+## Test case mapping (issue #195)
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Code check of `internal/amazon/browser_profile_test.go`: `assertBrowserRefusesProfile` fails unless `fixtureCheckFailure` returns `""`, which needs no page request and `lockRefusal(host)` in the output; `runBrowserOnProfile` reads both after the group kill and `<-exited` (TS-TEST-HYG-048). Also the rows `refusal, then exit` and `refusal, then still running at the end of the wait` of `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` |
+| TC-002 | `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal`, rows `exit at once without output`, `missing library`, `unknown option`, `slow start`, `generic lock error only` and `refusal naming another host` (missing-message failure, output in the message, page not requested, process group gone) |
+| TC-003 | Same test, rows `page requested with the refusal` (opened-page failure only) and `page requested without output` (both conditions named) |
+| TC-004 | `TestBrowserProfile_TC002_LockOfAnotherHostDoesNotPreventTheCheck`, run with `go test ./internal/amazon -run 'TestBrowserProfile_TC002' -count=1` and `-count=3` (tests stage, recorded in `no-tests.md` with the real refusal line) and in the `go test ./...` gate |
+| TC-005 | Fault injection TS-TEST-HYG-053 (tests stage, recorded in `no-tests.md`): TC-002 fails at the fixture check with the opened-page condition and the output, and passes again after the revert |
+| TC-006 | Repository checks: `git diff --name-only master -- . ':!doc'` lists only `internal/amazon/browser_profile_test.go`; `git diff master -- internal/amazon/browser_profile_test.go` touches only the fixture sanity check, its new helpers and tests, the import block and the one call line of TC-002; `doc/todo/issue-180-r1-01.md` and the issue #180 change folder are unchanged. Gates: `gofmt -l internal/amazon` prints nothing; `go vet ./...` and `go test ./...` pass, twice |
 
 ## Test case mapping (issue #295)
 
@@ -500,3 +631,4 @@ Issue #208 cases (unchanged record):
 - Issue #181: none. The document edit is made in the technical specification stage; no CI or `scripts/` change is needed.
 - Issue #182: none. The tests run in `go test ./...` and need no CI or `scripts/` change.
 - Issue #295: none. TC-010 runs in the existing `npx playwright test` gate; no CI, `scripts/` or `playwright.config.ts` change is needed.
+- Issue #195: none. The tests run in `go test ./...`; the stub tests need only `/bin/sh`, and the gate environment already has Chromium for TC-002. No CI, `scripts/` or dependency change is needed.

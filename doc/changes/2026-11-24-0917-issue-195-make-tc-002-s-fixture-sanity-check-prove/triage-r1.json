@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The stub is the package's test binary run again with `-test.run` set to one test, and TestMain (fake_browser_test.go:22) does nothing heavy before it, so start-up, one GET to a local server and one stderr write take milliseconds, well under the 2 s wait. The gate runs `go test ./...` without `-race`. The risk is a hardening item, not a demonstrated defect, and the suggested fix does not help the two `Hold` rows, which still need the stub to write within 2 s.",
+    "title": "Use a longer wait for the non-hold rows of the issue #195 fixture-check test",
+    "todo": "**Problem:** `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` in `internal/amazon/browser_profile_test.go` (around line 500) gives every row a 2 s wait in `runBrowserOnProfile`. Rows without `Hold` end as soon as the stub exits, so they only need the short wait to stop a stub that never ends. On a heavily loaded runner, a stub that is killed before it writes its stderr or finishes its GET would make the row fail for a timing reason.\n\n**Suggested work:** Choose the wait for each row, for example `wait := 15 * time.Second; if row.stub.Hold { wait = 2 * time.Second }`, and pass `wait` to `runBrowserOnProfile`. This costs nothing on a normal run. For the `Hold` rows, you could also make the stub signal that it has written its output (for example by closing a file or writing a marker) before the wait starts counting.\n\n**Where:** `internal/amazon/browser_profile_test.go`, the `t.Run` loop of `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` (the `runBrowserOnProfile(..., 2*time.Second)` call)."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Correct, but only about readability. The exact comparison against the full expected message implies the prefix, per-condition and suffix checks, so the extra checks repeat the same failure. They do not weaken the test or make it wrong.",
+    "title": "Drop the assertions that the exact message comparison already covers in the issue #195 fixture-check test",
+    "todo": "**Problem:** In `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal` (`internal/amazon/browser_profile_test.go`, around line 520), the `strings.HasPrefix(got, \"fixture check: \")` check, the loop over `opened`/`missing` and the `strings.HasSuffix(got, \"browser output (...)\")` check are all implied by the exact `got != want` comparison that follows them. On a regression, the same defect is reported up to four times.\n\n**Suggested work:** Keep only the exact comparison, whose error already shows both strings, and remove the `slices` import if nothing else uses it. Alternatively, keep the three partial checks and drop the exact one.\n\n**Where:** `internal/amazon/browser_profile_test.go`, the failure-message assertions at the end of the `t.Run` body of `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal`."
+  }
+]
