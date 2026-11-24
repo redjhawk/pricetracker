@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: browser_profile_values_test.go:269-311 compares the gofmt text of profile() with hard-coded strings, and technical.md:111 says TC-005 has no test file. The test passes and does check the TC-005 point 2 shape (explicit stale-lock branch, other branches unchanged). It proves its case and is not a bug, but it is brittle and goes beyond the spec, so this is a maintenance concern.",
+    "title": "Remove the source-text test for TC-005 of issue #197",
+    "todo": "**Problem:** `TestBrowserProfile_Issue197_TC005_ProfileUsesTheExplicitForm` (`internal/amazon/browser_profile_values_test.go:267-311`) parses `browser.go` and compares the gofmt text of `profile()` with hard-coded strings, down to the log message of the temporary branch. It tests the shape of the source, not its behaviour. Any legitimate later edit to `profile()` (wrapping an error, renaming `directory`, rewording the log, extracting a helper) will break it. The technical specification (`doc/specifications/amazon-browser-profile/technical.md:111`) says TC-005 is covered by factory gates and review, with no test file.\n\n**Suggested work:** Delete the test and the `go/ast`, `go/format`, `go/parser` and `go/token` imports. TC-001 to TC-003 already prove FR-AMZ-BPROF-008/009 through behaviour."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: TestBrowserProfile_Issue197_TC004 (browser_profile_values_test.go:237) mostly repeats the existing TestBrowserProfile_TC006 (browser_profile_test.go:712). That test already checks the logged start failure, zero launches, the kept lock content and assertNothingLeft, and it runs unchanged as TC-004 requires. The extra test is redundant but harmless, and TC-004 is still proven by the existing tests, so this is not a blocker.",
+    "title": "Drop the duplicate TC-004 stub test of issue #197",
+    "todo": "**Problem:** `TestBrowserProfile_Issue197_TC004_UndiscardableLockIsAStartFailure` (`internal/amazon/browser_profile_values_test.go:231-265`) is a stub-browser near-copy of `TestBrowserProfile_TC006_LockThatCannotBeDiscardedIsAFailure` (`internal/amazon/browser_profile_test.go:712`). The technical specification (`technical.md:110`) defines TC-004 as the existing `TestBrowserProfile_*` tests run unchanged, with no new test. Its subtest is also weaker than the original: it only asserts a failed check (the stub exits 3), not the price returned by the later check.\n\n**Suggested work:** Remove the test and rely on the existing TC-006/TC-008 of issue #180. If the extra nil-cleanup check is worth keeping, fold it into a comment that points to TC-006 instead of duplicating the scenario."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Confirmed: in the 'TC-003 temporary profile' subtest (browser_profile_values_test.go:210-228), the directory under os.TempDir() is removed only by the explicit cleanup() on line 224. If an earlier t.Fatal fires, the directory stays behind. That only happens on a test failure and only leaves a stray temporary directory, so this is a nit.",
+    "title": "Register removal of the temporary profile in the TC-003 test of issue #197",
+    "todo": "**Problem:** In `internal/amazon/browser_profile_values_test.go:210-228` (subtest \"TC-003 temporary profile\"), the `pricefollower-browser-*` directory created under `os.TempDir()` is removed only by the explicit `cleanup()` call on line 224. A `t.Fatal` on line 213, 216 or 222 leaves it behind.\n\n**Suggested work:** Right after the `profileOf(\"\")` call, add `t.Cleanup(func() { if path != \"\" { os.RemoveAll(path) } })`. Keep the explicit `cleanup()` call that the test asserts."
+  }
+]
