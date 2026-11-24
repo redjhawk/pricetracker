@@ -82,7 +82,7 @@ func sessionToken(r *http.Request) string {
 
 func setSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: value, Path: "/", MaxAge: maxAge,
-		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil})
+		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureRequest(r)})
 }
 
 func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +185,16 @@ func allowMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 
 // clientAddress returns the client address of login limits: the CF-Connecting-IP header when it is
 // a bare IP address (the application is only reachable through Cloudflare), else the connection host.
+// secureRequest reports whether the request reached the application over HTTPS: directly over TLS,
+// or through the reverse proxy, whose first X-Forwarded-Proto entry is https (trusted like CF-Connecting-IP).
+func secureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	proto, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+	return strings.EqualFold(strings.TrimSpace(proto), "https")
+}
+
 func clientAddress(r *http.Request) string {
 	if addr, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("CF-Connecting-IP"))); err == nil {
 		return addr.WithZone("").Unmap().String()

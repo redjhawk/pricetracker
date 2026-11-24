@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/httpapi/auth.go",
+    "line": 188,
+    "category": "readability",
+    "body": "secureRequest and its comment were inserted between the existing doc comment of clientAddress (lines 186-187) and clientAddress itself. The two comment blocks now form one contiguous block, so secureRequest's doc starts with 'clientAddress returns the client address of login limits...' and clientAddress (line 198) has no doc comment at all. Fix: move the clientAddress comment back directly above `func clientAddress`, or put secureRequest (with its own comment) after clientAddress, separated by a blank line."
+  }
+]

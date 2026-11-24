@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: in internal/httpapi/auth.go lines 186-189 the clientAddress doc comment now sits directly above secureRequest, merging the two comments, and clientAddress (line 198) has no doc comment. This only misplaces documentation and changes no behaviour, so it does not block the merge.",
+    "title": "Restore the clientAddress doc comment in auth.go",
+    "todo": "**Problem:** In `internal/httpapi/auth.go` (lines 186-198) the new `secureRequest` function and its comment were inserted between the doc comment of `clientAddress` and `func clientAddress`. Now `secureRequest`'s doc comment starts with the `clientAddress` text, and `clientAddress` has no doc comment.\n\n**Suggested work:** Move the two `clientAddress` comment lines (186-187) back directly above `func clientAddress` (line 198), leaving `secureRequest` with only its own comment and a blank line between the two functions. Do not change any behaviour."
+  }
+]

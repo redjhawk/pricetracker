@@ -491,6 +491,7 @@ Agent-defined from [the technical specification](doc/specifications/multi-user-l
 
 - Mode is `open` while no regular user exists, `protected` from the first created user onwards.
 - Session: HttpOnly cookie `pricefollower_session` (`SameSite=Lax`, `Path=/`), set by login, valid 30 days from login, not extended, ended by logout.
+- Since 2026-11-24 (issue #268, [technical spec](doc/specifications/session-cookie-security/technical.md)): the cookie set by login and the clearing cookie of logout carry `Secure` when the request is HTTPS: received over TLS by the server, or carrying an `X-Forwarded-Proto` header whose first header's first comma-separated entry is `https` (case-insensitive, surrounding spaces ignored). Otherwise no `Secure`, so plain HTTP in development keeps working. The header is trusted because the application is reachable only through Cloudflare. No other cookie attribute, request or response changes.
 - `/api/v1/auth/*` is always reachable.
 - A logged-in `admin` may call only `/api/v1/auth/*` and `/api/v1/admin/*`; any other endpoint returns `403 FORBIDDEN`, in both modes.
 - `/api/v1/admin/*` returns `401 AUTH_REQUIRED` without an admin session and `403 FORBIDDEN` for a regular user.

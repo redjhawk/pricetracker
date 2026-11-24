@@ -32,7 +32,7 @@ Installing the release on the server is outside this repository: the server chec
 
 The service user must be able to write the data directory (`PRICEFOLLOWER_DATA_DIR`). It holds the SQLite database and the browser profile used for Amazon checks, `amazon-browser/`.
 
-Login limits count failed attempts per client address, which the server takes from the `CF-Connecting-IP` header when present, so the server must only be reachable through Cloudflare.
+Login limits count failed attempts per client address, which the server takes from the `CF-Connecting-IP` header when present, and the session cookie is marked `Secure` when the request carries `X-Forwarded-Proto: https` (set by Cloudflare), so the server must only be reachable through Cloudflare.
 
 ### Browser for Amazon checks
 
