@@ -10,7 +10,7 @@ Obtain an AI (Claude) review of each LeBoncoin item and show it on the item deta
 
 Included: automatic review when a LeBoncoin item is added and when its recorded price changes; manual refresh; sending all listing information to the AI; structured review; review history; pending, empty and error states.
 
-Excluded: Amazon items; showing reviews in the items list; notifications; contacting sellers; automatic review of items added before this feature.
+Excluded: Amazon items (issue #305 adds Amazon reviews, amending the last sentence of FR-LBC-AIR-004: see [Amazon item AI review](../amazon-item-ai-review/functional.md)); showing reviews in the items list; notifications; contacting sellers; automatic review of items added before this feature.
 
 ## Requirements
 
