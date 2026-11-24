@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181.
 
 ## Design
 
@@ -115,6 +115,20 @@ No code changes. On `master`, `TestAmazonBrowserInterrupted_TC005_ServerStopDuri
 
 Refactoring: none.
 
+### TC-006 failure statuses match the specification (issue #181)
+
+No code changes. Two lines of the issue #168 test case document (`doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md`) change, so that it matches FR-AMZ-HCHK-012 and the tests already on `master`:
+
+- **TC-006, Given line.** `HTTP 404 for the product page` becomes `HTTP 403 for the product page`. The line then reads: "Given a fixture server answering, in separate sub-tests, HTTP 503, HTTP 403 for the product page, and HTTP 200 with an Amazon robot-check (captcha) page". These are the three sub-tests of `TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures` (`internal/amazon/browser_test.go`: `HTTP 503`, `HTTP 403`, `robot check`). The rest of the entry is unchanged and holds no `404` or `410`.
+- **TC-004, Corner cases line.** After the three existing corner cases, unreworded, the line gains `; product page answered with HTTP 404 or HTTP 410 gives "listing unavailable" (an Amazon answer, not a failure)`. This is what `classifyPage` does (404 and 410 → `unavailable` / `unavailableMessage`) and what the tests prove: the `product page answering 404` sub-test of `TestBrowserCollector_TC004_ResultsMatchTheParser`, and for 410 `TestBrowserErrorPage_TC001_EmptyUnavailablePageSendsNoUsedOfferRequest` and `TestBrowserEmptyErrorStatus_Issue185_TC003_ClassifiedByStatus`.
+
+- **Who edits (technical specification stage).** Only the `docs` tool profile (`Edit(doc/**)`: specification, use cases, test cases, technical specification) may edit `doc/changes/`. The tests and development stages (`code` profile) may write only `doc/specifications/` under `doc/`. So this stage makes both edits, as issue #241 did for `doc/todo/`, and they land in the technical specification commit. `prepare_tests` resets only paths outside `doc/` and `tests/`, so the edit survives the later stages.
+- **Unchanged.** The issue #168 `tests.lock` (it hashes test and gate files, not `testcases.md`, and the factory checks only the running issue's lock); every other file and test case of the issue #168 folder; `internal/amazon/browser_test.go` and all other code; the amazon-human-checks specifications; `doc/todo/issue-168-r1-04.md`, which stays as it is (FR-TEST-HYG-032).
+- **Tests stage.** No test code is written: the change edits a document, and the existing tests already prove the behaviour it describes. The stage writes `<change folder>/no-tests.md` giving that reason and where each TC is proved (see the mapping below); the red gate is then skipped.
+- **Development stage.** No code. It sets FR-TEST-HYG-030–032 and TS-TEST-HYG-035–037 to implemented, runs the gates and the repository checks of TC-001 to TC-004, and restores any file outside `doc/` that differs from `master`. If the issue #168 document does not hold the two edits, it cannot fix them (no `doc/changes/` access) and stops with `blocked.md`, `Category: owner`.
+
+Refactoring: none.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -124,6 +138,7 @@ Refactoring: none.
 - Issue #241 deletes one file under `doc/todo/` and closes a GitHub issue. Frontend, backend and API: not affected, as no file outside `doc/` changes; `API_SPECIFICATION.md` is unchanged.
 - Issue #185 adds two `_test.go` files. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change; the tests run the existing code on a temporary SQLite file and a local `amazontest` server. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #238 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (TC-005 is kept as it is on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
+- Issue #181 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (the status classification of FR-AMZ-HCHK-012 and its tests stay as on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -163,6 +178,9 @@ Refactoring: none.
 | TS-TEST-HYG-032 | FR-TEST-HYG-028 | The guard's `default` branch goes on to the unchanged `cancel()`, 20 s wait and assertions; TC-005 passes on repeated runs. |
 | TS-TEST-HYG-033 | FR-TEST-HYG-019, FR-TEST-HYG-029 | The factory's pull request body `Closes #238` closes the issue as completed at the merge; no manual close. |
 | TS-TEST-HYG-034 | FR-TEST-HYG-029 | No file outside `doc/` changes; `internal/httpapi/amazon_browser_interrupted_test.go` is not edited, and the mutation is never committed. |
+| TS-TEST-HYG-035 | FR-TEST-HYG-030 | The technical specification stage replaces `HTTP 404` with `HTTP 403` in the Given line of TC-006 in the issue #168 `testcases.md`; no other line of the entry changes, so it holds no `404` or `410` and its three cases match the three sub-tests of `TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures`. |
+| TS-TEST-HYG-036 | FR-TEST-HYG-031 | The same stage appends the corner case `product page answered with HTTP 404 or HTTP 410 gives "listing unavailable" (an Amazon answer, not a failure)` to the Corner cases line of TC-004, after the three existing ones, unreworded. |
+| TS-TEST-HYG-037 | FR-TEST-HYG-032 | Only those two lines of the issue #168 folder change; no file outside `doc/` and nothing under `doc/todo/` changes; the tests stage writes `no-tests.md` and the development stage writes no code, so `go vet ./...` and `go test ./...` run the same code as on `master`. |
 
 ## Files to change
 
@@ -190,8 +208,22 @@ Refactoring: none.
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #185) | set the status of FR-TEST-HYG-022–026 and TS-TEST-HYG-025–030 to implemented |
 | `doc/changes/2026-11-23-2118-issue-238-tc-005-fail-if-the-check-ended-before-th/no-tests.md` | tests (issue #238) | explain why no test is written (the guard exists on `master`); record the mutation run and its failure output; where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #238) | set the status of FR-TEST-HYG-027–029 and TS-TEST-HYG-031–034 to implemented; FR-TEST-HYG-019 closed by the merge |
+| `doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md` | technical specification (issue #181) | TC-006 Given line: `HTTP 404` → `HTTP 403`; TC-004 Corner cases line: add the 404/410 "listing unavailable" corner case (done in this stage) |
+| `doc/changes/2026-11-24-0350-issue-181-correct-tc-006-to-use-a-non-404-410-http/no-tests.md` | tests (issue #181) | explain why no test is written (document correction, behaviour already tested) and where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #181) | set the status of FR-TEST-HYG-030–032 and TS-TEST-HYG-035–037 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. No test file is deleted.
+
+## Test case mapping (issue #181)
+
+No test file is added or changed: the tests stage writes `no-tests.md`, and the cases are repository checks and runs of the existing suites. `<168 doc>` is `doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md`.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Repository check: the TC-006 entry of `<168 doc>` (from `### TC-006` to the next `###`) has no `404` or `410` and names HTTP 503, HTTP 403 for the product page and the robot-check page; `git diff master -- <168 doc>` shows, in that entry, only the Given line changed; the sub-test names in `TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures` are `HTTP 503`, `HTTP 403`, `robot check` |
+| TC-002 | Repository check: the TC-004 Corner cases line of `<168 doc>` holds the three existing corner cases unchanged followed by the HTTP 404 or HTTP 410 "listing unavailable" case; `git diff master -- <168 doc>` shows, in that entry, only that line changed. Agreement with the tests: the `product page answering 404` sub-test of `TestBrowserCollector_TC004_ResultsMatchTheParser`, and the 410 tests named under Conventions in `testcases.md` |
+| TC-003 | Repository check: `git diff --name-status master -- doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n` lists only `M <168 doc>`, and `git diff master -- <168 doc>` has exactly two changed lines, inside the TC-004 and TC-006 entries |
+| TC-004 | Repository check: `git diff --name-status master -- . ':!doc'` and `git diff --name-status master -- doc/todo` are empty. `go test -count=1 -run 'TestBrowserCollector_TC004\|TestBrowserCollector_TC006' ./internal/amazon/` passes. Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`) |
 
 ## Test case mapping (issue #238)
 
@@ -348,3 +380,4 @@ Issue #208 cases (unchanged record):
 - Issue #241: after the merge, the owner closes issue #238 as completed (`gh issue close 238 --reason completed`, see TS-TEST-HYG-022). No test depends on it; TC-002 checks it afterwards. Replaced by issue #238: its own merge closes it (TS-TEST-HYG-033).
 - Issue #238: none. The pull request closes the issue at the merge; no CI or `scripts/` change is needed.
 - Issue #185: none. The tests run in `go test ./...`, and the gate environment already has Chromium for the browser test.
+- Issue #181: none. The document edit is made in the technical specification stage; no CI or `scripts/` change is needed.

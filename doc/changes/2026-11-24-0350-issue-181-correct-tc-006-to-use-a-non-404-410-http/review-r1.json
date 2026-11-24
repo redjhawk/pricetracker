@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 52,
+    "category": "nit",
+    "body": "Once this PR merges, `doc/todo/issue-168-r1-04.md` will still say `Status: todo` for work the PR has finished. This is the kind of stale record issue #241 had to clean up for `doc/todo/issue-233-r1-03.md`. Since then, a `Status: done` precedent exists (`doc/todo/issue-233-r3-01.md`), so the #241 reasoning that \"no follow-up record uses a 'done' status\" no longer holds. The exclusion is deliberate and the issue does not ask for it, so this does not block. Suggested fix: have triage open a follow-up, or have a later docs-profile change mark the record done, so `doc/todo/` does not keep listing finished work."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 124,
+    "category": "nit",
+    "body": "A stray blank line between the `TC-004, Corner cases line` bullet and the `Who edits` bullet splits the list in two, so it renders as a loose list. The other sections of this file write their bullet lists without blank lines. Suggested fix: remove the blank line so the six bullets form one list."
+  }
+]

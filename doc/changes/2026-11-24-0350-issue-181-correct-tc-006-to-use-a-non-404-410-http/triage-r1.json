@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "`doc/todo/issue-168-r1-04.md` still says `Status: todo`, and the functional specification's issue #181 exclusion (functional.md line 52) deliberately leaves it as it is, since the issue does not ask for that change. The reviewer's claimed precedent is wrong: `doc/todo/issue-233-r3-01.md` line 3 says `Status: todo` and mentions `Status: done` only as a suggestion. Keeping the record up to date is housekeeping, not a defect in this PR.",
+    "title": "Close the finished follow-up record doc/todo/issue-168-r1-04.md",
+    "todo": "**Problem:** After PR #297 (issue #181) merges, `doc/todo/issue-168-r1-04.md` (line 3, `Status: todo`) still lists the TC-006/TC-004 correction as open, although the PR made it. Issue #181 excluded the record on purpose (`doc/specifications/test-suite-hygiene/functional.md` line 52).\n\n**Suggested work:** In a docs-profile change, delete `doc/todo/issue-168-r1-04.md`, following the issue #241 precedent (FR-TEST-HYG-018). Git history keeps the file. Confirm that GitHub issue #181 is closed as completed. Note: no record under `doc/todo/` uses `Status: done` yet (`doc/todo/issue-233-r3-01.md` only suggests it), so deleting the record keeps the current convention."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: `doc/specifications/test-suite-hygiene/technical.md` line 124 is a blank line between the `TC-004, Corner cases line` bullet (line 123) and the `Who edits` bullet (line 125), so the list renders as a loose list. This only affects how the Markdown renders. The content is correct.",
+    "title": "Remove stray blank line in the issue #181 bullet list of test-suite-hygiene technical.md",
+    "todo": "**Problem:** In `doc/specifications/test-suite-hygiene/technical.md`, section \"TC-006 failure statuses match the specification (issue #181)\", line 124 is a blank line that splits the bullet list between `TC-004, Corner cases line` (line 123) and `Who edits` (line 125). The list then renders as a loose list, while the file's other bullet lists have no blank lines.\n\n**Suggested work:** Delete the blank line at line 124 so the bullets form one tight list."
+  }
+]
