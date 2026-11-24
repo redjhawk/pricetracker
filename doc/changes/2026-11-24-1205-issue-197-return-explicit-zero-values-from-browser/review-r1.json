@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/browser_profile_values_test.go",
+    "line": 269,
+    "category": "test",
+    "body": "TestBrowserProfile_Issue197_TC005_ProfileUsesTheExplicitForm parses browser.go and compares the gofmt text of profile() with hard-coded strings, down to the temporary branch's log message \"remove temporary browser profile: %v\". This tests the shape of the source, not its behaviour. Any later legitimate edit to profile() will fail it: wrapping an error, renaming `directory`, rewording the log, or extracting the persistent branch into a helper. TC-001 to TC-003 already prove FR-AMZ-BPROF-008/009 through behaviour. It also contradicts the technical specification: TS-AMZ-BPROF-007 and the issue #197 test table say TC-005 is covered by \"factory gates and review\" with \"No test file\", and the new file is listed for TC-001 to TC-003 only. Fix: remove this test and the go/ast, go/format, go/parser and go/token imports, and leave TC-005 to the gates and review as specified."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser_profile_values_test.go",
+    "line": 237,
+    "category": "simplify",
+    "body": "TestBrowserProfile_Issue197_TC004_UndiscardableLockIsAStartFailure is a stub-browser near-copy of the existing TestBrowserProfile_TC006_LockThatCannotBeDiscardedIsAFailure (browser_profile_test.go:712). That test already checks that a SingletonLock/keep directory gives assertCheckFailed, logs \"browser could not start\", launches no browser (launches() == 0), keeps the directory content, and lets the later check succeed after writeStaleLock. It does this with the real browser and also checks that nothing is left behind (assertNothingLeft). The technical specification defines TC-004 as the existing `TestBrowserProfile*` tests run unchanged, with no new test. The duplicate's subtest is also weaker than the original: it only asserts a failed check (the stub exits 3), whereas testcases.md TC-004 says the later check \"returns the price\". Fix: drop this test and rely on the existing TC-006/TC-008 as the specification says."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/amazon/browser_profile_values_test.go",
+    "line": 211,
+    "category": "nit",
+    "body": "In the \"TC-003 temporary profile\" subtest, the directory created under os.TempDir() is removed only by the explicit cleanup() call at line 224. If a t.Fatal on line 213, 216 or 222 fires first, a pricefollower-browser-* directory stays behind in the system temp folder. Register the removal right after the call (for example `t.Cleanup(func() { os.RemoveAll(path) })` when path != \"\"), keeping the explicit cleanup() call that the test asserts."
+  }
+]

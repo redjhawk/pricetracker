@@ -351,7 +351,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
 | Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168); FR-AMZ-HCHK-011–012 specified (issue #186); FR-AMZ-HCHK-013 specified (issue #187); FR-AMZ-HCHK-014 specified (issue #217); FR-AMZ-HCHK-015 specified (issue #233) |
-| Amazon browser profile recovery | [amazon-browser-profile](specifications/amazon-browser-profile/functional.md) | specified (issue #180) |
+| Amazon browser profile recovery | [amazon-browser-profile](specifications/amazon-browser-profile/functional.md) | specified (issue #180); FR-AMZ-BPROF-008–010 specified (issue #197, maintenance: when the persistent profile's stale lock cannot be discarded, the Amazon browser's profile setup returns an empty path and no cleanup with the error, like its other failure branch; no behaviour change) |
 | Amazon browser retrieval | [amazon-browser-retrieval](specifications/amazon-browser-retrieval/functional.md) | specified (issue #204); FR-AMZ-BRET-008 specified (issue #226) |
 | Amazon thumbnail URLs | [amazon-thumbnail-urls](specifications/amazon-thumbnail-urls/functional.md) | specified (issue #275: an Amazon check records as thumbnail only an HTTPS URL on `m.media-amazon.com` or `images-eu.ssl-images-amazon.com`, otherwise no thumbnail) |
 | GitHub release | [github-release](specifications/github-release/functional.md) | specified (operations) |
