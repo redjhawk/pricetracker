@@ -85,6 +85,8 @@ async function mockApi(context: BrowserContext, session: Session = activeSession
       return route.fulfill(reply);
     };
     if (url.pathname === "/api/v1/auth/session") return fulfill({ json: { mode: "open", user: null } });
+    // Issue #304: the add form and the details page load the existing purchase goals.
+    if (url.pathname === "/api/v1/purchase-goals") return route.fulfill({ json: { purchaseGoals: [] } });
     const method = request.method();
     const path = url.pathname + url.search;
     if (method === "GET" && path === "/api/v1/items") {

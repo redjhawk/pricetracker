@@ -3,9 +3,15 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"strings"
 )
+
+// PurchaseGoals returns the requester's existing purchase goals in display order.
+func (s *Service) PurchaseGoals(ctx context.Context) ([]string, error) {
+	return nil, errors.New("not implemented")
+}
 
 // SetPurchaseGoal replaces a LeBoncoin item's purchase goal. A changed goal
 // requests a new AI review; if one is running, another runs after it.
