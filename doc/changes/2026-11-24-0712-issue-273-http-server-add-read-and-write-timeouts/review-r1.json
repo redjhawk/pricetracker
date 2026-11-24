@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "API_SPECIFICATION.md",
+    "line": 706,
+    "category": "spec",
+    "body": "The contract (and FR-HTTP-TMO-001) says a request not fully received within 15 s gets 'no response, and the request is not handled (nothing saved or started)'. abortLateBodies can only enforce that when the handler reads the body. net/http calls the handler as soon as the headers arrive, and endpoints that take no body never read it: `POST /api/v1/items/refresh`, `POST /api/v1/items/{id}/refresh`, `POST /api/v1/items/{id}/ai-review` and `DELETE` (server.go:94-129). Failure scenario: a client sends `POST /api/v1/items/I1/refresh` with `Content-Length: 10` and the body one byte per second. RefreshItem starts at once. When the handler returns, net/http tries to discard the unread body before writing the header, hits the 15 s read deadline, and still sends the 202 with `Connection: close` at about 15 s. So the work is started and a response is sent, which is the opposite of the documented row. Suggested fix: document it, with no code change. Write that the 15 s 'not handled' guarantee covers endpoints that read a request body, and that endpoints without one are handled once the headers arrive. Change this row and FR-HTTP-TMO-001 / UC-HTTP-TMO-001 the same way. If the stricter behaviour is wanted, refusing a non-empty body on body-less endpoints would be a functional decision for the user."
+  },
+  {
+    "id": "R1-02",
+    "file": "API_SPECIFICATION.md",
+    "line": 705,
+    "category": "spec",
+    "body": "This row says that when the request headers are not received within 5 s, 'The connection is closed; no response.' That is not what Go does, and the test admits it. testSlowHeaders (http_server_limits_test.go:584-588) accepts Go's plain `HTTP/1.1 400 Bad Request`. bufio.Reader.ReadLine returns the partial request line with a nil error when the deadline fires, so textproto parses a malformed line and net/http answers 400. TC-012 (testcases.md:186, 'closed ... with no response') says the same as this row, so the documented contract and the test case contradict the behaviour the test asserts. Suggested fix: change the row to say the connection is closed with no response, or Go's plain-text `400 Bad Request` when part of a request line has arrived. Note it with the 431 bullet as a second non-JSON answer from net/http, and align TC-012's expected result."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/changes/2026-11-24-0712-issue-273-http-server-add-read-and-write-timeouts/testcases.md",
+    "line": 90,
+    "category": "test",
+    "body": "TC-005's Given says 'the raw client sets a 4 KiB receive buffer', and technical.md:143 says to use `(*net.TCPConn).SetReadBuffer(4096)`. testUnreadResponseIsCutOff deliberately does not do this, because of TCP zero-window probes (comment at http_server_limits_test.go:263-265). It also accepts a first failed write from 59 s, while the Then says 60-65 s; only the corner case mentions 59 s. The implementation is reasonable, but the test case and the technical specification no longer describe the test that proves them. Suggested fix: drop the 4 KiB receive-buffer clause from TC-005 and technical.md, and state the [59 s, 65 s] tolerance in the Then line."
+  },
+  {
+    "id": "R1-04",
+    "file": "doc/specifications/http-server-timeouts/technical.md",
+    "line": 135,
+    "category": "nit",
+    "body": "The technical spec says 'each long subtest calls `t.Parallel()`'. The test instead uses runConcurrently, which calls t.Run from goroutines and has no t.Parallel, because the GOMAXPROCS limit would otherwise queue the waits (http_server_limits_test.go:142-154). Update this sentence so the spec matches the test structure."
+  }
+]
