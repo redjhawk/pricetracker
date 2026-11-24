@@ -3,14 +3,31 @@ package service
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
+	"slices"
 	"strings"
 )
 
-// PurchaseGoals returns the requester's existing purchase goals in display order.
+// PurchaseGoals returns the requester's existing purchase goals in display order:
+// letter case ignored, then the exact text.
 func (s *Service) PurchaseGoals(ctx context.Context) ([]string, error) {
-	return nil, errors.New("not implemented")
+	stored, err := s.store.PurchaseGoals(ctx, ownerFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
+	goals := make([]string, 0, len(stored))
+	for _, goal := range stored {
+		if strings.TrimSpace(goal) != "" {
+			goals = append(goals, goal)
+		}
+	}
+	slices.SortFunc(goals, func(a, b string) int {
+		if order := strings.Compare(strings.ToLower(a), strings.ToLower(b)); order != 0 {
+			return order
+		}
+		return strings.Compare(a, b)
+	})
+	return goals, nil
 }
 
 // SetPurchaseGoal replaces a LeBoncoin item's purchase goal. A changed goal

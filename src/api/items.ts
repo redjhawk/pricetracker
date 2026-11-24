@@ -118,6 +118,11 @@ export function savePurchaseGoal(id: string, purchaseGoal: string): Promise<{ pu
   });
 }
 
+export async function listPurchaseGoals(): Promise<string[]> {
+  const response = await request<{ purchaseGoals: string[] }>("/api/v1/purchase-goals");
+  return response.purchaseGoals;
+}
+
 export function requestAiReview(id: string): Promise<{ requestedAt: string; alreadyRunning: boolean }> {
   return request<{ requestedAt: string; alreadyRunning: boolean }>(`/api/v1/items/${encodeURIComponent(id)}/ai-review`, { method: "POST" });
 }

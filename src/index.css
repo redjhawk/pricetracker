@@ -510,6 +510,12 @@ input {
   margin-block: var(--cds-spacing-07);
 }
 
+.purchase-goal-choice {
+  display: grid;
+  gap: var(--cds-spacing-05);
+  min-width: 0;
+}
+
 .purchase-goal-actions {
   display: flex;
   gap: var(--cds-spacing-04);

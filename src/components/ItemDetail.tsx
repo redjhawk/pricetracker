@@ -184,7 +184,7 @@ export default function ItemDetail({
       </div>
 
       {item.platform === "leboncoin" && (
-        <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+        <PurchaseGoal key={item.id} itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
       )}
 
       {item.platform === "leboncoin" && item.aiReview && (
