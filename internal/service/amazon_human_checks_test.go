@@ -752,6 +752,9 @@ func TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning(t *testing.T)
 			t.Fatal(err)
 		}
 		waitStarted(t, recorder.started)
+		if err := database.SetNextCheck(ctx, id, now.Now().Add(-time.Minute)); err != nil {
+			t.Fatal(err)
+		}
 		service.collectDue(ctx)
 		close(recorder.block)
 		waitIdle(t, service)

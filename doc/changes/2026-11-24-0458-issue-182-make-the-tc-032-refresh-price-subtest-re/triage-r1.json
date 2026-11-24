@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: technical.md line 169 and the Files to change row (line 265) require the development stage to set FR-TEST-HYG-033–036 and TS-TEST-HYG-038–043 to implemented, but functional.md line 3 still says 'specified (issue #182)' and technical.md line 3 'ready (issue #182)', unlike every earlier issue in this spec. The doc/FUNCTIONAL_SPECIFICATIONS.md row does not need changing: every issue in that row, including the implemented ones, is recorded as 'specified'.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: the header comment at internal/service/amazon_human_checks_issue182_test.go:10-11 says TC-001 to TC-003 are in the TC-032 test and then calls TC-002 a no-tests.md check. This only affects a comment; the tests themselves are correct.",
+    "title": "Fix the TC list in the issue #182 test file header comment",
+    "todo": "**Problem:** The header comment in `internal/service/amazon_human_checks_issue182_test.go` (lines 10-11) says \"TC-001 to TC-003 are in TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning\" and then says TC-002 is a check recorded in no-tests.md. TC-002 is a mutation check (see the issue #182 `testcases.md` and `no-tests.md`), not part of TC-032.\n\n**Suggested work:** Change the comment to: \"TC-001 and TC-003 are in TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning; TC-002, TC-005 and TC-006 are checks recorded in the change folder's no-tests.md.\""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Confirmed: no-tests.md line 19 refers to a delete.txt that the PR does not contain. `git diff --name-status master` shows no scratch overlay files and no production changes, so the wording is out of date but nothing is wrong in the code.",
+    "title": "Remove the stale delete.txt reference from the issue #182 no-tests.md",
+    "todo": "**Problem:** `doc/changes/2026-11-24-0458-issue-182-make-the-tc-032-refresh-price-subtest-re/no-tests.md` line 19 says \"The scratch files are listed in `delete.txt`\", but the pipeline used that file up and the change folder has no `delete.txt`. The `go test -overlay` method used there also differs from the Edit-and-revert method in the technical specification.\n\n**Suggested work:** Replace the sentence with \"The scratch overlay files were removed after the run.\" You can also note that the overlay method replaced the Edit-and-revert method of the technical specification and left the production files untouched."
+  }
+]

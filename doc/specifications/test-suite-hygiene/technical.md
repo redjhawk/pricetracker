@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182.
 
 ## Design
 
@@ -129,6 +129,47 @@ No code changes. Two lines of the issue #168 test case document (`doc/changes/20
 
 Refactoring: none.
 
+### Scheduled checks around a Refresh price (issue #182)
+
+Only Go test files of `internal/service/` change. The production code on `master` already behaves as FR-TEST-HYG-033 and FR-TEST-HYG-035 state:
+
+- `RefreshItem` calls `rescheduleOverdueAmazonCheck` before it reserves the item. When the stored due time of an Amazon item is not after the request time, that function draws a time in the next window (`nextAmazonCheckAt`).
+- `store.DueChecks` returns only items with `amazon_stopped_at IS NULL`, so a stopped item keeps its 07:00 due time through the 07:00 run.
+- `skipScheduledCheck`, for an Amazon item that is in flight (`active`), stores `nextCheckAt("amazon", now)` and returns `true`. This is the in-flight branch that the old subtest never reached.
+- `amazonGate.do` runs a manual check of a stopped item and, on any result other than `request_error`, calls `ClearAmazonStop`.
+- Neither a manual check nor `collectReserved` writes `next_check_at`, so after the Refresh price the due time is whatever `RefreshItem` or `skipScheduledCheck` stored.
+
+**TC-032 "Refresh price running"** (`internal/service/amazon_human_checks_test.go`). After `waitStarted(t, recorder.started)` and before `service.collectDue(ctx)`, insert the same step as the "first check after add running" subtest:
+
+```go
+if err := database.SetNextCheck(ctx, id, now.Now().Add(-time.Minute)); err != nil {
+	t.Fatal(err)
+}
+```
+
+The due time is then 07:04 while the Refresh price is still blocked, so `collectDue` at 07:05 finds the item due and `skipScheduledCheck` takes the in-flight branch. Nothing else changes: the item, the clock, seed 32, `close(recorder.block)`, `waitIdle`, the `calls(id) == 1` check and `assertScheduled` stay as they are. `assertScheduled` is read after `waitIdle`, and it fails on a past due time (`!next.After(now)`). The "first check after add running" subtest and the `assertScheduled` helper are not edited.
+
+**Restart after stop** (new file `internal/service/amazon_human_checks_issue182_test.go`, `package service`). The test case IDs of issue #182 repeat those of issue #168 in this package, so the name carries the issue number: `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice`. It uses only the existing helpers (`openHumanStore`, `insertAt`, `newClock`, `amazonRecorder`, `startHuman`, `stopped`, `nextCheck`, `waitIdle`, `windowOf`, `localDate`, `scheduleDay`, `paris`, `evening`) and none of them changes. Steps:
+
+1. Setup: `dir := t.TempDir()`, `database := openHumanStore(t, dir)`, `ctx := context.Background()`, `const id = "B000001821"`, `insertAt(t, database, id, "amazon", scheduleDay(7, 0))`, then `database.StopAmazonItems(ctx, scheduleDay(7, 0))`. Then `now := newClock(scheduleDay(7, 0))`, `recorder := &amazonRecorder{}` (each check succeeds through `succeeded()`), and `service := startHuman(t, database, dir, now, recorder, 182)`.
+2. Preconditions after the start: `stopped(t, database, id)` is true and `nextCheck` equals `scheduleDay(7, 0)`. This proves that the start did not restart or redraw the item.
+3. The 07:00 run: `service.collectDue(ctx)`. Then `recorder.total() == 0`, the item is still stopped, and `nextCheck` still equals `scheduleDay(7, 0)`.
+4. The 07:30 Refresh price: `now.Set(scheduleDay(7, 30))`, `service.RefreshItem(ctx, id)` (fail on error), `waitIdle(t, service)`. Then `stopped(...)` is false and `recorder.calls(id) == 1`.
+5. The 07:31 run: `now.Set(scheduleDay(7, 31))`, then `service.collectDue(ctx)` twice. The second call is the repeated run.
+6. Final checks: `recorder.calls(id) == 1` and `recorder.total() == 1`. Then `next := nextCheck(t, database, id)` has `windowOf(next, paris) == evening` and `localDate(next, paris) == "2030-03-05"`. Failure messages print the count and `next.In(paris)`.
+
+No `t.Parallel`, build tag or skip is used. The test does not capture the log.
+
+- **Tests stage.** It writes both test changes and runs `gofmt -l internal/service`, then `gofmt -w` on any listed file it changed. Both tests pass on `master` code because they test shipped behaviour, so the red phase cannot fail. The stage writes `<change folder>/no-tests.md`, which gives that reason, so the red gate is skipped. It then runs the mutation checks below and records each command and failure message in `no-tests.md`. Each mutation is reverted with `Edit`, and `git diff --quiet master -- internal/service/service.go internal/service/amazon_gate.go` must hold before the stage ends.
+- **Mutation checks (tests stage, never committed).**
+  1. TC-002: in `skipScheduledCheck`, after `now := s.now()`, insert `if active && item.Platform == "amazon" { return true }`. `go test -count=1 -run 'TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning/Refresh_price_running' ./internal/service/` must fail with `want a later window` (the due time stays 07:04). The stage first runs the same command with the mutation before it adds the `SetNextCheck` step. On the `master` subtest it passes, which shows that the old subtest did not reach the branch.
+  2. TC-005 a: in `RefreshItem`, replace `err = s.rescheduleOverdueAmazonCheck(ctx, id, requestedAt)` with `err = nil`. `go test -count=1 -run Issue182 ./internal/service/` must fail on the call count after the 07:31 run (2 checks).
+  3. TC-005 b: in `amazonGate.do`, remove the `if stopped { ClearAmazonStop … }` block. The same command must fail on the item still being stopped.
+  4. After each revert, the named test passes again.
+- **Development stage.** No code. It sets FR-TEST-HYG-033–036 and TS-TEST-HYG-038–043 to implemented, runs the gates and the repository checks of TC-003 and TC-006, and restores any file outside `doc/` that differs from `master` and is not one of the two test files.
+
+Refactoring: none. The restart test is a new test in its own file, not a new subtest of TC-032: its scenario (a stopped item, no check in flight) does not fit TC-032's "no duplicate while running" case. A separate file also leaves the issue #168 file's numbered tests unchanged apart from the one step.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -139,6 +180,7 @@ Refactoring: none.
 - Issue #185 adds two `_test.go` files. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change; the tests run the existing code on a temporary SQLite file and a local `amazontest` server. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #238 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (TC-005 is kept as it is on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
 - Issue #181 changes no file outside `doc/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected, as no Go file changes (the status classification of FR-AMZ-HCHK-012 and its tests stay as on `master`). API: not affected, `API_SPECIFICATION.md` is unchanged.
+- Issue #182 changes one `_test.go` file and adds another in `internal/service/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No service, store, validation, persistence, migration or concurrency change. The tests run the existing scheduler, gate and Refresh price code on a temporary SQLite file, with a fake clock and a fake Amazon collector. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -181,6 +223,12 @@ Refactoring: none.
 | TS-TEST-HYG-035 | FR-TEST-HYG-030 | The technical specification stage replaces `HTTP 404` with `HTTP 403` in the Given line of TC-006 in the issue #168 `testcases.md`; no other line of the entry changes, so it holds no `404` or `410` and its three cases match the three sub-tests of `TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures`. |
 | TS-TEST-HYG-036 | FR-TEST-HYG-031 | The same stage appends the corner case `product page answered with HTTP 404 or HTTP 410 gives "listing unavailable" (an Amazon answer, not a failure)` to the Corner cases line of TC-004, after the three existing ones, unreworded. |
 | TS-TEST-HYG-037 | FR-TEST-HYG-032 | Only those two lines of the issue #168 folder change; no file outside `doc/` and nothing under `doc/todo/` changes; the tests stage writes `no-tests.md` and the development stage writes no code, so `go vet ./...` and `go test ./...` run the same code as on `master`. |
+| TS-TEST-HYG-038 | FR-TEST-HYG-033 | In the TC-032 subtest "Refresh price running", `database.SetNextCheck(ctx, id, now.Now().Add(-time.Minute))` (07:04) runs after `waitStarted` and before `collectDue`. The check count of 1 and `assertScheduled` (a window, after 07:05), read after `waitIdle`, are unchanged. |
+| TS-TEST-HYG-039 | FR-TEST-HYG-033 (proof) | Mutation 1 (`return true` for an in-flight Amazon item before `SetNextCheck` in `skipScheduledCheck`) makes the changed subtest fail with `want a later window`, and the `master` subtest pass. Recorded in `no-tests.md`, then reverted. |
+| TS-TEST-HYG-040 | FR-TEST-HYG-034 | The "first check after add running" subtest, its name, seed 33 and `assertScheduled` are not edited. |
+| TS-TEST-HYG-041 | FR-TEST-HYG-035 | `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice` covers the scenario: the item is due at 07:00 and stopped at 07:00; the 07:00 run makes no check; the Refresh price at 07:30 restarts the item; the two 07:31 runs give one check in total and a next check in the evening window of 2030-03-05. |
+| TS-TEST-HYG-042 | FR-TEST-HYG-035 (proof) | Mutation 2 (`rescheduleOverdueAmazonCheck` not called by `RefreshItem`) fails the test on the call count. Mutation 3 (no `ClearAmazonStop` in `amazonGate.do`) fails it on the stop state. Recorded in `no-tests.md`, then reverted. |
+| TS-TEST-HYG-043 | FR-TEST-HYG-036 | Ordinary tests (no build tag, flag, skip or `t.Parallel`) run by `go test ./...`. `gofmt -l internal/service` is empty. The diff outside `doc/` is `M internal/service/amazon_human_checks_test.go` and `A internal/service/amazon_human_checks_issue182_test.go`, and no production file changes. |
 
 ## Files to change
 
@@ -211,8 +259,23 @@ Refactoring: none.
 | `doc/changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md` | technical specification (issue #181) | TC-006 Given line: `HTTP 404` → `HTTP 403`; TC-004 Corner cases line: add the 404/410 "listing unavailable" corner case (done in this stage) |
 | `doc/changes/2026-11-24-0350-issue-181-correct-tc-006-to-use-a-non-404-410-http/no-tests.md` | tests (issue #181) | explain why no test is written (document correction, behaviour already tested) and where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #181) | set the status of FR-TEST-HYG-030–032 and TS-TEST-HYG-035–037 to implemented |
+| `internal/service/amazon_human_checks_test.go` | tests (issue #182) | TC-032 "Refresh price running": add the `SetNextCheck` step after `waitStarted` |
+| `internal/service/amazon_human_checks_issue182_test.go` | tests (issue #182) | new: `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice` |
+| `doc/changes/2026-11-24-0458-issue-182-make-the-tc-032-refresh-price-subtest-re/no-tests.md` | tests (issue #182) | explain why the red phase is skipped (tests of shipped behaviour); record the three mutation checks and their failure messages; where TC-003 and TC-006 are proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #182) | set the status of FR-TEST-HYG-033–036 and TS-TEST-HYG-038–043 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. No test file is deleted.
+
+## Test case mapping (issue #182)
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | `internal/service/amazon_human_checks_test.go`: subtest `Refresh price running` of `TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning` (due time set to 07:04 after `waitStarted`, `collectDue` while blocked, one check, next check after 07:05 in a window, read after `waitIdle`) |
+| TC-002 | Mutation 1 (tests stage, recorded in `no-tests.md`): `go test -count=1 -run 'TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning/Refresh_price_running' ./internal/service/` fails on the changed subtest, passes on the `master` subtest, and passes again after the revert |
+| TC-003 | Subtest `first check after add running` of the same test, unchanged. Repository check: `git diff master -- internal/service/amazon_human_checks_test.go` shows only the added `SetNextCheck` step inside `Refresh price running`. `go test -count=1 -run 'TestAmazonHumanChecks_TC032_NoDuplicateCheckWhileOneIsRunning/first_check_after_add_running' ./internal/service/` passes |
+| TC-004 | `internal/service/amazon_human_checks_issue182_test.go`: `TestAmazonRestartAfterStop_Issue182_TC004_NoScheduledCheckAfterRefreshPrice` (no check at 07:00, restarted at 07:30, one check in total after two 07:31 runs, next check in the evening window of 2030-03-05) |
+| TC-005 | Mutations 2 and 3 (tests stage, recorded in `no-tests.md`): `go test -count=1 -run Issue182 ./internal/service/` fails with each mutation and passes after each revert |
+| TC-006 | Gates: `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (same test list as `master`). `go test -count=1 -v -run 'TestAmazonHumanChecks_TC032\|Issue182' ./internal/service/` lists both TC-032 subtests and the TC-004 test as `PASS`. Repository checks: `gofmt -l internal/service` prints nothing; `git diff --name-status master -- . ':!doc'` lists only the two test files of TS-TEST-HYG-043; `go test -list '.*' ./internal/service/` keeps every test name of `master` |
 
 ## Test case mapping (issue #181)
 
@@ -381,3 +444,4 @@ Issue #208 cases (unchanged record):
 - Issue #238: none. The pull request closes the issue at the merge; no CI or `scripts/` change is needed.
 - Issue #185: none. The tests run in `go test ./...`, and the gate environment already has Chromium for the browser test.
 - Issue #181: none. The document edit is made in the technical specification stage; no CI or `scripts/` change is needed.
+- Issue #182: none. The tests run in `go test ./...` and need no CI or `scripts/` change.
