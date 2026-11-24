@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/service/settings.go",
+    "line": 76,
+    "category": "spec",
+    "body": "API_SPECIFICATION.md (\"LeBoncoin session input\" and \"Save settings\") says an empty or whitespace-only `leboncoinSession.value` leaves the session unchanged, and the technical spec maps a blank value to untouched. `sessionChangeFor` hands the raw value to `leboncoin.ParseSessionInput`, but that function checks `len(raw) > 8192` before it trims. So `{\"leboncoinSession\":{\"value\":\"<9000 spaces>\",\"revision\":r}}`, which fits within the 32 768-byte body limit, returns `400 INVALID_SESSION` (\"The pasted text is too long\") instead of `200` with the session untouched. The frontend trims before it sends, so the impact is low, but the server breaks its own contract. Suggested fix: in `sessionChangeFor`, return `nil, nil` when `strings.TrimSpace(input.Value) == \"\"` before calling `ParseSessionInput`, the same way `tokenChangeFor` trims first. Add a case with a long whitespace-only value to TC-005/TC-007."
+  }
+]
