@@ -22,6 +22,17 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-IM-01 — Add a listing](item-management/UC-IM-01-add-listing.md)
 - [UC-IM-02 — Delete a tracked item](item-management/UC-IM-02-delete-tracked-item.md)
 
+## Purchase goal choice
+
+- [UC-GOAL-CHOICE-001 — Add a LeBoncoin item with an existing purchase goal](purchase-goal-choice/UC-GOAL-CHOICE-001-add-leboncoin-item-with-existing-goal.md)
+- [UC-GOAL-CHOICE-002 — Add a LeBoncoin item with a new purchase goal when no existing goal fits](purchase-goal-choice/UC-GOAL-CHOICE-002-add-leboncoin-item-with-new-goal.md)
+- [UC-GOAL-CHOICE-003 — Enter a purchase goal when no existing goal is available](purchase-goal-choice/UC-GOAL-CHOICE-003-enter-first-goal-without-existing-goals.md)
+- [UC-GOAL-CHOICE-004 — Change an item's purchase goal on its details page](purchase-goal-choice/UC-GOAL-CHOICE-004-change-goal-on-details-page.md)
+- [UC-GOAL-CHOICE-005 — Adapt a goal used by several items for one item only](purchase-goal-choice/UC-GOAL-CHOICE-005-adapt-shared-goal-text-for-one-item.md)
+- [UC-GOAL-CHOICE-006 — A goal leaves the list once no item uses it](purchase-goal-choice/UC-GOAL-CHOICE-006-goal-leaves-list-when-no-item-uses-it.md)
+- [UC-GOAL-CHOICE-007 — Add an Amazon item while a goal is chosen](purchase-goal-choice/UC-GOAL-CHOICE-007-add-amazon-item-with-goal-chosen.md)
+- [UC-GOAL-CHOICE-008 — View the goal of an item shared by another user](purchase-goal-choice/UC-GOAL-CHOICE-008-view-goal-of-shared-item.md)
+
 ## Responsive layout
 
 - [UC-RL-01 — Use the full screen width on every page below desktop width](responsive-layout/UC-RL-01-use-full-width-on-every-page-below-desktop.md)
