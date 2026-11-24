@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295); TS-TEST-HYG-048–055 implemented (issue #195); TS-TEST-HYG-056–060 implemented (issue #312); TS-TEST-HYG-061–068 implemented (issue #315)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295, issue #195, issue #312, issue #315.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295); TS-TEST-HYG-048–055 implemented (issue #195); TS-TEST-HYG-056–060 implemented (issue #312); TS-TEST-HYG-061–068 implemented (issue #315); TS-TEST-HYG-069–073 ready (issue #324)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295, issue #195, issue #312, issue #315, issue #324.
 
 ## Design
 
@@ -443,6 +443,46 @@ if !held {
 
 Refactoring: splitting `runBrowserOnProfile` into the wrapper and `runBrowserOnProfileUntil`. Reason: a hold row must end its run on an event (the signal plus 2 s), not on a fixed time, while the process start, kill and result read stay shared with the fixture sanity check. Scope: that function in `browser_profile_test.go`; its two callers keep their calls (`assertBrowserRefusesProfile`, and the non-hold rows). Risk: low. The wrapper's `wait` does the same `select` as today, so the fixture sanity check behaves the same: 15 s from the browser's start, ending at once when the browser exits. The order of start, wait, kill and `<-exited` before reading the result does not change.
 
+### TC-003 removes its temporary profile however it ends (issue #324)
+
+Only the subtest "TC-003 temporary profile" of `TestBrowserProfile_Issue197_TC003_PreparedProfileReturnsItsPath` in `internal/amazon/browser_profile_values_test.go` changes. On `master`, the `pricefollower-browser-*` directory that `profileOf("")` creates under `os.TempDir()` is removed only by the explicit `cleanup()` call, so a `t.Fatal`/`t.Fatalf` before it (error, nil cleanup, not a directory) leaves it behind.
+
+**Added removal.** Right after `path, cleanup, err := profileOf("")`, before the first check, the subtest registers on its own `t`:
+
+```go
+path, cleanup, err := profileOf("")
+t.Cleanup(func() { // the temporary profile is removed however the subtest ends, after its checks (issue #324)
+	if path == "" || filepath.Clean(path) == filepath.Clean(os.TempDir()) {
+		return
+	}
+	if err := os.RemoveAll(path); err != nil {
+		t.Errorf("remove the temporary profile: %v", err)
+	}
+})
+```
+
+- `t.Cleanup` functions run once the subtest function has returned or stopped through `t.Fatal` (`runtime.Goexit`), so the removal always runs and always after every check, including the check that follows `cleanup()`. It therefore cannot make "the cleanup did not remove the temporary profile" pass (FR-TEST-HYG-053, FR-TEST-HYG-054). It is registered on the subtest's `t`, not the parent's, so it runs when this subtest ends.
+- It targets only `path`, the value returned by `profileOf("")`; `path` is not reassigned afterwards. An empty path removes nothing (FR-TEST-HYG-055). The system temporary folder itself is never removed even if a faulty `profile()` returned it; a `profile()` that does so already fails the location check (`temporary profile %q, want a new directory under %s`). No parent, glob or other path is touched.
+- On a normal run the collector's cleanup has already removed `path`, and `os.RemoveAll` of a missing path returns `nil`, so the removal adds no failure and no log (FR-TEST-HYG-056). The `t.Errorf` reports only a real removal failure (for example a permission error), which would otherwise be a silent leak; the inner `err` shadows the outer one only inside the closure.
+- Unchanged: the explicit `cleanup()` call, the `os.Stat` check after it and its message, the other checks and messages (`cleanup is nil`, `temporary profile %q, want a new directory under %s`, `the temporary profile was not created: %v`), the other subtests, `profileOf` and every helper. No import changes (`os`, `path/filepath` are already imported). `BrowserCollector.profile` in `internal/amazon/browser.go` is not edited, and neither is the source check of its body in the same test file.
+
+**Delivery (same as issues #195, #312 and #315).** The change is test code in the file that the TDD red commit locks, and a normal run passes before and after it. So the **tests stage** delivers the change above, `gofmt`-clean, and writes `<change folder>/no-tests.md`: why the red phase is skipped, the runs and fault injections below with their results, and where each TC is proved. The red gate is then skipped. The development stage writes no code.
+
+**Runs and fault injections (tests stage, recorded in `no-tests.md`).** Run command: `go test ./internal/amazon -run '^TestBrowserProfile_Issue197_TC003_PreparedProfileReturnsItsPath$' -count=1 -v`, with `TMPDIR` set to a fresh empty folder made under the stage's own `$TMPDIR` for each run (`mktemp -d`), so the leftover check is `ls -A` of that folder after the run and a deliberate leftover needs no deletion. Each injection is a temporary `Edit` of the test file or of `BrowserCollector.profile` in `internal/amazon/browser.go`, reverted with `Edit` before the next step; none is committed. While `browser.go` is edited, the source check of `profile()` in the same file would fail, which is why the run selects only the TC-003 test.
+
+1. Normal run, then `-count=3`, then `-race`, then `-run 'TestBrowserProfile' -count=1`: every run passes, all subtests of the TC-003 test pass, and the `TMPDIR` folder is empty afterwards (TC-005).
+2. In the subtest, right after the `os.Stat`/`IsDir` check, add `os.WriteFile(filepath.Join(path, "keep"), []byte("x"), 0o600)` and `t.Fatal("injected")`: the subtest fails with `injected` and the folder is empty. With the `t.Cleanup` block also commented out (the `master` behaviour), one `pricefollower-browser-*` directory is left (TC-002, edit 1 and the comparison with `master`).
+3. In `profile()`, return the created directory with a `nil` cleanup: fails with `cleanup is nil`, folder empty (TC-002, edit 2).
+4. In `profile()`, return the created directory with `errors.New("injected")`: fails with `injected`, folder empty (TC-002, edit 3).
+5. In `profile()`, create a regular file with `os.CreateTemp("", "pricefollower-browser-")`, close it and return its name with its removal as cleanup: fails with `the temporary profile was not created: <nil>`, folder empty (TC-002, edit 4).
+6. In `profile()`, make the temporary profile's cleanup `func() {}`: the subtest fails once, with `the cleanup did not remove the temporary profile: <nil>`, no other message, and the folder is empty afterwards (TC-003).
+7. In `profile()`, return `"", func() {}, nil`, then `"", nil, errors.New("injected")`: the subtest fails on its existing checks (location, then `the temporary profile was not created`; then the error). `ls -A internal/amazon` and `ls -A` of the `TMPDIR` folder, taken before and after into files under the stage's `$TMPDIR`, are identical, and both folders still exist (TC-004).
+8. After the reverts: `git diff master -- . ':!doc'` holds only the `t.Cleanup` block in the subtest, and run 1 passes again (TC-006).
+
+- **Development stage.** No code. It sets FR-TEST-HYG-053–056 and TS-TEST-HYG-069–073 to implemented. It runs the gates and the repository checks of TC-001 and TC-006, and restores any file outside `doc/` that differs from `master` and is not `internal/amazon/browser_profile_values_test.go` (for example a fault injection left in `browser.go`).
+
+Refactoring: none.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -458,6 +498,7 @@ Refactoring: splitting `runBrowserOnProfile` into the wrapper and `runBrowserOnP
 - Issue #195 changes one `_test.go` file in `internal/amazon/`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime. No production Go file changes, including the removal of the lock marks in `browser.go`; the server binary is the same, as `_test.go` files are not part of it. No validation, persistence, migration or application concurrency change; the only concurrency is in the test (the `Wait` goroutine, whose channel close orders the read of the output after its writes). API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #312 changes the wait of one test in `internal/amazon/browser_profile_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as no production Go file changes and `_test.go` files are not part of the server binary; no validation, persistence, migration or application concurrency change. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #315 changes the hold stub and the hold rows' wait in `internal/amazon/browser_profile_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as no production Go file changes and `_test.go` files are not part of the server binary; no validation, persistence, migration or application concurrency change. The only new concurrency is in the test: the stub process creates a marker file that the test goroutine polls. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
+- Issue #324 adds a `t.Cleanup` to one subtest of `internal/amazon/browser_profile_values_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as `BrowserCollector.profile` and every production Go file are unchanged and `_test.go` files are not part of the server binary; no validation, persistence, migration or concurrency change (the cleanup runs in the test's own goroutine after the subtest). API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -531,6 +572,11 @@ Refactoring: splitting `runBrowserOnProfile` into the wrapper and `runBrowserOnP
 | TS-TEST-HYG-066 | FR-TEST-HYG-051 | Normal runs (run 1 of the issue #315 design): ten rows pass; hold rows take 2–3 s, non-hold rows under 2 s; `ESRCH` after every row; with `-count=3`, `-race` and `-run 'TestBrowserProfile'`. |
 | TS-TEST-HYG-067 | FR-TEST-HYG-052 | The diff outside `doc/` is `M internal/amazon/browser_profile_test.go`. Its hunks: `runBrowserOnProfile` split into the wrapper and `runBrowserOnProfileUntil`, `refusalStub`, `refusalStubBrowser`, `waitForOutputSignal`, the `Hold` branch of `TestBrowserProfile_Issue195_RefusalStubProcess`, and the run lines of the `t.Run` loop. `assertBrowserRefusesProfile`, `fixtureCheckFailure`, the rows and TC-002 of issue #180 are not edited. The tests stage delivers the change and writes `no-tests.md`; the development stage writes no code. `gofmt -l internal/amazon` is empty; `go vet ./...` and `go test ./...` pass. |
 | TS-TEST-HYG-068 | FR-TEST-HYG-048–050 (proof) | Reverted fault injections 2–6 of the issue #315 design (slow hold stub with the new wait and with the `master` wait; 20 s delay; exit without signal; output without signal), recorded in `no-tests.md`. |
+| TS-TEST-HYG-069 | FR-TEST-HYG-053 | Right after `profileOf("")` and before any check, the subtest calls `t.Cleanup` on its own `t` with a function that runs `os.RemoveAll(path)`, so the temporary profile is removed when the subtest ends, whether it passed, failed or stopped on `t.Fatal`/`t.Fatalf`, whatever the profile holds. |
+| TS-TEST-HYG-070 | FR-TEST-HYG-054 | The removal runs only after the subtest function has returned, so after the explicit `cleanup()` and its `os.Stat` check, which are kept with the message `the cleanup did not remove the temporary profile: %v`. The other checks and messages are unchanged. |
+| TS-TEST-HYG-071 | FR-TEST-HYG-055 | The removal returns at once when `path` is `""` or equals `filepath.Clean(os.TempDir())`; otherwise it removes only `path`, never its parent, a glob or another path. A removal error is reported with `t.Errorf("remove the temporary profile: %v", err)`; a missing path is not an error. |
+| TS-TEST-HYG-072 | FR-TEST-HYG-056 | The diff outside `doc/` is `M internal/amazon/browser_profile_values_test.go`, limited to the `t.Cleanup` block in the subtest; no import, helper, other subtest or production file changes. The tests stage delivers the change and writes `no-tests.md`; the development stage writes no code. `gofmt -l internal/amazon` is empty; `go vet ./...` and `go test ./...` pass. |
+| TS-TEST-HYG-073 | FR-TEST-HYG-053–055 (proof) | Runs and reverted fault injections 1–8 of the issue #324 design (fatal stop with a non-empty profile, with and without the removal; nil cleanup; error; regular file; cleanup that does nothing; empty path), each run with a fresh `TMPDIR`, recorded in `no-tests.md`. |
 
 ## Files to change
 
@@ -577,8 +623,24 @@ Refactoring: splitting `runBrowserOnProfile` into the wrapper and `runBrowserOnP
 | `internal/amazon/browser_profile_test.go` | tests (issue #315) | `runBrowserOnProfileUntil` with `runBrowserOnProfile` as its wrapper; `refusalStub.Signal`; `refusalStubBrowser` returns the signal path; the hold stub creates the marker; new `waitForOutputSignal`; hold rows wait for the signal (15 s bound), then 2 s, and report a missing signal |
 | `doc/changes/2026-11-24-1044-issue-315-start-the-hold-rows-wait-after-the-stub/no-tests.md` | tests (issue #315) | explain why the red phase is skipped (the change is the locked test code itself); record runs and fault injections 1–7 and their results; where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #315) | set the status of FR-TEST-HYG-048–052 and TS-TEST-HYG-061–068 to implemented |
+| `internal/amazon/browser_profile_values_test.go` | tests (issue #324) | subtest "TC-003 temporary profile": register the guarded `t.Cleanup` removal of `path` right after `profileOf("")` |
+| `doc/changes/2026-11-24-1503-issue-324-register-removal-of-the-temporary-profil/no-tests.md` | tests (issue #324) | explain why the red phase is skipped (the change is the locked test code itself); record runs and fault injections 1–8 and their results; where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #324) | set the status of FR-TEST-HYG-053–056 and TS-TEST-HYG-069–073 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. Issue #195 changes `internal/amazon/browser_profile_test.go` and no other test file. Issue #312 changes only the `t.Run` loop of one test in that file. Issue #315 changes only that file. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. Issue #195 changes `internal/amazon/browser_profile_test.go` and no other test file. Issue #312 changes only the `t.Run` loop of one test in that file. Issue #315 changes only that file. Issue #324 changes only one subtest of `internal/amazon/browser_profile_values_test.go`; `internal/amazon/browser.go` is edited only temporarily for fault injections and never committed. No test file is deleted.
+
+## Test case mapping (issue #324)
+
+No test is added: the tests stage edits the subtest and writes `no-tests.md`. Runs below refer to the issue #324 design.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Code check of the subtest "TC-003 temporary profile" in `internal/amazon/browser_profile_values_test.go`: `t.Cleanup` on the subtest's `t` right after `profileOf("")`, before the first `t.Fatal`; it returns on `""` or the system temporary folder and otherwise removes only `path`; `cleanup()`, the `os.Stat` check after it and every other check and message are unchanged; the other subtests are unchanged (TS-TEST-HYG-069–071) |
+| TC-002 | Fault injections 2–5 (tests stage, recorded in `no-tests.md`): each fails with its expected message and leaves the fresh `TMPDIR` empty, including with a non-empty profile; injection 2 without the `t.Cleanup` block leaves one `pricefollower-browser-*` directory |
+| TC-003 | Fault injection 6: one failure, `the cleanup did not remove the temporary profile: <nil>`, and the `TMPDIR` is empty afterwards |
+| TC-004 | Fault injection 7: the subtest fails on its existing checks, and the before/after listings of `internal/amazon` and of the `TMPDIR` are identical |
+| TC-005 | Run 1: `-v`, `-count=3`, `-race` and `-run 'TestBrowserProfile'` pass with no leftover. Also the `go test ./...` gate |
+| TC-006 | Repository checks: `git diff --name-only master -- . ':!doc'` lists only `internal/amazon/browser_profile_values_test.go`; `git diff master -- internal/amazon/browser_profile_values_test.go` holds only the `t.Cleanup` block; `browser.go`, the issue #197 change folder and `doc/todo/issue-197-r1-03.md` are unchanged and no fault injection remains. Gates: `gofmt -l internal/amazon` prints nothing; `go vet ./...` and `go test ./...` pass, twice |
 
 ## Test case mapping (issue #315)
 
@@ -810,3 +872,4 @@ Issue #208 cases (unchanged record):
 - Issue #195: none. The tests run in `go test ./...`; the stub tests need only `/bin/sh`, and the gate environment already has Chromium for TC-002. No CI, `scripts/` or dependency change is needed.
 - Issue #312: none. The test runs in `go test ./...`; no CI, `scripts/` or dependency change is needed.
 - Issue #315: none. The test runs in `go test ./...` and needs only `/bin/sh` and a temporary folder; no CI, `scripts/` or dependency change is needed.
+- Issue #324: none. The subtest runs in `go test ./...` and needs only the system temporary folder; no CI, `scripts/` or dependency change is needed.
