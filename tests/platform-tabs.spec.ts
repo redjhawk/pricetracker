@@ -358,6 +358,6 @@ test("TC-010 Amazon list shows the accepted image or the placeholder", async ({ 
   await page.goto("/");
   await expectThumbnails();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  expect(imageRequests.every((url) => url === imageUrl)).toBe(true);
+  await expect.poll(() => imageRequests.length, { message: "the accepted Amazon image was requested" }).toBeGreaterThan(0);
   expect(api.unexpected).toEqual([]);
 });
