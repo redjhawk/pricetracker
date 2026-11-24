@@ -358,6 +358,19 @@ type browserRun struct {
 // waits until it exits or wait has passed, kills the group and waits for it.
 func runBrowserOnProfile(t *testing.T, executable, profile string, server *amazontest.Server, path string, wait time.Duration) browserRun {
 	t.Helper()
+	return runBrowserOnProfileUntil(t, executable, profile, server, path, func(exited <-chan struct{}) {
+		select {
+		case <-exited:
+		case <-time.After(wait):
+		}
+	})
+}
+
+// runBrowserOnProfileUntil starts executable on profile with url server.URL+path in its own process
+// group, calls wait, which returns when the run must end (exited is closed when the process has
+// exited), then kills the group and waits for it.
+func runBrowserOnProfileUntil(t *testing.T, executable, profile string, server *amazontest.Server, path string, wait func(exited <-chan struct{})) browserRun {
+	t.Helper()
 	cmd := exec.Command(executable, "--headless=new", "--user-data-dir="+profile, "--no-sandbox", "--no-first-run", server.URL+path) // #nosec G204 -- test browser
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var output bytes.Buffer
@@ -368,10 +381,7 @@ func runBrowserOnProfile(t *testing.T, executable, profile string, server *amazo
 	}
 	exited := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(exited) }()
-	select {
-	case <-exited:
-	case <-time.After(wait):
-	}
+	wait(exited)
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	<-exited
 	return browserRun{pid: cmd.Process.Pid, requested: server.Count(path) != before, output: output.String()}
@@ -408,13 +418,18 @@ const refusalStubVariable = "PRICEFOLLOWER_REFUSAL_STUB"
 type refusalStub struct {
 	Request bool   `json:"request"` // GET the last argument (the page URL) and read the body first
 	Stderr  string `json:"stderr"`  // written to standard error, after the request
-	Hold    bool   `json:"hold"`    // then sleep one minute instead of exiting (killed by the check)
+	Hold    bool   `json:"hold"`    // then create Signal and sleep one minute instead of exiting (killed by the check)
 	Exit    int    `json:"exit"`    // exit status otherwise
+	Signal  string `json:"signal"`  // created, empty, once Stderr is written, when Hold
 }
 
-// refusalStubBrowser writes an executable that runs this test binary as stub, and returns it.
-func refusalStubBrowser(t *testing.T, stub refusalStub) string {
+// refusalStubBrowser writes an executable that runs this test binary as stub, and returns it with
+// the signal file that a held stub creates once it has written its output.
+func refusalStubBrowser(t *testing.T, stub refusalStub) (executable, signal string) {
 	t.Helper()
+	dir := t.TempDir()
+	signal = filepath.Join(dir, "output-written")
+	stub.Signal = signal
 	encoded, err := json.Marshal(stub)
 	if err != nil {
 		t.Fatal(err)
@@ -424,12 +439,33 @@ func refusalStubBrowser(t *testing.T, stub refusalStub) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executable := filepath.Join(t.TempDir(), "refusal-stub")
+	executable = filepath.Join(dir, "refusal-stub")
 	script := "#!/bin/sh\nexec '" + binary + "' '-test.run=^TestBrowserProfile_Issue195_RefusalStubProcess$' -- \"$@\"\n"
 	if err := os.WriteFile(executable, []byte(script), 0o755); err != nil { // #nosec G306 -- test executable
 		t.Fatal(err)
 	}
-	return executable
+	return executable, signal
+}
+
+// waitForOutputSignal waits until the file signal exists, the process has exited or bound has passed,
+// polling every 10 ms, and reports whether the file exists.
+func waitForOutputSignal(signal string, exited <-chan struct{}, bound time.Duration) bool {
+	deadline := time.After(bound)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, err := os.Stat(signal); err == nil {
+			return true
+		}
+		select {
+		case <-exited:
+			_, err := os.Stat(signal)
+			return err == nil
+		case <-deadline:
+			return false
+		case <-ticker.C:
+		}
+	}
 }
 
 // TestBrowserProfile_Issue195_RefusalStubProcess is the stub of refusalStubBrowser; it does nothing
@@ -461,6 +497,9 @@ func TestBrowserProfile_Issue195_RefusalStubProcess(t *testing.T) {
 	}
 	io.WriteString(os.Stderr, stub.Stderr)
 	if stub.Hold {
+		if err := os.WriteFile(stub.Signal, nil, 0o600); err != nil {
+			fail(err)
+		}
 		time.Sleep(time.Minute)
 	}
 	os.Exit(stub.Exit)
@@ -496,13 +535,30 @@ func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			executable := refusalStubBrowser(t, row.stub)
-			wait := 15 * time.Second // as the fixture sanity check; a stub that exits ends the run at once
+			executable, signal := refusalStubBrowser(t, row.stub)
+			var run browserRun
+			signalled, held := true, true // a non-hold row has no signal to wait for and no hold to keep
 			if row.stub.Hold {
-				wait = 2 * time.Second // a held stub runs until the end of the wait
+				// a held stub runs 2 s after it signalled its output, which it does within 15 s of its start
+				run = runBrowserOnProfileUntil(t, executable, profile, server, path, func(exited <-chan struct{}) {
+					if signalled = waitForOutputSignal(signal, exited, 15*time.Second); signalled {
+						select {
+						case <-exited:
+							held = false
+						case <-time.After(2 * time.Second):
+						}
+					}
+				})
+			} else {
+				run = runBrowserOnProfile(t, executable, profile, server, path, 15*time.Second) // as the fixture sanity check; a stub that exits ends the run at once
 			}
-			run := runBrowserOnProfile(t, executable, profile, server, path, wait)
 			got := fixtureCheckFailure(run, "otherhost")
+			if !signalled {
+				t.Errorf("the stub did not signal its output within 15 s")
+			}
+			if !held {
+				t.Errorf("the stub exited before the end of the wait")
+			}
 
 			if run.output != row.stub.Stderr {
 				t.Errorf("captured output %q, want %q", run.output, row.stub.Stderr)
