@@ -22,7 +22,8 @@
 
 ## Alternatives and errors
 
-- **No complete headers within 5 s:** the client opens a connection and sends nothing, or sends its headers too slowly; the server closes the connection after about 5 s, as before (FR-HTTP-TMO-007).
+- **No complete headers within 5 s:** the client opens a connection and sends nothing, or sends its headers too slowly; the server closes the connection after about 5 s, with no response or, when part of the request line has arrived, after a plain `400 Bad Request`, as before (FR-HTTP-TMO-007).
+- **Endpoint without a request body:** the request goes to an endpoint that takes no body (for example Refresh price, Refresh all, a new AI review, a delete) and announces a body that it sends slowly; the request is handled once its headers arrive, as today, and its response is sent before the connection is closed (FR-HTTP-TMO-001).
 - **Kept-alive connection:** after a response on a kept-alive connection, the next request starts when that response was sent; the same 15 s limit applies to it (FR-HTTP-TMO-001).
 - **Idle kept-alive connection:** the client sends no new request; the server closes the connection after about 60 s, as before (FR-HTTP-TMO-007).
 - **Whole request received in time:** a request, including its largest accepted body (1 MiB), sent at normal speed is fully received well within 15 s and handled as usual (UC-HTTP-TMO-005).

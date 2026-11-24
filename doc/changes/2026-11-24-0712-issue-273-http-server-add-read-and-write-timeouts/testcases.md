@@ -183,7 +183,7 @@ Conventions:
   - sends `GET /api/v1/items` at normal speed, reads the whole response, then sends nothing
 - Then respectively:
   - the connection is closed between 5 s and 7 s after the dial;
-  - the connection is closed between 5 s and 7 s after the dial, with no response;
+  - the connection is closed between 5 s and 7 s after the dial, with no response or only Go's plain `HTTP/1.1 400 Bad Request` (the request line cut by the limit), and the request is not handled;
   - the response is a complete answer, and the connection stays open at 16 s after the response and is closed between 60 s and 65 s after it
 - Corner cases:
   - the idle connection is not closed by the 15 s read limit;

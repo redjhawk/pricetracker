@@ -702,14 +702,15 @@ Agent-defined per AGENTS.md. Technical source: [HTTP server timeouts](doc/specif
 
 | Limit | Value | When it is passed |
 | --- | --- | --- |
-| Request headers received | 5 s from the request start (unchanged) | The connection is closed; no response. |
-| Whole request (headers and body) received | 15 s from the request start | The connection is closed; no response, and the request is not handled (nothing saved or started). |
+| Request headers received | 5 s from the request start (unchanged) | The connection is closed with no response or, when part of the request line has arrived, after Go's plain-text `400 Bad Request`. The request is not handled. |
+| Whole request (headers and body) received | 15 s from the request start | For an endpoint that reads a request body (`POST /api/v1/auth/login`, `POST /api/v1/items`, `PUT /api/v1/items/{id}/purchase-goal`, `PUT /api/v1/settings`): the connection is closed; no response, and the request is not handled (nothing saved or started). Any other request is handled once its headers arrive, as before; if a body it announces but does not read is not received within 15 s, its response is sent with `Connection: close`. |
 | Response sent | 60 s from the received request headers (includes reading the body and handling) | The connection is closed; the client gets no response or a cut-off one. What the request did is kept. |
 | Idle kept-alive connection | 60 s (unchanged) | The connection is closed. |
 | Request headers size | 64 KiB accepted; over 68 KiB (69,632 bytes) refused | `431 Request Header Fields Too Large`, then the connection is closed; the request is not handled. |
 
 - The request start is when the connection is accepted, or, on a kept-alive connection, when the first bytes of the next request arrive.
-- The `431` answer is written by Go's `net/http` before any routing, so it is the one response that does not use the JSON error shape: `Content-Type: text/plain; charset=utf-8`, `Connection: close`, body `431 Request Header Fields Too Large`. It is returned with or without a session, for API and page paths alike.
+- The `431` answer is written by Go's `net/http` before any routing, so it does not use the JSON error shape: `Content-Type: text/plain; charset=utf-8`, `Connection: close`, body `431 Request Header Fields Too Large`. It is returned with or without a session, for API and page paths alike.
+- The `400 Bad Request` for a request line cut by the 5 s header limit is the other answer that `net/http` writes before routing. It is also plain text and not in the JSON error shape (Go's behaviour before this change too).
 - Endpoint body limits are unchanged (`413 REQUEST_TOO_LARGE`: 4 KiB login, 32 KiB settings, 1 MiB items and purchase goal).
 - No endpoint waits for marketplace checks or AI reviews; `PUT /api/v1/settings` waits at most for the 20 s Claude verification, well within 60 s.
 - The frontend has no request time limit of its own; a connection closed by these limits shows its existing network error state.
