@@ -395,13 +395,14 @@ In the `t.Run` loop, the `wait` choice still reads only `row.stub.Hold`:
 ```go
 executable, signal := refusalStubBrowser(t, row.stub)
 var run browserRun
-signalled := true
+signalled, held := true, true // a non-hold row has no signal to wait for and no hold to keep
 if row.stub.Hold {
 	// a held stub runs 2 s after it signalled its output, which it does within 15 s of its start
 	run = runBrowserOnProfileUntil(t, executable, profile, server, path, func(exited <-chan struct{}) {
 		if signalled = waitForOutputSignal(signal, exited, 15*time.Second); signalled {
 			select {
 			case <-exited:
+				held = false
 			case <-time.After(2 * time.Second):
 			}
 		}
@@ -413,7 +414,12 @@ got := fixtureCheckFailure(run, "otherhost")
 if !signalled {
 	t.Errorf("the stub did not signal its output within 15 s")
 }
+if !held {
+	t.Errorf("the stub exited before the end of the wait")
+}
 ```
+
+- Still running at the end of the wait (FR-TEST-HYG-049, review R1-01 of #316): a stub that signalled and then exited before the 2 s ended clears `held`, and the row fails with `the stub exited before the end of the wait`. The `ESRCH` check alone cannot tell a killed stub from one that exited by itself.
 
 - The 15 s bound starts when `wait` is called, right after `Start`, so it counts from the stub's start. The 2 s start at the signal, so a slow start does not shorten them (FR-TEST-HYG-048).
 - No signal (FR-TEST-HYG-050): a stub still running at 15 s is killed at once, without the 2 s (the row takes about 15 s). A stub that exits without signalling ends the row at once. `t.Errorf` and not `t.Fatalf`, so the existing assertions still run, including the `ESRCH` check of the process group. Other messages can follow (for example `captured output ""`); the signal message is always the first one. A stub that wrote its output but never signalled fails on that message alone.
@@ -430,7 +436,8 @@ if !signalled {
 4. Never signals: as 2 with 20 s. Each hold row fails with `the stub did not signal its output within 15 s`, takes about 15 s and less than 20 s, and reports no process group left. The non-hold rows pass and the test does not hang (TC-004).
 5. Exits without signalling: replace the sleep of 2 with `if stub.Hold { os.Exit(0) }`. Each hold row fails with the signal message and ends at once (TC-004).
 6. Output but no signal: remove the `os.WriteFile(stub.Signal, …)` lines. Each hold row fails with the signal message after about 15 s. In `TC-001 refusal, then still running …` it is the only error, so a missing signal is never taken for a pass (TC-004).
-7. After the reverts: `git diff master -- internal/amazon/browser_profile_test.go` holds only the hunks listed in TS-TEST-HYG-067, and run 1 passes again (TC-006).
+7. Exits after signalling: add `os.Exit(0)` right after the `os.WriteFile(stub.Signal, …)` lines. Each hold row fails at once with `the stub exited before the end of the wait`, and `TC-002 slow start` fails on that message alone (TC-003).
+8. After the reverts: `git diff master -- internal/amazon/browser_profile_test.go` holds only the hunks listed in TS-TEST-HYG-067, and run 1 passes again (TC-006).
 
 - **Development stage.** No code. It sets FR-TEST-HYG-048–052 and TS-TEST-HYG-061–068 to implemented. It runs the gates and the repository checks of TC-001 and TC-006, and restores any file outside `doc/` that differs from `master` and is not `internal/amazon/browser_profile_test.go`.
 

@@ -537,13 +537,14 @@ func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
 		t.Run(row.name, func(t *testing.T) {
 			executable, signal := refusalStubBrowser(t, row.stub)
 			var run browserRun
-			signalled := true
+			signalled, held := true, true // a non-hold row has no signal to wait for and no hold to keep
 			if row.stub.Hold {
 				// a held stub runs 2 s after it signalled its output, which it does within 15 s of its start
 				run = runBrowserOnProfileUntil(t, executable, profile, server, path, func(exited <-chan struct{}) {
 					if signalled = waitForOutputSignal(signal, exited, 15*time.Second); signalled {
 						select {
 						case <-exited:
+							held = false
 						case <-time.After(2 * time.Second):
 						}
 					}
@@ -554,6 +555,9 @@ func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
 			got := fixtureCheckFailure(run, "otherhost")
 			if !signalled {
 				t.Errorf("the stub did not signal its output within 15 s")
+			}
+			if !held {
+				t.Errorf("the stub exited before the end of the wait")
 			}
 
 			if run.output != row.stub.Stderr {
