@@ -62,11 +62,11 @@ Conventions:
 
 ## Through the application
 
-### TC-004 — A check through the application whose clearing succeeds logs no cache line (existing test, unchanged)
+### TC-004 — A check through the application whose clearing succeeds logs no cache line (existing tests; TC-005 of issue #233 extended by issue #358)
 
 - Covers: FR-AMZ-HCHK-016 (acceptance "when the clearing succeeds …", "the rest of FR-AMZ-HCHK-015 is unchanged"); UC-AMZ-HCHK-009 (alternatives "clearing succeeds", "protected mode"; postcondition "nothing else changes")
-- Level: integration (`internal/httpapi`, real SQLite, service and handlers, real Chromium collector with its persistent profile; existing `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` of issue #233, and the real-browser `TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile` in `internal/amazon`)
+- Level: integration (`internal/httpapi`, real SQLite, service and handlers, real Chromium collector with its persistent profile; `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` of issue #233, extended by issue #358 with a check after each owner's Refresh price, and the unchanged real-browser `TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile` in `internal/amazon`)
 - Given two Amazon items of two users (protected mode) and a product page offered as a download
 - When a check is stopped with the server while the download is offered, then each owner uses **Refresh price** on the normal page
-- Then no line contains `Amazon browser cache could not be cleared`; no file is written; each item records 12999 cents, as today
+- Then no line contains `Amazon browser cache could not be cleared`, neither after the server stop nor during either owner's Refresh price; no file is written; each item records 12999 cents, as today
 - Corner cases: server stop and time limit (real-browser test); items of several users; the next checks are unchanged by the new wording.
