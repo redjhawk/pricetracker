@@ -1,0 +1,10 @@
+# Issue #322 Remove the source-text test for TC-005 of issue #197
+
+**Problem:** `TestBrowserProfile_Issue197_TC005_ProfileUsesTheExplicitForm` (`internal/amazon/browser_profile_values_test.go:267-311`) parses `browser.go` and compares the gofmt text of `profile()` with hard-coded strings, down to the log message of the temporary branch. It tests the shape of the source, not its behaviour. Any legitimate later edit to `profile()` (wrapping an error, renaming `directory`, rewording the log, extracting a helper) will break it. The technical specification (`doc/specifications/amazon-browser-profile/technical.md:111`) says TC-005 is covered by factory gates and review, with no test file.
+
+**Suggested work:** Delete the test and the `go/ast`, `go/format`, `go/parser` and `go/token` imports. TC-001 to TC-003 already prove FR-AMZ-BPROF-008/009 through behaviour.
+
+From review comment R1-01 on #321 (`doc/todo/issue-197-r1-01.md`).
+
+## Comments by trusted authors
+
