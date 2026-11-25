@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/browser_profile_test.go",
+    "line": 502,
+    "category": "nit",
+    "body": "Not blocking, possible follow-up. The hold row \"TC-001 refusal, then still running at the end of the wait\" (Stderr: refusal, Hold: true, expects a passing check) still has the timing risk the issue describes. Its stub has to start the test binary through /bin/sh, decode the JSON and write the refusal within 2 s. If it is killed first on a heavily loaded runner, `run.output` is \"\" and the row fails with `captured output \"\"` and `the check failed on a refusal without page request`. The functional specification for issue #312 explicitly leaves this out (the stubs are unchanged and FR-TEST-HYG-045 keeps the plain 2 s), so the PR is correct as it is. A follow-up could have the hold stub signal after writing its output, for example by closing or creating a marker file that the row waits for, and start the 2 s only after that signal. This would remove the last load-dependent row of this test."
+  }
+]

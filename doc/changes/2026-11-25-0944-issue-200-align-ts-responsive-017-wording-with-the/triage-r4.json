@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R4-01",
+    "blocking": false,
+    "reason": "Confirmed: no-use-cases.md:9 (and FR-RESPONSIVE-030 in functional.md:67, which it mirrors) says `doc/todo/` is unchanged while the branch adds `doc/todo/issue-200-r1-02.md`. TS-RESPONSIVE-029 and TC-003 (`--diff-filter=DMRT`) already scope the check to existing files, so no test or gate is wrong; this is wording only in a summary file.",
+    "title": "Scope FR-RESPONSIVE-030 `doc/todo/` wording to existing files",
+    "todo": "**Problem:** The FR-RESPONSIVE-030 summary in `doc/changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/no-use-cases.md:9` says that `doc/todo/` is unchanged, but issue #200 adds `doc/todo/issue-200-r1-02.md`. The FR-RESPONSIVE-030 text in `doc/specifications/responsive-layout/functional.md:67` uses the same wording (\"the files under `doc/todo/` are unchanged\"). TS-RESPONSIVE-029 (`technical.md:231`) and TC-003 already limit the rule to existing files.\n\n**Suggested work:** Reword both to \"the existing files under `doc/todo/` are unchanged\" so they match TS-RESPONSIVE-029 and TC-003. Do not renumber the ID."
+  }
+]

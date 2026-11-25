@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 40,
+    "category": "nit",
+    "body": "The header comment says TC-001 is proved 'by hand, go build ./... on the row f and g fixtures prints that text', under 'Cases proved outside this file'. no-tests.md (run 1) says the opposite: the sandbox refused scratch module folders, so the output was not captured by hand. It was recorded through a temporary t.Logf of the error buildModule returns, and the table there says TC-001 is proved by the row f and g subtests in this file. The comment therefore describes a run that did not happen. Suggested fix: drop the TC-001 bullet, since the row f and g subtests in this file now prove it, or reword it to match no-tests.md, e.g. '- TC-001: the go build ./... output of rows f and g, recorded once through a temporary log of the buildModule error, holds that text.'"
+  }
+]

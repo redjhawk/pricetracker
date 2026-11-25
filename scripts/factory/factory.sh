@@ -13,6 +13,9 @@
 # where the previous one stopped. The run stops, and asks on the issue, when it needs a functional answer.
 # Runs the same locally and in .github/workflows/fabrica.yml.
 set -euo pipefail
+# No core dumps: a crashed browser or test leaves core.<pid> in its directory, the stage checkpoint
+# (git add -A) commits it, and GitHub refuses files over 100 MB, so the push fails.
+ulimit -c 0
 
 FACTORY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
@@ -571,6 +574,17 @@ stage_merge() {
 $sensitive
 \`\`\`
 Review and merge it by hand."
+  fi
+  # The base branch moved since the review and now conflicts with the branch: GitHub refuses the merge, and
+  # retrying never helps. Back to implementation, whose sync_base merges the base branch (the merge agent
+  # resolves the conflicts), then through the green gate and a new review of the result.
+  local conflict=0
+  git fetch -q origin "$BASE_BRANCH"
+  git merge-tree --write-tree HEAD "origin/$BASE_BRANCH" >/dev/null 2>&1 || conflict=$?
+  if [ "$conflict" = 1 ]; then
+    log "PR #$pr conflicts with $BASE_BRANCH: back to implementation to merge it"
+    advance implement "chore(factory): #$pr conflicts with $BASE_BRANCH, back to implementation"
+    return
   fi
   if [ "${FACTORY_SECURITY:-1}" = 1 ]; then
     security_scan || stop_for_user needs-input security "The security scan (govulncheck, gosec) failed on PR #$pr. Log in the run output."

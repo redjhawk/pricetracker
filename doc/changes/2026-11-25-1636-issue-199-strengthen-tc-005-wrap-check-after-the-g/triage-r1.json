@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: no-tests.md line 59 says the results of `npx playwright test`, `go vet ./...` and `go test ./...` are 'see below', but the file ends at line 61. The TC-007 row (line 38) cites this 'Gates' section as its proof, and TC-007 and TS-TEST-HYG-127 require these gates to pass twice. Only one `node --test` run is recorded, so the proof of TC-007 is missing.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "reason": "Confirmed: TC-002 (testcases.md line 48), TS-TEST-HYG-128 and design run 2 (technical.md lines 891 and 1151) say that with the 40rem injection the `master` test passes. But no-tests.md run 2 (line 47) records that the `master` test fails at 1055 px on 'Prices and Status on the same line'. The delivered proof contradicts the test case it claims to prove. Either the injection or the TC-002/spec wording must change.",
+    "title": "",
+    "todo": ""
+  }
+]

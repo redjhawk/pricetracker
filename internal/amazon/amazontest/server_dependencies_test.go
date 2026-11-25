@@ -28,6 +28,47 @@ import (
 //     fixtureCases, keep their subtest names and results.
 //   - TC-003: rows f, g and h of the same test keep failing as listing failures with the same messages.
 //   - TC-004: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #254: the fixture build check also compiles the fixtures' test files (go vet -atomic ./..., see issue #340);
+// TestFixtureModulesBuild_Issue251_TC001 and its test-file control prove it. Cases proved outside this file:
+//   - TC-003: temporary edits of row d's test files, never committed, make that test fail.
+//   - TC-005 and TC-007: runs on master and with the change give the same subtests and results.
+//   - TC-008: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #253: rows f and g of TestFixtureModulesBuild_Issue251_TC001 pass only on a build failure holding
+// their fails text. Cases proved outside this file:
+//   - TC-001: by hand, go build ./... on the row f and g fixtures prints that text.
+//   - TC-003: temporary edits, never committed, make the row f and g subtests fail.
+//   - TC-004 and TC-005: runs on master and with the change give the same subtests and results.
+//   - TC-006: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #340: only compile errors fail the fixture build check; go vet runs with the atomic analyzer alone, so
+// its other analyzers' findings do not fail it. The subtest with analyzer findings proves it. Cases proved outside
+// this file:
+//   - TC-002 and TC-003: temporary edits of rows a and d, never committed, pass on analyzer findings and fail
+//     on compile errors.
+//   - TC-004: with buildModule reduced to go build ./..., the test-file control fails.
+//   - TC-005: runs on master and with the change give the same subtests and results, plus the new subtest.
+//   - TC-007: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #344: the subtest with analyzer findings also runs go vet ./... with all its default analyzers on its
+// fixture and fails if that succeeds, so it cannot pass without findings. Cases proved outside this file:
+//   - TC-002: with every finding removed from the fixture, never committed, the subtest fails with the guard's
+//     message.
+//   - TC-003: temporary edits of vetArgs and of the fixture, never committed, show that the guard and the build
+//     check are reported independently.
+//   - TC-005: runs on master and with the change give the same subtests and results.
+//   - TC-006: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #349: the subtest with analyzer findings also requires the output of go vet ./... to hold a finding position
+// in cmd/app/main.go and one in cmd/app/main_test.go, so it keeps proving that findings in each are ignored. Cases
+// proved outside this file:
+//   - TC-002 and TC-003: with the findings removed from one file, never committed, the subtest fails naming it.
+//   - TC-004: with every finding removed, never committed, the subtest still fails with the module message.
+//   - TC-005: temporary edits of vetArgs and of the fixture, never committed, show that the guard's checks and the
+//     build check are reported independently.
+//   - TC-007: runs on master and with the change give the same subtests and results.
+//   - TC-008: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -298,19 +339,29 @@ func TestListServerDependencies_TC003_FixtureModules(t *testing.T) {
 	})
 }
 
-// buildModule runs go build ./... offline in the fixture module dir; a failure holds the tool's output.
+// vetArgs is the go vet command of buildModule; see buildModule for why it names one analyzer.
+var vetArgs = []string{"vet", "-atomic", "./..."}
+
+// buildModule compiles the fixture module dir offline: go build ./... compiles its non-test files, then
+// go vet -atomic ./... type-checks its packages with their test files. Naming one analyzer (atomic, which
+// no fixture triggers) turns vet's other analyzers off, so an analyzer finding does not fail the check;
+// only a compile error does. A failure names the command and holds the tool's output.
 func buildModule(dir string) error {
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), fixtureEnv...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go build ./...: %w: %s", err, strings.TrimSpace(string(out)))
+	for _, args := range [][]string{{"build", "./..."}, vetArgs} {
+		cmd := exec.Command("go", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), fixtureEnv...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
 	}
 	return nil
 }
 
-// Issue #251 TC-001: every valid fixture module builds offline; the invalid ones and a program using a
-// name the stub does not declare do not, so the check is not vacuous.
+// Issue #251 TC-001, issue #254, issue #253 and issue #340: every valid fixture module, its test files included,
+// compiles offline, and an analyzer finding alone does not fail it; the invalid ones (rows f and g, each failing
+// with its own fails text), a program using a name the stub does not declare and a test file doing so do not,
+// so the check is not vacuous.
 func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 	for _, tc := range fixtureCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -323,6 +374,8 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 			default:
 				if err == nil {
 					t.Error("invalid fixture builds, want a build failure")
+				} else if !strings.Contains(err.Error(), tc.fails) {
+					t.Errorf("build failure %q does not hold %q", err, tc.fails)
 				}
 			}
 		})
@@ -345,6 +398,53 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "DownloadMarker") {
 			t.Errorf("build failure %q does not name DownloadMarker", err)
+		}
+	})
+
+	t.Run("control: a test file uses a name the stub does not declare", func(t *testing.T) {
+		dir := writeModule(t, map[string]string{
+			"cmd/app/main.go":      plainMain,
+			"cmd/app/main_test.go": "package main\n\nimport \"pricefollower.local/internal/amazon/amazontest\"\n\nvar _ = amazontest.Nope\n",
+		})
+		err := buildModule(dir)
+		if err == nil {
+			t.Fatal("the module compiles, want a failure on the undeclared Nope in a test file")
+		}
+		if !strings.Contains(err.Error(), "amazontest.Nope") {
+			t.Errorf("build failure %q does not name amazontest.Nope", err)
+		}
+		vetCmd := "go " + strings.Join(vetArgs, " ")
+		if !strings.HasPrefix(err.Error(), vetCmd+":") {
+			t.Errorf("build failure %q is not reported by %s, so the non-test files do not build on their own", err, vetCmd)
+		}
+	})
+
+	t.Run("analyzer findings in non-test and test files do not fail the check", func(t *testing.T) {
+		dir := writeModule(t, map[string]string{
+			"cmd/app/main.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nfunc lock(m sync.Mutex) {}\n\n" +
+				"func main() {\n\tfmt.Printf(\"%d\\n\", \"x\")\n\tlock(sync.Mutex{})\n}\n",
+			"cmd/app/main_test.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\n" +
+				"func Testfoo(t *testing.T) {\n\tfmt.Printf(\"%d\\n\", \"x\")\n}\n",
+		})
+		if err := buildModule(dir); err != nil {
+			t.Errorf("valid fixture does not build: %v", err)
+		}
+		// Issue #344 and issue #349: this subtest proves that the fixture build check ignores analyzer findings in
+		// non-test files and in test files only if the fixture has a finding in cmd/app/main.go and one in
+		// cmd/app/main_test.go. So go vet ./... with all its default analyzers (not vetArgs, which names one analyzer
+		// and so turns the others off) must fail on the same module and print a finding position in each of the two
+		// files. Positions are matched, not the analyzers' messages, which can change between Go releases.
+		cmd := exec.Command("go", "vet", "./...")
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), fixtureEnv...)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Error("the fixture has no analyzer finding, so the subtest proves nothing")
+		}
+		for _, file := range []string{"cmd/app/main.go", "cmd/app/main_test.go"} {
+			if !strings.Contains(string(out), file+":") {
+				t.Errorf("the fixture has no analyzer finding in %s, so the subtest proves nothing", file)
+			}
 		}
 	})
 }

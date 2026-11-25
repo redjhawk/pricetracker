@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/browser_profile_test.go",
+    "line": 500,
+    "category": "test",
+    "body": "Every row uses the same 2 s wait, but only the two `Hold` rows need a short one. The other eight rows end when the stub exits, because `runBrowserOnProfile` returns as soon as `exited` closes. If the stub (the re-executed test binary, possibly built with `-race`, while `go test ./...` runs packages in parallel on a loaded CI runner) has not finished within 2 s, it is killed early. The two `TC-003 page requested …` rows then see `requested == false` and a missing refusal, so the test fails for a timing reason and not because of the check. A longer wait for non-hold rows would remove this flakiness and cost nothing on a normal run. Suggested fix: `wait := 15 * time.Second; if row.stub.Hold { wait = 2 * time.Second }`, then pass `wait`."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser_profile_test.go",
+    "line": 520,
+    "category": "simplify",
+    "body": "The `HasPrefix(\"fixture check: \")` check, the loop over `opened`/`missing` and the `HasSuffix(browser output …)` check are all implied by the exact comparison `got != want` just below it, which builds the full TS-TEST-HYG-050 message from `row.failed` and `run.output`. On a regression the test reports the same defect up to four times, and readers must check that four assertions agree. Suggested fix: keep only the exact comparison (its error already shows both strings), or keep the three partial checks and drop the exact one. The `slices` import can go if the loop goes."
+  }
+]

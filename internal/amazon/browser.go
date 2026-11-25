@@ -306,7 +306,10 @@ func (c *BrowserCollector) profile() (string, func(), error) {
 		if err := os.MkdirAll(c.options.ProfileDir, 0o700); err != nil {
 			return "", nil, err
 		}
-		return c.options.ProfileDir, func() {}, removeStaleLocks(c.options.ProfileDir)
+		if err := removeStaleLocks(c.options.ProfileDir); err != nil {
+			return "", nil, err
+		}
+		return c.options.ProfileDir, func() {}, nil
 	}
 	directory, err := os.MkdirTemp("", "pricefollower-browser-")
 	if err != nil {
@@ -497,7 +500,7 @@ func (t *browserTab) clearCache(ctx context.Context) {
 		err = fmt.Errorf("Network.clearBrowserCache: no answer within %s", cacheClearTimeout)
 	}
 	if err != nil {
-		log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
+		log.Printf("Amazon browser cache could not be cleared: %v", err)
 	}
 }
 

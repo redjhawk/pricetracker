@@ -1,0 +1,14 @@
+# No new automated tests for issue #202
+
+FR-RESPONSIVE-033 allows no file change outside `doc/` except the login form rule of `src/index.css`. Adding or editing a `_test.go`, `.spec.ts` or `.test.mjs` file would break that requirement (TC-003). The technical specification (TS-RESPONSIVE-032, section "Tests" of `doc/specifications/responsive-layout/technical.md`) therefore says there is no committed test code. The change only splits one CSS rule and adds a comment, with no change in rendering, so no committed test could fail before the implementation without checking stylesheet text instead of behaviour.
+
+The test cases run as these checks, with `master` as the base:
+
+| Test case | Check |
+| --- | --- |
+| TC-001 | `grep -n -B3 -A4 'login-form' src/index.css`: exactly one rule with `.login-form` in its selector sets `max-width: none`; its selector is `.login-form .cds--btn[type="submit"]` alone, it is in the `@media (max-width: 1055.98px)` block, and a `/* ... */` comment containing `20rem` sits directly above it. No rule on `.login-form` alone sets `max-width` or `max-inline-size`. The `.login-form .cds--inline-notification` rule is unchanged. On the base this fails (combined `.login-form,` rule, no comment, `src/index.css:466-470`). |
+| TC-002 | In the same media block, `width: 100%` is set on `.login-form` and on the button selector; the top-level `.login-form { width: min(100%, 24rem); }` rule (line 64) is unchanged; no new media query. |
+| TC-003 | `git diff --name-status master -- . ':!doc'` prints only `M src/index.css`; every hunk of `git diff -U0 master -- src/index.css` lies between the inline-notification rule and the `.item-cell` rule. |
+| TC-004 | Uncommitted Playwright measurement based on `TC-011 login page uses the full width` in `tests/responsive-layout.spec.ts` (`mockApi` with `session: { mode: "protected", user: null }`): at 320, 360, 775, 1055 and 1280 px, the bounding box widths of `.login-form` and the "Log in" button match between the `master` build and the branch build (within 0.5 px); the computed `max-width` of the form is `none` everywhere and of the button is `none` below 1056 px and 20rem at 1280 px. |
+| TC-005 | Existing gates, unchanged: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (including `tests/responsive-layout.spec.ts`: `login page and header menu`, `TC-011`, `TC-012`, `TC-014 (#266)`, `TC-015 (#266)`). |
+| TC-006 | `git diff master -- doc/specifications/responsive-layout/functional.md` changes only the issue #202 section and its Traceability bullet; `git diff --name-status master -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-200-* doc/changes/*issue-203-*` and `git diff --name-status --diff-filter=DMRT master -- doc/todo/` print nothing; `UC-RL-01` is unchanged. |

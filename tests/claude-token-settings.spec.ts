@@ -98,12 +98,8 @@ test("long whitespace TC-005 a 1025-space token input sends no replacement, show
   await dialog.getByRole("textbox", { name: "Claude token" }).fill(" ".repeat(1025));
   await dialog.getByRole("button", { name: "Save" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText(/too long|Saving settings…/i)).toHaveCount(0);
-  for (const put of api.puts) {
-    expect(put.claudeToken?.remove).toBeFalsy();
-    expect(put.claudeToken?.value?.trim() ?? "").toBe("");
-  }
-  expect(JSON.stringify(api.puts)).not.toContain(" ".repeat(1025));
+  await expect(page.getByText(/too long/i)).toHaveCount(0);
+  expect(api.puts).toEqual([]);
   const reopened = await openSettings(page);
   await expect(reopened.getByRole("textbox", { name: "Claude token" })).toHaveValue("");
   await expect(reopened.getByText("A token is saved: ••••wxyz.", { exact: true })).toBeVisible();

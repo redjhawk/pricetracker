@@ -47,6 +47,7 @@ Conventions:
 - When `service.New` is called on this database
 - Then:
   - each of the three Amazon items has a stored next scheduled check within 19:00–23:00 on day D; none keeps 08:00 on day D+1;
+  - the three items' stored next scheduled checks are pairwise different, as each item's time is drawn on its own;
   - `amazon_request_state.human_checks_redraw` reads 0.
 - And when the service is closed and `service.New` is called again on the same database (mark now 0), with the clock at 10:05 on day D
 - Then the three items' next scheduled checks are exactly those stored by the first start.
@@ -54,6 +55,7 @@ Conventions:
   - several items, not one, so a redraw of only the first item fails the test;
   - the shared time is chosen outside the next window, so an item that kept it is detected (a shared time inside the window could pass by chance);
   - repeated start: the second start, mark cleared, redraws nothing;
+  - one time drawn and given to every item (for example the draw moved out of the per-item loop) makes this test fail, although that time is within the window;
   - mutation check: making the start ignore the redraw mark (scheduling only items without a next check) makes this test fail.
 
 ### TC-003 — An empty-body error answer is classified by its HTTP status

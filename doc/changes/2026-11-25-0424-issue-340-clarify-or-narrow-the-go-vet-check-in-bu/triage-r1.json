@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "The fixture of the new subtest (server_dependencies_test.go:403-412) does hold printf, copylocks and tests findings today, and run 4 in no-tests.md records that master's plain `go vet ./...` fails on it, which is how testcases.md TC-001 says its second half is proved. So the test proves its case now; an in-file guard against the fixture later losing its findings is hardening, not a missing proof.",
+    "title": "Guard the analyzer-findings subtest against going vacuous",
+    "todo": "**Problem:** In `internal/amazon/amazontest/server_dependencies_test.go` (subtest `analyzer findings in non-test and test files do not fail the check`, about line 403), the test only checks that `buildModule` returns nil. Nothing in the file checks that the fixture really has analyzer findings. If a later edit removes them (for example someone \"fixes\" the `Printf` or renames `Testfoo`), or a toolchain update stops reporting one, the subtest still passes but proves nothing. The file's other negative paths have in-file controls (the `DownloadMarker` and `amazontest.Nope` controls).\n\n**Suggested work:** In the same subtest, after the `buildModule` check, run `go vet ./...` with all analyzers on the same `dir` (`exec.Command(\"go\", \"vet\", \"./...\")`, `cmd.Dir = dir`, `cmd.Env = append(os.Environ(), fixtureEnv...)`). Fail with `t.Error(\"the fixture has no analyzer finding, so the subtest proves nothing\")` if that command succeeds. Optionally, also check that the output holds `wrong type string`, `passes lock by value` and `malformed name`, keeping in mind that exact analyzer messages can change between Go releases."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: the change folder holds no delete.txt (only issue.md, no-tests.md, no-use-cases.md, review-r1.json, state.json, testcases.md), yet no-tests.md line 15 says run 5 used 'the scratch files listed in `delete.txt`'. This is a wording problem in a stage record and has no effect on code or tests.",
+    "title": "Fix the stale delete.txt reference in no-tests.md of #340",
+    "todo": "**Problem:** `doc/changes/2026-11-25-0424-issue-340-clarify-or-narrow-the-go-vet-check-in-bu/no-tests.md` line 15 says run 5 used \"the scratch files listed in `delete.txt`\", but there is no `delete.txt` in that change folder. The scratch overlay files were already removed.\n\n**Suggested work:** Change the sentence to a plain statement, for example \"Run 5 compared against the real `master` file through `go test -overlay`, using temporary overlay files, since removed.\""
+  }
+]

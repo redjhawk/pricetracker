@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "reason": "Confirmed: run from the repository root, `git diff --name-status master -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-203-* doc/todo/` prints `A doc/todo/issue-200-r1-02.md` (the follow-up record that round-1 triage added), so the TC-003 check in no-tests.md line 13 and testcases.md lines 59 and 64 fails on the correct change. FR-RESPONSIVE-030 requires only the existing `doc/todo/` files to stay unchanged; the check does not prove its case and must be scoped, for example with `--diff-filter=DMRT` for `doc/todo/`, which prints nothing on this branch.",
+    "title": "",
+    "todo": ""
+  }
+]

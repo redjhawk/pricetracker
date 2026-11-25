@@ -62,7 +62,7 @@ UC-AMZ-HCHK-008 alternative "fifth consecutive failure": the interrupted check r
 - Then:
   - `Collect` returns within the bound and the fake still received `Browser.close`;
   - the result is the same failure as in TC-001;
-  - exactly one cache log line; with **error answer** it contains `cache clear refused by fake`; in every subtest it does not contain `context canceled` (the interruption of the check is never given as the cause)
+  - exactly one cache log line; with **no answer** and **no answer, page still requested** it contains `no answer within` (the clear's 5 s bound is given as the cause); with **error answer** it contains `cache clear refused by fake`; in every subtest it contains neither `context canceled` nor `context deadline exceeded` (the interruption of the check is never given as the cause)
 - Corner cases: unresponsive browser; browser error; both interruption points.
 
 ## Real browser

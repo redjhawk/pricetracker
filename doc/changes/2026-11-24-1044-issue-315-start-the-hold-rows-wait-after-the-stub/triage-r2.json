@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": false,
+    "reason": "Traceability gap only. The `held` assertion is in the code (browser_profile_test.go, `t.Errorf(\"the stub exited before the end of the wait\")`), in the design snippet and bullet (technical.md:398-422) and as run 7 (technical.md:439), and no-tests.md records run 7 as TC-003 evidence. Only TS-TEST-HYG-064/068 and the TC-003 mapping row (technical.md:529, 533, 591) omit it; the test does prove its case.",
+    "title": "Trace the `held` check and fault injection 7 in the issue #315 technical IDs and mapping",
+    "todo": "**Problem:** In `doc/specifications/test-suite-hygiene/technical.md`, the R1-01 fix of #316 (the `held` assertion and fault injection 7) is described in the design (lines 398-422, 439) and in the issue #315 `no-tests.md`, but not in the traceability: TS-TEST-HYG-064 (line 529, FR-TEST-HYG-049) does not mention `held`, TS-TEST-HYG-068 (line 533) lists only fault injections 2–6, and the TC-003 row of the issue #315 test case mapping (line 591) cites run 1 and `ESRCH` only.\n\n**Suggested work:**\n- Add to TS-TEST-HYG-064 (or TS-TEST-HYG-062) that a signalled stub that exits before the 2 s clears `held` and the row reports `t.Errorf(\"the stub exited before the end of the wait\")`.\n- Extend TS-TEST-HYG-068 to fault injections 2–7 (adding: exit after signalling).\n- Add the `held` assertion and fault injection 7 to the TC-003 row of the issue #315 mapping, as `no-tests.md` already does.\n\nDocumentation only; no code change."
+  },
+  {
+    "id": "R2-02",
+    "blocking": false,
+    "reason": "Confirmed that `-race` was never run (no-tests.md says so honestly: no C compiler) and that no CI or script runs it, so TS-TEST-HYG-066, design run 1 (technical.md:433) and the TC-005 mapping (technical.md:593) overstate the evidence. But FR-TEST-HYG-051 does not require `-race`, and no race is possible: the `wait` closure is called synchronously in the test goroutine by `runBrowserOnProfileUntil`, so `signalled` and `held` are not shared, and the stub is a separate process linked only by the marker file.",
+    "title": "Correct the `-race` claim of the issue #315 specification or run it",
+    "todo": "**Problem:** `doc/specifications/test-suite-hygiene/technical.md` claims that the normal run passes with `-race` (TS-TEST-HYG-066 at line 531, design run 1 at line 433, TC-005 mapping at line 593), and TC-005 of `doc/changes/2026-11-24-1044-issue-315-start-the-hold-rows-wait-after-the-stub/testcases.md` lists `-race` as a corner case. The issue #315 `no-tests.md` records that `-race` could not run (no C compiler on the runner), and no CI workflow, script or Makefile runs `-race`.\n\n**Suggested work:**\n- Where cgo is available, run `go test ./internal/amazon -run '^TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal$' -count=1 -race -v` and record the result; or\n- State in TS-TEST-HYG-066, design run 1 and the TC-005 mapping that `-race` is not run on the factory runner, and why no data race is possible: the `wait` closure is called synchronously by `runBrowserOnProfileUntil` in the test goroutine, so `signalled` and `held` are not shared, and the only link with the stub process is the marker file.\n- Optionally, consider adding a `-race` job to CI (needs a C compiler) as a separate change."
+  },
+  {
+    "id": "R2-03",
+    "blocking": false,
+    "reason": "Formatting nit confirmed: the blank line at technical.md:423 splits the hold-wait notes into two Markdown lists, and the R1-01 bullet (line 422) precedes the timing bullets it depends on. No behaviour or traceability is affected.",
+    "title": "Merge the hold-wait notes of the issue #315 design into one list",
+    "todo": "**Problem:** In `doc/specifications/test-suite-hygiene/technical.md`, the R1-01 bullet (\"Still running at the end of the wait\", line 422) is followed by a blank line (line 423) before the \"15 s bound starts when `wait` is called\" bullet, which splits the hold-wait notes into two Markdown lists and puts the 'still running' rule before the timing rules it depends on.\n\n**Suggested work:** Remove the blank line at line 423 and move the R1-01 bullet after the \"No signal (FR-TEST-HYG-050)\" bullet (line 425). Documentation only."
+  }
+]
