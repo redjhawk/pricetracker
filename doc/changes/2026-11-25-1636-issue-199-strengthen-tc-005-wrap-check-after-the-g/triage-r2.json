@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "reason": "Confirmed: no-tests.md line 38 (TC-007) now claims '\"Gates\" below (two runs, every gate passed)', but the Gates section (lines 54-61) still says 'Run once', records only `node --test scripts/*.test.mjs` (50 passed), and line 59 says the e2e suite, `go vet ./...` and `go test ./...` results are 'see below' with nothing below. The record states evidence for TC-007/FR-TEST-HYG-098 that it does not contain, so blocking R1-01 is still open.",
+    "title": "",
+    "todo": ""
+  }
+]
