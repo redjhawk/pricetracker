@@ -1,6 +1,6 @@
 # Test cases: assert that the upgrade redraw draws a different time for each Amazon item (issue #260)
 
-Sources: functional specification [test-suite-hygiene](../../specifications/test-suite-hygiene/functional.md) (FR-TEST-HYG-078 to FR-TEST-HYG-081). There are no use cases: see [no-use-cases.md](no-use-cases.md). The behaviour the test proves is FR-AMZ-HCHK-005 of [Amazon human-like checks](../../specifications/amazon-human-checks/functional.md), which this change does not alter.
+Sources: functional specification [test-suite-hygiene](../../specifications/test-suite-hygiene/functional.md) (FR-TEST-HYG-090 to FR-TEST-HYG-093). There are no use cases: see [no-use-cases.md](no-use-cases.md). The behaviour the test proves is FR-AMZ-HCHK-005 of [Amazon human-like checks](../../specifications/amazon-human-checks/functional.md), which this change does not alter.
 
 Conventions:
 
@@ -15,16 +15,16 @@ Conventions:
 
 | Requirement | Test cases | Use cases |
 | --- | --- | --- |
-| FR-TEST-HYG-078 | TC-001, TC-002, TC-003 | — |
-| FR-TEST-HYG-079 | TC-001, TC-004 | — |
-| FR-TEST-HYG-080 | TC-005 | — |
-| FR-TEST-HYG-081 | TC-006 | — |
+| FR-TEST-HYG-090 | TC-001, TC-002, TC-003 | — |
+| FR-TEST-HYG-091 | TC-001, TC-004 | — |
+| FR-TEST-HYG-092 | TC-005 | — |
+| FR-TEST-HYG-093 | TC-006 | — |
 
 ## Cases
 
 ### TC-001: With its fixed seed, the redraw test passes and the three drawn times differ
 
-- Covers: FR-TEST-HYG-078, FR-TEST-HYG-079
+- Covers: FR-TEST-HYG-090, FR-TEST-HYG-091
 - Level: integration (Go, `internal/service`, real SQLite database, injected clock and random source)
 - Given the change applied and no fault injection
 - When the run executes
@@ -35,7 +35,7 @@ Conventions:
 
 ### TC-002: One time given to every item fails the test with a message naming two items and the time
 
-- Covers: FR-TEST-HYG-078
+- Covers: FR-TEST-HYG-090
 - Level: integration (Go, `internal/service`; fault injection)
 - Given the change applied, and `scheduleUnscheduledAmazonItems` temporarily edited to call `s.nextCheckAt("amazon", s.now())` once before the loop and store that one time for every item
 - When the run executes
@@ -49,7 +49,7 @@ Conventions:
 
 ### TC-003: The same time for only two of the three items fails the test, for every pair
 
-- Covers: FR-TEST-HYG-078
+- Covers: FR-TEST-HYG-090
 - Level: integration (Go, `internal/service`; fault injection)
 - Given the change applied, and one of these temporary edits at a time, each drawing one shared time before the loop, storing it for the two named items only and drawing a time of its own for the third:
   1. `B000001853` and `B000001854`;
@@ -63,7 +63,7 @@ Conventions:
 
 ### TC-004: The redraw test keeps its name and its other checks and messages
 
-- Covers: FR-TEST-HYG-079
+- Covers: FR-TEST-HYG-091
 - Level: code check of the diff of the test file, and the `-v` output of the run on `master` and with the change
 - Given the change applied
 - When the diff of the test file is read and both runs are compared
@@ -78,7 +78,7 @@ Conventions:
 
 ### TC-005: TC-002 of the issue #185 test cases states the pairwise different times
 
-- Covers: FR-TEST-HYG-080
+- Covers: FR-TEST-HYG-092
 - Level: document check of the issue #185 test cases
 - Given the change applied
 - When `git diff master -- <the issue #185 test cases>` is read
@@ -92,7 +92,7 @@ Conventions:
 
 ### TC-006: Only the test file changes outside `doc/`, and the gates pass
 
-- Covers: FR-TEST-HYG-081
+- Covers: FR-TEST-HYG-093
 - Level: repository check and suite run (deterministic gates: `gofmt -l internal/service`, `go vet ./...`, `go test ./...` and the change's diff)
 - Given the change applied on top of `master`
 - When `git diff --name-only master -- . ':!doc'` and `git diff --name-only master -- doc/changes/2026-11-23-1706-issue-185-tests-missing-from-168-amazon-human-like/` are listed and the gates run

@@ -1,6 +1,6 @@
 # No red phase for issue #260
 
-The change is test code: one added block in `TestAmazonUpgradeRedraw_Issue185_TC002_EveryItemRedrawnOnce` (`internal/service/amazon_human_checks_issue185_test.go`). The block checks behaviour that has already shipped (FR-AMZ-HCHK-005: `scheduleUnscheduledAmazonItems` calls `s.nextCheckAt` once per item). So it passes on `master`'s production code, and there is nothing for the development stage to implement. The test file is locked after this stage, and FR-TEST-HYG-081 allows no other file outside `doc/`, so this stage makes the change itself (TS-TEST-HYG-106). Run 2 shows the red state, and the development stage writes no code. It only sets the statuses.
+The change is test code: one added block in `TestAmazonUpgradeRedraw_Issue185_TC002_EveryItemRedrawnOnce` (`internal/service/amazon_human_checks_issue185_test.go`). The block checks behaviour that has already shipped (FR-AMZ-HCHK-005: `scheduleUnscheduledAmazonItems` calls `s.nextCheckAt` once per item). So it passes on `master`'s production code, and there is nothing for the development stage to implement. The test file is locked after this stage, and FR-TEST-HYG-093 allows no other file outside `doc/`, so this stage makes the change itself (TS-TEST-HYG-122). Run 2 shows the red state, and the development stage writes no code. It only sets the statuses.
 
 ## Delivered in `internal/service/amazon_human_checks_issue185_test.go`
 
