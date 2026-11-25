@@ -5,7 +5,7 @@
 #
 # Stages (state in doc/changes/<change>/state.json on branch ai-dev/issue-<n>):
 #   spec → usecases → testcases → techspec → tests (TDD red) → implement (green)
-#   → pr → review → triage ─ blocking ─► implement (max FACTORY_MAX_ROUNDS)
+#   → pr → review → triage ─ blocking ─► [contract →] implement (max FACTORY_MAX_ROUNDS)
 #                         └ none ─────► merge → done   (push to master runs .github/workflows/release.yml)
 #
 # Each agent stage is a fresh `claude -p` process with its own prompt and tools; deterministic gates
@@ -191,6 +191,20 @@ stage_testcases() {
 stage_techspec() {
   run_stage techspec docs gate_techspec
   advance tests "docs(tech): technical specification and API contract for #$ISSUE"
+}
+
+# The developer stage cannot edit API_SPECIFICATION.md: the contract belongs to the technical specification.
+# A blocking review comment that triage marks as a contract change, or a developer report with
+# `Category: contract`, comes here first. The contract author (docs profile) updates the contract and the
+# technical specification; implementation then aligns the code and fixes the other blocking comments.
+stage_contract() {
+  local extra="- Blocking review comments: $CHANGE_DIR/blocking.md (fix those marked \"Contract change needed\")"
+  [ -s "$CHANGE_DIR/blocking.md" ] || extra="- Blocking review comments: none"
+  [ ! -s "$CHANGE_DIR/contract-request.md" ] || extra+="
+- Contract change requested by the developer stage: $CHANGE_DIR/contract-request.md"
+  run_stage contract docs gate_contract "$extra"
+  rm -f "$CHANGE_DIR/contract-request.md"
+  advance implement "docs(api): contract changes for the review of #$ISSUE (round $(state_get round))"
 }
 
 stage_tests() {
@@ -379,6 +393,19 @@ Also fix the blocking review comments in $CHANGE_DIR/blocking.md."
           *) die "could not prepare a worktree of $BASE_BRANCH to check the developer's report: $(tail -5 <<<"$out")" ;;
         esac
       fi
+      # The fix needs API_SPECIFICATION.md, which only the contract stage may write: there once per review
+      # round, then back here. A second request in the same round is a manual step for the owner.
+      if grep -qiE '^Category:[[:space:]]*contract' <<<"$blocked"; then
+        if [ "$(state_get contract_request_round)" != "$(state_get round)" ]; then
+          state_set contract_request_round "$(state_get round)"
+          printf '%s\n' "$blocked" >"$CHANGE_DIR/contract-request.md"
+          advance contract "chore(factory): the fix needs an API contract change, to the contract stage"
+          return
+        fi
+        stop_for_user needs-human manual-step "The developer needs an API contract change again in round $(state_get round), after the contract stage. Update \`API_SPECIFICATION.md\` on \`$BRANCH\`, push it, then answer here:
+
+$blocked"
+      fi
       # A step no stage may take (a dependency or lockfile update, CI): the owner does it, so neither a retry
       # nor a repair helps. The owner's answer resumes here, with the owner's commit on the branch.
       if grep -qiE '^Category:[[:space:]]*owner' <<<"$blocked"; then
@@ -506,7 +533,8 @@ stage_triage() {
   if jq -e 'any(.[]; .blocking)' "$triage" >/dev/null; then
     jq -r --slurpfile r "$review" '"# Blocking review comments (round '"$round"')\n" +
       ([.[] | select(.blocking) | .id as $id | ($r[0][] | select(.id == $id)) as $c |
-        "\n## \($id) `\($c.file):\($c.line)`\n\n\($c.body)\n\nTriage: \(.reason)\n"] | join(""))' "$triage" >"$CHANGE_DIR/blocking.md"
+        "\n## \($id) `\($c.file):\($c.line)`\n\n\($c.body)\n\nTriage: \(.reason)\n" +
+        (if .contract then "\nContract change needed: `API_SPECIFICATION.md`.\n" else "" end)] | join(""))' "$triage" >"$CHANGE_DIR/blocking.md"
     # `round` counts every review and never resets (review ids R<round>-NN and file names stay unique);
     # `series_start` is the round at which the current series of MAX_ROUNDS rounds began.
     series_start=$(state_get series_start); local series=$(( round - ${series_start:-0} )) extra_series
@@ -526,20 +554,25 @@ Answer with how to resolve them; the next run returns to implementation with $MA
       state_set extra_series $(( ${extra_series:-0} + 1 ))
       printf '%s\n' "After $series review rounds, PR #$pr still has blocking comments. _Agent factory: $MAX_ROUNDS more rounds start without asking, once per issue._" | issue_comment
     fi
-    advance implement "chore(factory): blocking comments return to development (round $round)"
+    if jq -e 'any(.[]; .blocking and .contract == true)' "$triage" >/dev/null; then
+      advance contract "chore(factory): blocking comments need an API contract change (round $round)"
+    else
+      advance implement "chore(factory): blocking comments return to development (round $round)"
+    fi
   else
     advance merge "chore(factory): triage round $round, nothing blocks"
   fi
 }
 
-# Fails closed: exactly one decision per review id, boolean blocking, safe ids, title/todo when not blocking.
+# Fails closed: exactly one decision per review id, boolean blocking (and contract, when present), safe ids,
+# title/todo when not blocking.
 validate_triage() { # validate_triage <review> <triage>
   jq -e --slurpfile r "$1" '
     type == "array" and
     ([.[].id] | sort) == ([$r[0][].id] | sort) and
     ([.[].id] | length) == ([.[].id] | unique | length) and
     all(.[]; (.id | type == "string" and test("^R[0-9]+-[0-9]+$")) and (.blocking | type == "boolean") and
-             (.reason | type == "string") and
+             (.reason | type == "string") and (.contract == null or (.contract | type == "boolean")) and
              (.blocking or ((.title | type == "string" and length > 0) and (.todo | type == "string" and length > 0))))' \
     "$2" >/dev/null 2>&1 || { log "triage $2 must hold one valid decision for every id in $1"; return 1; }
 }

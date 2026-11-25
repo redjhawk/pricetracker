@@ -84,6 +84,13 @@ gate_techspec() {
   return $missing
 }
 
+# The contract stage changed the contract: API_SPECIFICATION.md or a technical specification, since the
+# last stage checkpoint (the agent's uncommitted edits).
+gate_contract() {
+  [ -n "$(git status --porcelain -- API_SPECIFICATION.md 'doc/specifications/*/technical.md')" ] && return 0
+  echo "neither API_SPECIFICATION.md nor a technical.md changed"; return 1
+}
+
 # TDD red: every test case is automated and the suite fails before the implementation exists.
 gate_red() {
   if [ -f "$CHANGE_DIR/no-tests.md" ]; then echo "no-tests.md present: red phase skipped"; return 0; fi
