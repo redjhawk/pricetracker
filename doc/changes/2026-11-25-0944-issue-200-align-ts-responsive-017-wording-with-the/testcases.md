@@ -56,12 +56,13 @@ Conventions:
 - When these commands run:
   - `git diff --name-status <base> -- . ':!doc'`;
   - `git diff <base> -- doc/specifications/responsive-layout/functional.md doc/specifications/responsive-layout/technical.md`;
-  - `git diff --name-status <base> -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-203-* doc/todo/`
+  - `git diff --name-status <base> -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-203-*`;
+  - `git diff --name-status --diff-filter=DMRT <base> -- doc/todo/`
 - Then:
   - the first command prints nothing (no file added, deleted, modified or renamed outside `doc/`);
   - in `functional.md`, no line of FR-RESPONSIVE-001 to FR-RESPONSIVE-027 is added, removed or modified; the only changes are the issue #200 section (FR-RESPONSIVE-028 to 030) and the issue #200 Traceability bullet;
   - in `technical.md`, the TS-RESPONSIVE-023 entry (from `- **TS-RESPONSIVE-023` to the next top-level entry) is unchanged, and no line outside the TS-RESPONSIVE-017 entry changes, apart from traceability lines that cite issue #200 or FR-RESPONSIVE-028 to 030;
-  - the third command prints nothing: the change folders `2026-11-11-1142-issue-140-responsive-layout`, `2026-11-11-1513-issue-140-full-width-list`, `2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the` and `2026-11-25-0828-issue-203-fix-020-updated-wording-in-responsive-la`, and every file under `doc/todo/` (including `issue-165-r1-02.md`), are unchanged
+  - the third and fourth commands print nothing: the change folders `2026-11-11-1142-issue-140-responsive-layout`, `2026-11-11-1513-issue-140-full-width-list`, `2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the` and `2026-11-25-0828-issue-203-fix-020-updated-wording-in-responsive-la`, and every existing file under `doc/todo/` (including `issue-165-r1-02.md`), are unchanged; new follow-up records for issue #200 (`doc/todo/issue-200-r*.md`) are allowed
 - Corner cases:
   - no `_test.go`, frontend source, `src/index.css`, `.spec.ts`, `go.mod`, `go.sum`, `package.json` or `API_SPECIFICATION.md` change;
   - no TS-RESPONSIVE or FR-RESPONSIVE ID is renumbered or removed (the sorted lists of IDs defined in both files equal the base lists plus FR-RESPONSIVE-028 to 030).
