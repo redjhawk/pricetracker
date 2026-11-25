@@ -1,0 +1,8 @@
+# Blocking review comments (round 2)
+
+## R2-01 `doc/changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/no-tests.md:13`
+
+The TC-003 check requires `git diff --name-status master -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-203-* doc/todo/` to print nothing. The branch now adds `doc/todo/issue-200-r1-02.md` (the follow-up record that round-1 triage wrote for R1-02), so the command prints `A doc/todo/issue-200-r1-02.md` and the check fails on the correct change. testcases.md lines 59 and 64 ("every file under `doc/todo/` ... are unchanged") have the same problem. FR-RESPONSIVE-030 only needs the existing files under `doc/todo/` to stay unchanged, and a new follow-up record does not change them. Suggested fix: in both files, check `doc/todo/` with `git diff --name-status --diff-filter=DMRT master -- doc/todo/` (or exclude `doc/todo/issue-200-r*.md`), so the check covers existing todo files, including `issue-165-r1-02.md`, and still allows the pipeline's follow-up records for this issue.
+
+Triage: Confirmed: run from the repository root, `git diff --name-status master -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/changes/*issue-203-* doc/todo/` prints `A doc/todo/issue-200-r1-02.md` (the follow-up record that round-1 triage added), so the TC-003 check in no-tests.md line 13 and testcases.md lines 59 and 64 fails on the correct change. FR-RESPONSIVE-030 requires only the existing `doc/todo/` files to stay unchanged; the check does not prove its case and must be scoped, for example with `--diff-filter=DMRT` for `doc/todo/`, which prints nothing on this branch.
+
