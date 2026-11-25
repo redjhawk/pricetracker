@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 308,
+    "category": "nit",
+    "body": "The comment says `go vet ./...` 'type-checks its packages with their test files', but vet also runs its full default analyzer set (printf, copylocks, unusedresult, tests, ...). A future valid fixture that compiles but has an analyzer finding (e.g. a mismatched Printf verb or a malformed Test func in a fixture _test.go) would then fail `TestFixtureModulesBuild_Issue251_TC001` with the misleading message `valid fixture does not build`. The current fixtures pass vet, so nothing breaks today. Suggested fix (either one): say in the comment that vet's analyzers must pass as well (e.g. '... type-checks its packages with their test files and runs vet's checks on them'), or limit vet to the type check plus one trivial analyzer (e.g. `{\"vet\", \"-atomic\", \"./...\"}`; naming one analyzer turns the others off) so that only compile errors fail the build check."
+  }
+]
