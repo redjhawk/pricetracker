@@ -1,6 +1,6 @@
 # API Contract — Approved
 
-**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115); Amazon human-like checks behaviour defined 2026-11-20 (agent-defined, issue #168, no shape change); Amazon success response not opened as a page defined 2026-11-22 (agent-defined, issue #186, no shape change); Amazon unavailable listing on the browser's error page defined 2026-11-23 (agent-defined, issue #187, no shape change); masked Settings secrets defined 2026-11-23 (agent-defined, issue #265: settings objects return `saved`/`hint` instead of `value`, `PUT /api/v1/settings` gains explicit removal and treats an empty value as unchanged, `PUT /api/v1/settings/leboncoin-session` removed); Amazon thumbnail URLs restricted to Amazon image hosts over HTTPS defined 2026-11-24 (agent-defined, issue #275, no shape change).
+**Status:** Initial contract approved 2026-09-24; Amazon second-hand offer, bulk refresh, LeBoncoin, and single-item refresh approved 2026-09-26; full item price history approved 2026-10-01; consecutive item price periods approved 2026-10-02; LeBoncoin session settings approved 2026-10-03; Claude token settings and AI reviews defined 2026-10-04 (agent-defined per AGENTS.md); LeBoncoin purchase goal defined 2026-10-04 (agent-defined); users and login phase 1 defined 2026-10-04 (agent-defined); Amazon searches defined 2026-10-07 (agent-defined, issue #56); session `version` field defined 2026-11-10 (agent-defined, issue #115); Amazon human-like checks behaviour defined 2026-11-20 (agent-defined, issue #168, no shape change); Amazon success response not opened as a page defined 2026-11-22 (agent-defined, issue #186, no shape change); Amazon unavailable listing on the browser's error page defined 2026-11-23 (agent-defined, issue #187, no shape change); masked Settings secrets defined 2026-11-23 (agent-defined, issue #265: settings objects return `saved`/`hint` instead of `value`, `PUT /api/v1/settings` gains explicit removal and treats an empty value as unchanged, `PUT /api/v1/settings/leboncoin-session` removed); Amazon thumbnail URLs restricted to Amazon image hosts over HTTPS defined 2026-11-24 (agent-defined, issue #275, no shape change); Amazon item AI review and purchase goal defined 2026-11-25 (agent-defined, issue #305: Amazon `aiReview` object with `unavailableReason`, manual Amazon reviews, Amazon goals).
 
 ## Conventions
 
@@ -388,7 +388,7 @@ Compatibility (issue #265): both settings objects return `saved`/`hint` instead 
 
 ### AI review in the item details response
 
-`GET /api/v1/items/{id}` adds `aiReview`: an object for LeBoncoin items, `null` for Amazon items. `GET /api/v1/items` (list) does not include it. All other item fields are unchanged.
+`GET /api/v1/items/{id}` adds `aiReview`: an object for LeBoncoin items, `null` for Amazon items (superseded by issue #305: an object for Amazon items too, see "Amazon item AI review and purchase goal (issue #305)"). `GET /api/v1/items` (list) does not include it. All other item fields are unchanged.
 
 ```json
 "aiReview": {
@@ -431,7 +431,7 @@ Automatic reviews (server-side, asynchronous): after the first collection of a n
 POST /api/v1/items/{id}/ai-review
 ```
 
-No body. Fetches the current listing from LeBoncoin and reviews it asynchronously; does not record a price.
+No body. Fetches the current listing from LeBoncoin and reviews it asynchronously; does not record a price. Amazon items (issue #305) are reviewed from recorded data without any Amazon request and have two more refusals; see "Amazon item AI review and purchase goal (issue #305)".
 
 `202 Accepted`: `{ "requestedAt": "2026-10-04T10:00:00.000Z", "alreadyRunning": false }`. If a review is already running, no new one starts and `alreadyRunning` is `true`.
 
@@ -439,7 +439,7 @@ No body. Fetches the current listing from LeBoncoin and reviews it asynchronousl
 | --- | --- | --- | --- |
 | 404 | `ITEM_NOT_FOUND` | Unknown item | "Tracked item was not found." |
 | 409 | `CLAUDE_TOKEN_MISSING` | No Claude token saved | "Configure a Claude token in Settings." |
-| 422 | `AI_REVIEW_UNSUPPORTED` | Amazon item | "AI reviews are available for LeBoncoin items only." |
+| 422 | `AI_REVIEW_UNSUPPORTED` | Amazon item — no longer returned since issue #305 | "AI reviews are available for LeBoncoin items only." |
 | 405 | `METHOD_NOT_ALLOWED` | Method other than POST (`Allow: POST`) | "This method is not allowed for the route." |
 | 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
 
@@ -451,11 +451,11 @@ Agent-defined per AGENTS.md for [LeBoncoin purchase goal](doc/specifications/leb
 
 ### Item response change
 
-All item responses (list, add, details) add `purchaseGoal`: string, `""` when no goal is set; always `""` for Amazon items. Leading/trailing whitespace is trimmed; no maximum length is enforced. Review objects do not include the goal.
+All item responses (list, add, details) add `purchaseGoal`: string, `""` when no goal is set; always `""` for Amazon items (superseded by issue #305: Amazon items have goals too). Leading/trailing whitespace is trimmed; no maximum length is enforced. Review objects do not include the goal.
 
 ### Add an item change
 
-`POST /api/v1/items` accepts an optional `purchaseGoal` string: `{ "url": "https://www.leboncoin.fr/ad/...", "purchaseGoal": "Install a light Linux distro" }`. It is trimmed and stored for LeBoncoin items and ignored for Amazon items. A non-string value returns `400 INVALID_JSON`. The request body limit is 1 MiB (`413 REQUEST_TOO_LARGE` above it). Other behavior is unchanged.
+`POST /api/v1/items` accepts an optional `purchaseGoal` string: `{ "url": "https://www.leboncoin.fr/ad/...", "purchaseGoal": "Install a light Linux distro" }`. It is trimmed and stored for LeBoncoin items and ignored for Amazon items (since issue #305 also stored for Amazon items). A non-string value returns `400 INVALID_JSON`. The request body limit is 1 MiB (`413 REQUEST_TOO_LARGE` above it). Other behavior is unchanged.
 
 ### Update the purchase goal
 
@@ -477,7 +477,7 @@ Request: `{ "purchaseGoal": "Install a light Linux distro" }` (`""` clears the g
 | 404 | `ITEM_NOT_FOUND` | Unknown item | "Tracked item was not found." |
 | 405 | `METHOD_NOT_ALLOWED` | Method other than PUT (`Allow: PUT`) | "This method is not allowed for the route." |
 | 413 | `REQUEST_TOO_LARGE` | Body over 1 MiB | "Request body is too large." |
-| 422 | `PURCHASE_GOAL_UNSUPPORTED` | Amazon item | "Purchase goals are available for LeBoncoin items only." |
+| 422 | `PURCHASE_GOAL_UNSUPPORTED` | Amazon item — no longer returned since issue #305 | "Purchase goals are available for LeBoncoin items only." |
 | 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
 
 ### Effect on AI reviews
@@ -567,7 +567,7 @@ Issue #42; see [technical specification](doc/specifications/leboncoin-old-price/
 
 ## Amazon searches (2026-10-07) — removed (issue #111)
 
-**Removed by issue #111 (2026-11-10); kept below only as history, not part of the current contract.** The routes `/api/v1/amazon-searches…` and `GET /api/v1/amazon/requests` now return `404 ROUTE_NOT_FOUND`; the item field `tracked`, `409 ITEM_NOT_TRACKED`, `409 AMAZON_REQUESTS_STOPPED`, Amazon `aiReview` objects (Amazon details return `aiReview: null` again), the search-item reuse on add and the untrack-on-delete behavior are gone. The current Amazon stop contract is "Amazon per-item stop (issue #111)" below. Rationale: [change index](doc/changes/2026-11-10-0141-issue-111-delete-amazon-searches/index.md).
+**Removed by issue #111 (2026-11-10); kept below only as history, not part of the current contract.** The routes `/api/v1/amazon-searches…` and `GET /api/v1/amazon/requests` now return `404 ROUTE_NOT_FOUND`; the item field `tracked`, `409 ITEM_NOT_TRACKED`, `409 AMAZON_REQUESTS_STOPPED`, Amazon `aiReview` objects (Amazon details return `aiReview: null` again, until issue #305 brings back an Amazon `aiReview` object of a different shape), the search-item reuse on add and the untrack-on-delete behavior are gone. The current Amazon stop contract is "Amazon per-item stop (issue #111)" below. Rationale: [change index](doc/changes/2026-11-10-0141-issue-111-delete-amazon-searches/index.md).
 
 Issue #56, agent-defined per AGENTS.md. Technical sources: [Amazon searches](doc/specifications/amazon-searches/technical.md), [Amazon human browsing](doc/specifications/amazon-human-browsing/technical.md), [Amazon AI review](doc/specifications/amazon-ai-review/technical.md). Rationale: [change index](doc/changes/2026-10-07-1117-issue-56-amazon-searches/index.md). Additive except where noted. All endpoints follow the existing access rules (owner-scoped in protected mode, open-mode owner otherwise); another owner's search returns `404 SEARCH_NOT_FOUND`. Responses carry `Cache-Control: no-store`.
 
@@ -695,3 +695,56 @@ Agent-defined per AGENTS.md. Technical source: [Amazon human-like checks](doc/sp
 - A failed browser check of an Amazon item is reported as before (`lastAttempt.result: "request_error"`, message "Amazon could not be reached for a price check.").
 - Issue #186: an Amazon answer with a success status (200–299) that the browser does not open as a page (a download such as `Content-Disposition: attachment`, or 204/205 without content) is such a failure: `lastAttempt.result: "request_error"`, item `status: "retrieval_error"`, second-hand status `check_error`, latest price and second-hand offer unchanged, and it counts toward the per-item stop. It is never `price_not_found`. A non-2xx answer that is not opened as a page is still classified by its status (404/410 → unavailable, other statuses → `request_error`). Refresh endpoints still answer `202`.
 - Issue #187: when such a non-opened answer is 404/410 (listing unavailable: `lastAttempt.result: "unavailable"`, item `status: "unavailable"`), no used-offer request is sent for that check; its second-hand status is `check_error` and the last detected second-hand offer is unchanged. A 404/410 page that the browser opens still gets its used-offer requests. Refresh endpoints still answer `202`.
+
+## Amazon item AI review and purchase goal (issue #305)
+
+Agent-defined per AGENTS.md. Technical source: [Amazon item AI review technical](doc/specifications/amazon-item-ai-review/technical.md). Rationale: the operator asked for the LeBoncoin purchase goal and AI review on Amazon items, reviewed only on request from the data recorded by the item's checks. Additive; LeBoncoin shapes and behaviour are unchanged. Responses carry the existing `Cache-Control: no-store`; access rules are unchanged (another owner's item is `404 ITEM_NOT_FOUND`).
+
+### AI review in the Amazon item details
+
+`GET /api/v1/items/{id}` returns `aiReview` as an object for Amazon items too (state fields as in "AI review in the item details response"). `GET /api/v1/items` still has no `aiReview`. The state object gains, for both platforms:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `unavailableReason` | `"stopped"`, `"no_current_price"` or `null` | Why no review can be requested now. `stopped`: `amazonStoppedAt` is set. `no_current_price`: no price recorded yet, or the latest Amazon answer is `price_not_found` or `unavailable` (a later `request_error` keeps the last price, so the item stays available). `stopped` wins when both apply. It ignores a check that is running and does not depend on `tokenConfigured`. Always `null` for LeBoncoin items. |
+
+The UI shows **Refresh AI review** only when `unavailableReason` is `null` (disabled when `tokenConfigured` is false or `running` is true) and shows the matching message otherwise. Reviews and history stay in the response whatever the reason.
+
+Amazon review object: same fields as the LeBoncoin one (`id`, `status`, `priceCents`, `createdAt`, `completedAt`, `review`, `errorMessage`). `priceCents` is the current Amazon price the review was based on. Amazon `review`:
+
+```json
+"review": {
+  "price": { "rating": "good_deal", "explanation": "…" },
+  "fairPrice": { "minCents": 11000, "maxCents": 13000 },
+  "recommendation": { "rating": "wait", "explanation": "…" }
+}
+```
+
+`price.rating` is one of `good_deal`, `fair`, `overpriced`; `recommendation.rating` is one of `buy`, `wait` (wait for a lower price), `avoid`; each `explanation` is non-empty English. `fairPrice`: integers ≥ 0 with `minCents ≤ maxCents`. No other part (condition, suggested offer, risks, missing information, seller questions, description vs photos). Failure messages are those of LeBoncoin reviews except "The listing could not be retrieved from LeBoncoin.", which never applies to Amazon. Review objects contain no goal and no customer rating.
+
+No Amazon review starts automatically: not on add, price checks, goal or token saves, restart by **Refresh price**, or upgrade.
+
+### Request an AI review of an Amazon item
+
+`POST /api/v1/items/{id}/ai-review` (no body) on an Amazon item answers `202 { "requestedAt": "…", "alreadyRunning": false }` as for LeBoncoin and reviews the item asynchronously from its recorded data: title, marketplace, current price and price history, Amazon-sold second-hand offer and its history, customer rating and number of ratings (recorded by Amazon checks, never returned by the API), and the purchase goal. It sends no Amazon request and does not record a price, an attempt, a schedule change or an Amazon failure. A failed review never counts toward the Amazon per-item stop. Clients poll `GET /api/v1/items/{id}` while `aiReview.running`.
+
+Refusals, checked in this order; nothing is stored:
+
+| Status | `code` | When | `message` |
+| --- | --- | --- | --- |
+| 404 | `ITEM_NOT_FOUND` | Unknown item | "Tracked item was not found." |
+| 409 | `AI_REVIEW_ITEM_STOPPED` | `unavailableReason` would be `stopped` (with or without a token) | "Amazon checks are stopped: restart the item with Refresh price to request an AI review." |
+| 409 | `AI_REVIEW_NO_CURRENT_PRICE` | `unavailableReason` would be `no_current_price` (with or without a token) | "No current price: an AI review needs a current Amazon price." |
+| 409 | `CLAUDE_TOKEN_MISSING` | No Claude token saved | "Configure a Claude token in Settings." |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than POST (`Allow: POST`) | "This method is not allowed for the route." |
+| 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
+
+`422 AI_REVIEW_UNSUPPORTED` is no longer returned for any item.
+
+### Purchase goal of Amazon items
+
+- Item responses: `purchaseGoal` is the stored (trimmed) goal of Amazon items too, `""` when none (items added before issue #305 have `""`).
+- `POST /api/v1/items`: the optional `purchaseGoal` is trimmed and stored for Amazon items too. Adding starts no review.
+- `PUT /api/v1/items/{id}/purchase-goal` on an Amazon item: `200 { "purchaseGoal", "changed", "reviewStarted": false }`; never starts a review; the next requested review uses the new goal. Other statuses as for LeBoncoin; `422 PURCHASE_GOAL_UNSUPPORTED` is no longer returned.
+
+Deleting an Amazon item deletes its goal, recorded customer rating and reviews.

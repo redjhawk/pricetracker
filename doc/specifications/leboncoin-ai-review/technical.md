@@ -19,6 +19,7 @@ Companions: [Claude token settings technical](../claude-token-settings/technical
 | TS-LBC-AIR-006 | AIR-001, AIR-005–008 | Asynchronous review worker, at most one per item (in-memory set), token read at start, safe error messages | `internal/service/service.go` | Service tests: duplicate requests → one run; no token → no row; token rejected → failed row + `lastRejectedAt` |
 | TS-LBC-AIR-007 | AIR-004–011 | `aiReview` field on `GET /api/v1/items/{id}`; `POST /api/v1/items/{id}/ai-review` | `internal/httpapi/server.go`, `internal/model/model.go` | Handler tests: 202/404/409/422; `aiReview` null for Amazon, absent from list |
 | TS-LBC-AIR-008 | AIR-003–011, AIR-013, AIR-014 | Carbon "AI review" section in `ItemDetail`, refresh button, polling while running, history accordion | `src/components/AiReview.tsx` (new), `src/components/ItemDetail.tsx`, `src/App.tsx`, `src/api/items.ts`, `src/types.ts`, `src/index.css` (layout only if needed) | Playwright mocked-API spec `tests/leboncoin-ai-review.spec.ts`; manual screen-reader/400 px QA |
+| TS-LBC-AIR-009 | AIR-004 (amended, issue #305) | Amazon details get their own `aiReview` object and section; `AI_REVIEW_UNSUPPORTED` is no longer returned; the state gains `unavailableReason` (always `null` for LeBoncoin). LeBoncoin triggers, prompt, shapes and `AiReview.tsx` unchanged. Supersedes the Amazon parts of TS-LBC-AIR-007, -008. Details: [Amazon item AI review technical](../amazon-item-ai-review/technical.md) | see there | TC-017, TC-019, TC-029 of issue #305 |
 
 ## Frontend
 
