@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: `git diff master...HEAD -- doc/specifications/responsive-layout/technical.md` also changes line 4 (\"001 to 027\" to \"001 to 030\") and adds the issue #200 section, so the TC-001 check in no-tests.md line 11 (and the same wording in testcases.md line 35) fails on the correct change and contradicts TC-003, which allows issue #200 traceability lines. A test check that rejects the correct implementation does not prove its case; scope it to the TS-RESPONSIVE-017 entry in both files.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Correct observation: `td:has(> .item-cell) { flex: 1 1 14rem }` (src/index.css) gives the item cell a 14rem flex base size, so the line-breaking sentence is not exact for that cell. FR-RESPONSIVE-028 and TC-001 require the rest of the entry to stay unchanged, so this is follow-up wording work, not a defect of this PR.",
+    "title": "Qualify TS-RESPONSIVE-017 line-breaking sentence for the item cell's 14rem basis",
+    "todo": "**Problem:** In `doc/specifications/responsive-layout/technical.md` line 117 (TS-RESPONSIVE-017), \"Flex line breaking puts each cell on the current line when its max-content width fits\" is not exact for the item cell: `src/index.css` sets `.responsive-table tbody tr td:has(> .item-cell) { flex: 1 1 14rem }`, so line breaking uses its 14rem flex base size, not its max-content width.\n\n**Suggested work:** Qualify the sentence, for example \"Flex line breaking puts each cell (the item cell from its 14rem basis) on the current line when its width fits, and otherwise starts a new line.\", so the paragraph has no other mismatch with TS-RESPONSIVE-023. Documentation only; no CSS change.\n\nFrom review comment R1-02 on PR #352 (issue #200)."
+  }
+]
