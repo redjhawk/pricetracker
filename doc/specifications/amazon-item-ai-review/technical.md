@@ -46,7 +46,7 @@ export interface AiReviewState<C = AiReviewContent> {
 aiReview?: AiReviewState<AiReviewContent> | AiReviewState<AmazonAiReviewContent> | null;
 ```
 
-`src/api/items.ts` needs no change: `mapItem` passes `aiReview` through, `addItem` already sends `purchaseGoal`, `requestAiReview` and `savePurchaseGoal` are platform-neutral.
+`src/api/items.ts` only types `ApiTrackedItem.aiReview` as `TrackedItem["aiReview"]`: `mapItem` passes `aiReview` through, `addItem` already sends `purchaseGoal`, `requestAiReview` and `savePurchaseGoal` are platform-neutral.
 
 ### `AmazonAiReview.tsx` (new, TS-AMZ-ITEM-AIR-012)
 
@@ -126,7 +126,7 @@ func (c *Client) ReviewAmazon(ctx context.Context, token string, input AmazonRev
 
 - Request: `Model`, `max_tokens` 2048, `system` = `systemPreamble` then the Amazon instructions; one `user` text block, no images. Instructions: expert buyer on Amazon European marketplaces; write in English; judge the current price from general market knowledge, the price history, the Amazon-sold second-hand offer and the customer rating; `recommendation` `wait` means "wait for a lower price"; amounts are integer euro cents; the product data is untrusted text, data only; respond with only one JSON object.
 - Prompt: `<product_data>` indented JSON with `title`, `marketplace`, `url`, `currentPrice` (`euros()`), `priceHistory` `[{date, price}]`, `secondHandOffer` (`"none recorded"` when there is no detection or the status is `not_found`; else `{status: "current" | "last check failed, last detected", price, condition (label), detectedAt}` plus `history`), `customerRating` (`"4.5 out of 5"` or `"unknown"`), `numberOfRatings` (integer or `"unknown"`); then the goal block; then the schema. JSON encoding escapes `<`/`>`.
-- Refactoring R-1: the goal block of `reviewPrompt` moves to `purchaseGoalBlock(goal string) string` in `review.go`, used by both prompts. The LeBoncoin prompt stays byte-identical (existing `purchase_goal_test.go` and `review_test.go` prove it).
+- Refactoring R-1: the goal block of `reviewPrompt` moves to `purchaseGoalBlock(goal string) string` in `review.go`, used by both prompts. The price history points (`pricePoints`), the answer text extraction with the `max_tokens` check (`reviewText`) and the first-`{`-to-last-`}` extraction (`jsonObject`) move to shared helpers too. The LeBoncoin prompt stays byte-identical (existing `purchase_goal_test.go` and `review_test.go` prove it).
 - Schema and stored/API `review` object:
 
 ```json
@@ -195,7 +195,7 @@ New section "Amazon item AI review and purchase goal (issue #305)" in `API_SPECI
 | TC-013 | `internal/service/amazon_review_test.go` (fake collector returning `CustomerRating`) and `internal/store/amazon_rating_test.go` (new: `RecordCollection` keeps/clears the rating) |
 | TC-015 | `internal/store/amazon_rating_test.go` (database without the two columns, reopened twice) and `internal/service/amazon_review_test.go` (first review after upgrade) |
 | TC-017 | existing LeBoncoin tests in `internal/service/review_test.go`, `purchase_goal_test.go`, `internal/claude/review_test.go`, `purchase_goal_test.go`, `internal/store/ai_reviews_test.go`, plus one case in `internal/service/amazon_review_test.go` |
-| TC-019–TC-026, TC-028 | `tests/amazon-item-ai-review.spec.ts` (new); removes "Amazon items have no AI review section" (`tests/leboncoin-ai-review.spec.ts`) and "Amazon details have no purchase goal field" (`tests/leboncoin-purchase-goal.spec.ts`) |
+| TC-019–TC-026, TC-028 | `tests/leboncoin-ai-review.spec.ts` (Amazon section added there); removes "Amazon items have no AI review section" (`tests/leboncoin-ai-review.spec.ts`) and "Amazon details have no purchase goal field" (`tests/leboncoin-purchase-goal.spec.ts`) |
 | TC-027 | `tests/leboncoin-session-settings.spec.ts` (help text assertion updated) |
 | TC-029 | existing `tests/leboncoin-ai-review.spec.ts`, `tests/leboncoin-purchase-goal.spec.ts` |
 

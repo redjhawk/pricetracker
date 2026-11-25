@@ -13,18 +13,20 @@ import (
 
 const listingNotRetrievedMessage = "The listing could not be retrieved from LeBoncoin."
 
-// RequestAIReview starts a manual review of the current LeBoncoin listing.
-// It reports alreadyRunning instead of starting a second review for the item.
+// RequestAIReview starts a manual review of the current LeBoncoin listing, or of an Amazon item
+// from its recorded data. It reports alreadyRunning instead of starting a second review for the item.
 func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bool, error) {
 	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
 		return time.Time{}, false, err
 	}
-	if listing.Platform != "leboncoin" {
-		return time.Time{}, false, &Error{Status: 422, Code: "AI_REVIEW_UNSUPPORTED", Message: "AI reviews are available for LeBoncoin items only."}
-	}
 	requestedAt := time.Now().UTC()
-	outcome, err := s.startReview(id, nil, true)
+	var outcome reviewOutcome
+	if listing.Platform == "amazon" {
+		outcome, err = s.requestAmazonReview(ctx, listing)
+	} else {
+		outcome, err = s.startReview(id, nil, true)
+	}
 	if err != nil {
 		return time.Time{}, false, err
 	}
@@ -38,11 +40,8 @@ func (s *Service) RequestAIReview(ctx context.Context, id string) (time.Time, bo
 	}
 }
 
-// AIReview returns the aiReview field for the item details: LeBoncoin items only; nil for Amazon items.
+// AIReview returns the aiReview field for the item details of either platform.
 func (s *Service) AIReview(ctx context.Context, item model.Item) (*model.AIReviewState, error) {
-	if item.Platform != "leboncoin" {
-		return nil, nil
-	}
 	lastAttempt, succeeded, err := s.store.AIReviews(ctx, item.ID)
 	if err != nil {
 		return nil, err
@@ -54,6 +53,16 @@ func (s *Service) AIReview(ctx context.Context, item model.Item) (*model.AIRevie
 	state := &model.AIReviewState{TokenConfigured: token.Value != nil, Running: s.reviewRunning(item.ID), LastAttempt: lastAttempt, History: succeeded}
 	if len(succeeded) > 0 {
 		state.Latest = &succeeded[0]
+	}
+	if item.Platform == "amazon" {
+		// Stored values only: a running check does not change the availability.
+		stored, err := s.store.Get(ctx, item.ID)
+		if err != nil {
+			return nil, err
+		}
+		if reason := amazonReviewAvailability(stored.AmazonStoppedAt, stored.LatestPrice, stored.LastAttempt); reason != "" {
+			state.UnavailableReason = &reason
+		}
 	}
 	return state, nil
 }

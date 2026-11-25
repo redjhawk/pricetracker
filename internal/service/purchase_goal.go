@@ -7,15 +7,13 @@ import (
 	"strings"
 )
 
-// SetPurchaseGoal replaces a LeBoncoin item's purchase goal. A changed goal
-// requests a new AI review; if one is running, another runs after it.
+// SetPurchaseGoal replaces an item's purchase goal. A changed LeBoncoin goal
+// requests a new AI review; if one is running, another runs after it. A changed
+// Amazon goal starts no review: the next requested review uses it.
 func (s *Service) SetPurchaseGoal(ctx context.Context, id, goal string) (string, bool, bool, error) {
 	listing, err := s.ownedListing(ctx, id)
 	if err != nil {
 		return "", false, false, err
-	}
-	if listing.Platform != "leboncoin" {
-		return "", false, false, &Error{Status: 422, Code: "PURCHASE_GOAL_UNSUPPORTED", Message: "Purchase goals are available for LeBoncoin items only."}
 	}
 	goal = strings.TrimSpace(goal)
 	if goal == listing.PurchaseGoal {
@@ -27,6 +25,9 @@ func (s *Service) SetPurchaseGoal(ctx context.Context, id, goal string) (string,
 	}
 	if !found {
 		return "", false, false, sql.ErrNoRows
+	}
+	if listing.Platform == "amazon" {
+		return goal, true, false, nil
 	}
 	// The goal is saved: a review start failure follows the AI review rules
 	// and is not reported as a save failure.

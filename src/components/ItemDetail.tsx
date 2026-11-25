@@ -12,9 +12,10 @@ import {
   InlineLoading,
 } from "@carbon/react";
 import { Launch, Renew, TrashCan } from "@carbon/icons-react";
-import type { TrackedItem } from "../types";
+import type { AiReviewState, AmazonAiReviewContent, TrackedItem } from "../types";
 import { dateTime } from "../dateTime";
 import AiReview from "./AiReview";
+import AmazonAiReview from "./AmazonAiReview";
 import PurchaseGoal from "./PurchaseGoal";
 import StatusTag from "./StatusTag";
 
@@ -183,13 +184,20 @@ export default function ItemDetail({
         </article>}
       </div>
 
-      {item.platform === "leboncoin" && (
-        <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+      <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+
+      {item.platform === "amazon" && item.aiReview && (
+        <AmazonAiReview
+          state={item.aiReview as AiReviewState<AmazonAiReviewContent>}
+          onRefresh={onAiReviewRefresh}
+          requesting={aiReviewRequesting}
+          requestError={aiReviewError}
+        />
       )}
 
       {item.platform === "leboncoin" && item.aiReview && (
         <AiReview
-          state={item.aiReview}
+          state={item.aiReview as AiReviewState}
           currentPriceCents={item.latestPrice ? Math.round(item.latestPrice.amount * 100) : null}
           onRefresh={onAiReviewRefresh}
           requesting={aiReviewRequesting}

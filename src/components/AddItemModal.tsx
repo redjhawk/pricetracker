@@ -80,7 +80,7 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
       <TextArea
         id="add-item-purchase-goal"
         labelText="Purchase goal (optional)"
-        helperText="LeBoncoin only. Sent to the AI review, e.g. what you will use the item for."
+        helperText="Sent to the AI review, e.g. what you will use the item for."
         rows={3}
         value={purchaseGoal}
         onChange={(event) => setPurchaseGoal(event.target.value)}

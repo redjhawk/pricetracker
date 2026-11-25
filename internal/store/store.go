@@ -56,6 +56,9 @@ func Open(cfg config.Config) (*Store, error) {
 	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
+	if err := s.ensureAmazonRatingColumns(context.Background()); err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
 	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
 		return nil, errors.Join(fmt.Errorf("fail interrupted AI reviews: %w", err), db.Close())
 	}
@@ -878,6 +881,11 @@ ON CONFLICT(item_id) DO UPDATE SET status = excluded.status, checked_at = exclud
 			if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
 (item_id, amount_cents, currency, condition, condition_label, observed_at) VALUES (?, ?, 'EUR', ?, ?, ?)`, id,
 				result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel, stamp); err != nil {
+				return err
+			}
+		}
+		if result.CustomerRating != nil {
+			if err := recordAmazonRating(ctx, tx, id, *result.CustomerRating); err != nil {
 				return err
 			}
 		}

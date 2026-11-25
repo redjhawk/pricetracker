@@ -158,11 +158,11 @@ type AIReview struct {
 	PriceCents   *int64     `json:"priceCents"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	CompletedAt  *time.Time `json:"completedAt"`
-	Review       any        `json:"review"` // *AIReviewContent; nil when none
+	Review       any        `json:"review"` // *AIReviewContent (LeBoncoin) or *AmazonAIReviewContent (Amazon); nil when none
 	ErrorMessage *string    `json:"errorMessage"`
 }
 
-// AIReviewState is the aiReview field of a LeBoncoin item details response.
+// AIReviewState is the aiReview field of an item details response.
 type AIReviewState struct {
 	TokenConfigured bool       `json:"tokenConfigured"`
 	Running         bool       `json:"running"`
@@ -173,7 +173,7 @@ type AIReviewState struct {
 	UnavailableReason *string `json:"unavailableReason"`
 }
 
-// ItemDetails is the item details response; AIReview is null for Amazon items.
+// ItemDetails is the item details response.
 type ItemDetails struct {
 	Item
 	AIReview *AIReviewState `json:"aiReview"`
