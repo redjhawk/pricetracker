@@ -58,11 +58,16 @@ func TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile(t *t
 	for index, owner := range owners {
 		id, at := ids[index], humanTime(14, 10+index)
 		api.clock.Set(at)
+		refreshOutput := captureCheckOutput(t)
 		principal := service.WithPrincipal(context.Background(), service.Principal{UserID: owner, Role: "user"})
 		if _, err := api.items.RefreshItem(principal, id); err != nil {
 			t.Fatalf("Refresh price of %s by owner %d: %v", id, owner, err)
 		}
 		waitStoredCheck(t, api.database, id, at)
+		// FR-AMZ-HCHK-016: the Refresh price logs no cache clear failure, in either wording (issues #240 and #358).
+		if lines := linesWith(refreshOutput(), "Amazon browser cache could not be cleared"); len(lines) > 0 {
+			t.Fatalf("cache clear failure logged during Refresh price of %s:\n%s", id, strings.Join(lines, "\n"))
+		}
 		items, err := api.database.List(context.Background(), owner)
 		if err != nil {
 			t.Fatal(err)
