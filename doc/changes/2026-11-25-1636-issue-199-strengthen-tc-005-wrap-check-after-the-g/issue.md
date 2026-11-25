@@ -1,0 +1,10 @@
+# Issue #199 Strengthen TC-005 wrap check after the growing item cell
+
+**Problem:** In `tests/responsive-layout.spec.ts:729-734` (TC-005), the check "a value starts a new line only when it does not fit" computes free space as `card.right - previous.right`. The item cell has `flex: 1 1 14rem` (`src/index.css`, `td:has(> .item-cell)`), so it always grows to the end of its line and `free` is about 0 whenever the wrapped value follows it. A regression such as a much larger item basis (pushing Prices to the next line while it would fit beside the item) would still pass.
+
+**Suggested work:** Measure free space from the previous cells' hypothetical sizes (flex-basis or max-content width, e.g. via `window.layoutProbe`) instead of the grown border box, or add an explicit check that Prices sits on the item's line when `14rem + Prices width` fits in the card. Update TC-005 in `doc/changes/2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the/testcases.md` if the wording changes.
+
+From review comment R1-01 on #198 (`doc/todo/issue-165-r1-01.md`).
+
+## Comments by trusted authors
+
