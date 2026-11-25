@@ -342,7 +342,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | LeBoncoin AI review | [leboncoin-ai-review](specifications/leboncoin-ai-review/functional.md) | implemented |
 | LeBoncoin purchase goal | [leboncoin-purchase-goal](specifications/leboncoin-purchase-goal/functional.md) | implemented |
 | Multiple users and login | [multi-user-login](specifications/multi-user-login/functional.md), [delivery plan](specifications/multi-user-login/delivery-plan.md) | phase 1 implemented; later phases planned; FR-AUTH-005 superseded by FR-LOGIN-LIM-* (issue #266) |
-| Login attempt limits | [login-attempt-limits](specifications/login-attempt-limits/functional.md) | implemented (issue #266); FR-LOGIN-LIM-012–014 specified (issue #284, maintenance: this row says that FR-LOGIN-LIM-001–011 are implemented; no behaviour change) |
+| Login attempt limits | [login-attempt-limits](specifications/login-attempt-limits/functional.md) | implemented (issue #266); FR-LOGIN-LIM-012–014 implemented (issue #284, maintenance: this row says that FR-LOGIN-LIM-001–011 are implemented; no behaviour change) |
 | Session cookie security | [session-cookie-security](specifications/session-cookie-security/functional.md) | FR-COOKIE-001–006 implemented (issue #268); FR-COOKIE-007–009 specified (issue #293, maintenance: the `clientAddress` doc comment in `internal/httpapi/auth.go` is moved back directly above its function, leaving `secureRequest` with only its own comment; no behaviour change) |
 | LeBoncoin old price | [leboncoin-old-price](specifications/leboncoin-old-price/functional.md) | implemented |
 | Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | superseded (issue #111) |

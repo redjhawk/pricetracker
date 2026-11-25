@@ -1,6 +1,6 @@
 # Functional specification: login attempt limits by client address
 
-Status: ready (issue #266); FR-LOGIN-LIM-012–014 specified (issue #284, maintenance: no behaviour change)
+Status: ready (issue #266); FR-LOGIN-LIM-012–014 implemented (issue #284, maintenance: no behaviour change)
 Owner: functional specification agent
 User decision/reference: GitHub issue #266 ("Login: limit failed attempts by client address instead of locking the username").
 
