@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R2-01",
+    "file": "API_SPECIFICATION.md",
+    "line": 706,
+    "category": "spec",
+    "body": "The list of endpoints that read a request body leaves out `POST /api/v1/admin/users`. That endpoint reads its body through `decodeCredentials` (auth.go:162 → auth.go:214-216), so `abortLateBodies` covers it too. With a body sent one byte per second it is dropped at 15 s with no response and no user created. The row instead files it under 'Any other request is handled once its headers arrive ... its response is sent with `Connection: close`', which describes the opposite behaviour. The same omission is in FR-HTTP-TMO-001 (functional.md:26: 'login, adding an item, saving a purchase goal, saving settings'), FR-43 and technical.md:57. The code does the right thing, so the fix is documentation only: add `POST /api/v1/admin/users` (creating a user) to the list in this row, in FR-HTTP-TMO-001 and in technical.md:57."
+  },
+  {
+    "id": "R2-02",
+    "file": "doc/use-cases/http-server-timeouts/UC-HTTP-TMO-001-slow-client-request-is-dropped.md",
+    "line": 34,
+    "category": "spec",
+    "body": "Since R1-01, this use case has the alternative 'Endpoint without a request body: the request is handled once its headers arrive ... and its response is sent'. The Postconditions still say without exception 'The connection is closed and the request was not handled. No data changed.' That is false for the body-less alternative: a refresh, AI review or delete is started or done. Suggested fix: scope the postconditions to the main flow, e.g. 'For an endpoint that reads a request body: the connection is closed, the request was not handled and no data changed.'"
+  },
+  {
+    "id": "R2-03",
+    "file": "internal/httpapi/http_server.go",
+    "line": 54,
+    "category": "readability",
+    "body": "`lateBody.Read` panics with `http.ErrAbortHandler`. net/http only recovers that panic on the goroutine that serves the request. Today every body is decoded synchronously in the handler, so this is safe. But if a future handler reads `r.Body` from another goroutine (for example an `io.Copy` into a pipe, or a proxied request body that `http.Transport` writes from its own goroutine), a slow client would crash the whole process instead of closing one connection. This invariant is not obvious from the code. Suggested fix: say in the `abortLateBodies` comment that the body must be read on the handler's goroutine."
+  }
+]
