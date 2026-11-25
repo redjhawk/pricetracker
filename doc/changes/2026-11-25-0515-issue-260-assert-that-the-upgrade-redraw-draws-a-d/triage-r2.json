@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": false,
+    "reason": "Confirmed: no-tests.md:24 says the overlay files and the generator 'are listed in delete.txt', but the change folder has no delete.txt and the files were under /tmp, outside the repository. This only makes the record inaccurate. `git diff master...HEAD --stat` shows that outside doc/ only internal/service/amazon_human_checks_issue185_test.go changes, so no fault injection remains and TC-006 still holds.",
+    "title": "Correct the fault-injection file note in the issue #260 no-tests record",
+    "todo": "**Problem:** `doc/changes/2026-11-25-0515-issue-260-assert-that-the-upgrade-redraw-draws-a-d/no-tests.md` line 24 says the overlay copies under `/tmp/claude/inj260` and the scratch generator test \"are listed in `delete.txt`\". The change folder has no `delete.txt`. `delete.txt` only takes repository-relative paths, and these files were never in the repository. A reader checking TC-006 (no fault injection left) can't tell where the generator was.\n\n**Suggested work:** Replace the sentence with one that says the overlay files and the generator were temporary files under `$TMPDIR`, outside the repository, and never committed. Drop the mention of `delete.txt`.\n\n**File:** `doc/changes/2026-11-25-0515-issue-260-assert-that-the-upgrade-redraw-draws-a-d/no-tests.md:24`"
+  }
+]
