@@ -93,9 +93,13 @@ var (
 // other products on the page are ignored. An absent or unreadable value is nil.
 func customerRating(page string) model.CustomerRating {
 	var rating model.CustomerRating
-	stars := attribute(acrPopoverPattern.FindString(page), "title")
-	if starsPattern.FindStringSubmatch(stars) == nil {
-		stars = textContent(elementContentByID(page, "acrPopover"))
+	var stars string
+	if popover := acrPopoverPattern.FindStringIndex(page); popover != nil {
+		stars = attribute(page[popover[0]:popover[1]], "title")
+		if starsPattern.FindStringSubmatch(stars) == nil {
+			// The whole element, nested elements included (elementContentByID stops at the first nested close).
+			stars = textContent(page[popover[0]:elementEnd(page, popover[0])])
+		}
 	}
 	if match := starsPattern.FindStringSubmatch(stars); match != nil {
 		digits := strings.ReplaceAll(strings.ReplaceAll(match[1], ",", ""), ".", "")
