@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/no-tests.md",
+    "line": 11,
+    "category": "test",
+    "body": "The TC-001 check says \"`git diff master` on `technical.md` touches only that sentence in the entry\". The actual diff on `technical.md` also changes line 4 (\"FR-RESPONSIVE-001 to 027\" becomes \"001 to 030\") and adds the issue #200 section (lines 219-236). Run as written, this check fails on the correct change. TC-003 in testcases.md already allows \"traceability lines that cite issue #200 or FR-RESPONSIVE-028 to 030\". Suggested fix: reword the sentence as \"within the TS-RESPONSIVE-017 entry, `git diff master` touches only that sentence\", so it matches TC-001's scope (\"the rest of the entry is unchanged\") and TC-003."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/responsive-layout/technical.md",
+    "line": 117,
+    "category": "nit",
+    "body": "The new sentence is correct against `src/index.css` (lines 686-704). The sentence before it, \"Flex line breaking puts each cell on the current line when its max-content width fits\", is still not exact for the item cell. Because of `flex: 1 1 14rem`, the item cell's flex base size is 14rem, not its max-content width, so line breaking uses 14rem for that cell. FR-RESPONSIVE-028 and TC-001 require the rest of the entry to stay unchanged, so do not edit it in this PR. Suggested follow-up issue: qualify the sentence, for example \"each cell (the item cell from its 14rem basis) ...\", so the paragraph has no other mismatch with TS-RESPONSIVE-023."
+  }
+]

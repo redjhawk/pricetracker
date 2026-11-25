@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 027, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 030, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -114,7 +114,7 @@ CSS only, in `src/index.css`. There are no component, markup, state or dependenc
   - `.responsive-table tbody tr td` gets `width: auto; flex: 0 1 auto; min-width: 0; max-width: 100%`, replacing `width: 100%`. `display: block` and the padding are kept.
   - `table` and `tbody` stay `display: block; width: 100%`. The visually hidden `thead`, the `td[data-label]::before` labels and `.row-actions { justify-content: flex-start }` are unchanged.
 
-  Flex line breaking puts each cell on the current line when its max-content width fits, and otherwise starts a new line. This is the rule of FR-RESPONSIVE-024. Cells do not grow, so the free space left on a line is always smaller than the next cell's width.
+  Flex line breaking puts each cell on the current line when its max-content width fits, and otherwise starts a new line. This is the rule of FR-RESPONSIVE-024. Value cells do not grow; only the item cell grows into the space left on its line, and the actions cell is pushed to the line end (TS-RESPONSIVE-023).
 
   A cell wider than the card, such as a long title or an 80-character username, takes its own line, is clamped to the card width, and wraps (`overflow-wrap: anywhere` on `.responsive-table td`, already present). No `order` or reversed direction is used, so visual order equals DOM order: Item, Prices, Amazon second-hand offer, Status, actions; or Username, Last login. Reading and Tab order follow it (FR-RESPONSIVE-012). Below 672 px the existing phone rules still remove `white-space: nowrap` from `.latest-price` and `.price-history-list li`. From 672 to 1055 px they keep `nowrap`, which keeps each value's max-content width compact.
 - **TS-RESPONSIVE-018 Full-width blocks above and around the list.**
@@ -215,6 +215,24 @@ Change folder: [issue 203](../../changes/2026-11-25-0828-issue-203-fix-020-updat
 Frontend, backend and API: not affected. `API_SPECIFICATION.md` is unchanged.
 
 Tests: no test code. FR-RESPONSIVE-027 allows no change outside `doc/` (see the change folder's `no-tests.md`). TC-001 to TC-004 are `grep` and `git diff` checks against `master`. TC-005 runs the existing gates: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build` and `npx playwright test`.
+
+### TS-RESPONSIVE-017 wording (issue #200, FR-RESPONSIVE-028 to 030)
+
+Change folder for issue #200: [issue 200](../../changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/issue.md). Issue #200 is maintenance only, with no code change and no use cases (FR-RESPONSIVE-028 to 030).
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-028 | TS-RESPONSIVE-027 | `doc/specifications/responsive-layout/technical.md` | TC-001, TC-003 |
+| FR-RESPONSIVE-029 | TS-RESPONSIVE-028 | `doc/specifications/responsive-layout/technical.md` | TC-002 |
+| FR-RESPONSIVE-030 | TS-RESPONSIVE-029 | none | TC-003, TC-004, TC-005 |
+
+- **TS-RESPONSIVE-027 Growth rules in TS-RESPONSIVE-017 (FR-RESPONSIVE-028).** In the TS-RESPONSIVE-017 entry, the developer replaces only the last sentence of the line-breaking paragraph (the one after the FR-RESPONSIVE-024 sentence, which says that no cell grows) with `Value cells do not grow; only the item cell grows into the space left on its line, and the actions cell is pushed to the line end (TS-RESPONSIVE-023).` The rest of that paragraph and of the entry stays as it is. This matches the shipped `src/index.css`, which does not change: `.responsive-table tbody tr td { flex: 0 1 auto }`, `td:has(> .item-cell) { flex: 1 1 14rem }` and `td:has(> .row-actions) { margin-inline-start: auto }`.
+- **TS-RESPONSIVE-028 Old wording removed (FR-RESPONSIVE-029).** After TS-RESPONSIVE-027, `technical.md` contains neither of the two texts listed in FR-RESPONSIVE-029. This issue #200 section must not quote them either; the new sentence's lower-case "cells do not grow" does not match the case-sensitive check.
+- **TS-RESPONSIVE-029 No other change (FR-RESPONSIVE-030).** For issue #200, `functional.md` (already updated by the functional stage), the TS-RESPONSIVE-023 entry, the issue #140, #165 and #203 change records, the existing files under `doc/todo/` and every file outside `doc/` are unchanged; new follow-up records for issue #200 may be added under `doc/todo/`. No ID is renumbered.
+
+Issue #200 frontend, backend and API: not affected, as only `technical.md` text changes (FR-RESPONSIVE-030). `API_SPECIFICATION.md` is unchanged. No refactoring for issue #200.
+
+Issue #200 tests: no test code, as FR-RESPONSIVE-030 allows no change outside `doc/`. TC-001 to TC-003 are `grep`, `awk` and `git diff` checks against `master`. TC-004 runs `go vet ./...` and `go test -count=1 ./...`. TC-005 runs the existing gates `node --test scripts/*.test.mjs`, `npm run build` and `npx playwright test`, including `tests/responsive-layout.spec.ts`.
 
 ## Backend
 
