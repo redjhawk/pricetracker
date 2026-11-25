@@ -10,7 +10,7 @@ const baseItem = {
 };
 const idleReview = { tokenConfigured: true, running: false, lastAttempt: null, latest: null, history: [] };
 
-async function mockApi(context: BrowserContext, options: { goal?: string; platform?: string; failSave?: boolean } = {}) {
+async function mockApi(context: BrowserContext, options: { goal?: string; failSave?: boolean } = {}) {
   const state = { goal: options.goal ?? "", running: false, puts: [] as string[], posts: [] as unknown[] };
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -18,7 +18,7 @@ async function mockApi(context: BrowserContext, options: { goal?: string; platfo
     if (!url.pathname.startsWith("/api/")) return route.continue();
     if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
     const method = route.request().method();
-    const item = () => ({ ...baseItem, platform: options.platform ?? "leboncoin", purchaseGoal: state.goal });
+    const item = () => ({ ...baseItem, purchaseGoal: state.goal });
     if (method === "GET" && url.pathname === "/api/v1/items") return route.fulfill({ json: { items: [] } });
     if (method === "POST" && url.pathname === "/api/v1/items") {
       const body = route.request().postDataJSON();
@@ -27,7 +27,7 @@ async function mockApi(context: BrowserContext, options: { goal?: string; platfo
       return route.fulfill({ status: 201, json: item() });
     }
     if (method === "GET" && url.pathname === `/api/v1/items/${baseItem.id}`) {
-      return route.fulfill({ json: { ...item(), aiReview: options.platform === "amazon" ? null : { ...idleReview, running: state.running } } });
+      return route.fulfill({ json: { ...item(), aiReview: { ...idleReview, running: state.running } } });
     }
     if (method === "PUT" && url.pathname === `/api/v1/items/${baseItem.id}/purchase-goal`) {
       const goal = route.request().postDataJSON().purchaseGoal;
@@ -89,11 +89,4 @@ test("failed save shows an error and keeps the text; keyboard save works", async
   await expect(page.getByText("Could not save purchase goal")).toBeVisible();
   await expect(field).toHaveValue("Long goal\nwith several paragraphs");
   expect(api.puts).toEqual(["Long goal\nwith several paragraphs"]);
-});
-
-test("Amazon details have no purchase goal field", async ({ page, context }) => {
-  await mockApi(context, { platform: "amazon" });
-  await page.goto(`/items/${baseItem.id}`);
-  await expect(page.getByRole("heading", { name: "LeBoncoin laptop" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Purchase goal" })).toHaveCount(0);
 });

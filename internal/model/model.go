@@ -80,7 +80,14 @@ type CollectionResult struct {
 	RequestURL      string
 	HTTPStatus      int // 0 when no response was received
 	ResponseExcerpt string
-	FailureCause    string // one-line cause of a request_error or price_not_found, for the operator
+	FailureCause    string          // one-line cause of a request_error or price_not_found, for the operator
+	CustomerRating  *CustomerRating // Amazon: set when a product page was read; nil keeps the stored rating
+}
+
+// CustomerRating is the product rating shown on an Amazon product page.
+type CustomerRating struct {
+	StarsTenths *int64 // 45 = 4.5 out of 5; nil when not shown or unreadable
+	Count       *int64 // number of ratings; nil when not shown or unreadable
 }
 
 // ListingDetails is the full LeBoncoin listing content sent to an AI review.
@@ -121,6 +128,18 @@ type AIRating struct {
 	Explanation string `json:"explanation"`
 }
 
+// AmazonAIReviewContent is a validated Claude review of an Amazon item; amounts are euro cents.
+type AmazonAIReviewContent struct {
+	Price          AIRating        `json:"price"`
+	FairPrice      AmazonFairPrice `json:"fairPrice"`
+	Recommendation AIRating        `json:"recommendation"`
+}
+
+type AmazonFairPrice struct {
+	MinCents int64 `json:"minCents"`
+	MaxCents int64 `json:"maxCents"`
+}
+
 type AIConditionRating struct {
 	Rating      *string `json:"rating"` // nil when the condition cannot be assessed
 	Explanation string  `json:"explanation"`
@@ -150,6 +169,8 @@ type AIReviewState struct {
 	LastAttempt     *AIReview  `json:"lastAttempt"`
 	Latest          *AIReview  `json:"latest"`
 	History         []AIReview `json:"history"`
+	// UnavailableReason is why no review can be requested now: "stopped" or "no_current_price"; nil when available.
+	UnavailableReason *string `json:"unavailableReason"`
 }
 
 // ItemDetails is the item details response; AIReview is null for Amazon items.

@@ -227,7 +227,7 @@ test("header menu: visible on every page, Information and Settings entries, keyb
   await expect(page).toHaveURL(`/items/${item.id}`);
 });
 
-test("TC-012 (#265) settings shows the hints as text, empty inputs and help texts saying an empty input keeps the secret", async ({ page, context }) => {
+test("TC-012 (#265), TC-027 (#305) settings shows the hints as text, empty inputs and help texts saying an empty input keeps the secret", async ({ page, context }) => {
   const api = await mockApi(context);
   let release!: () => void;
   api.getGate = new Promise<void>((resolve) => { release = resolve; });
@@ -246,7 +246,8 @@ test("TC-012 (#265) settings shows the hints as text, empty inputs and help text
   await expect(dialog.getByText(sessionHint("9f3a"), { exact: true })).toBeVisible();
   await expect(dialog.getByText(tokenHint("wxyz"), { exact: true })).toBeVisible();
   await expect(dialog).toContainText("Paste the datadome value or a cookie string containing datadome=…. Leave it empty to keep the saved session.");
-  await expect(dialog).toContainText("Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Leave it empty to keep the saved token.");
+  await expect(dialog).toContainText("Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for Amazon and LeBoncoin AI reviews. Leave it empty to keep the saved token.");
+  await expect(dialog).not.toContainText("It is used for LeBoncoin AI reviews.");
   await expect(dialog).not.toContainText("AI reviews are unavailable");
   await expect(dialog).not.toContainText(/empty field|save an empty/i);
   await expect(dialogButton(page, "Remove session")).toBeEnabled();

@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-func TestAddKeepsPurchaseGoalForLeboncoinOnly(t *testing.T) {
+// TC-005 (issue #305): the trimmed goal is kept for Amazon items too.
+func TestAddKeepsPurchaseGoalForBothPlatforms_TC005(t *testing.T) {
 	service, _, _, _ := newReviewService(t, false)
 	item, err := service.Add(context.Background(), "https://www.leboncoin.fr/ad/test/123", "  Light Linux distro \n")
 	if err != nil {
@@ -18,14 +19,18 @@ func TestAddKeepsPurchaseGoalForLeboncoinOnly(t *testing.T) {
 	if item.PurchaseGoal != "Light Linux distro" {
 		t.Fatalf("LeBoncoin goal %q", item.PurchaseGoal)
 	}
-	amazon, err := service.Add(context.Background(), "https://www.amazon.fr/dp/B012345678", "Ignored")
+	amazon, err := service.Add(context.Background(), "https://www.amazon.fr/dp/B012345678", "  gift for a 10-year-old \n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if amazon.PurchaseGoal != "" {
+	if amazon.PurchaseGoal != "gift for a 10-year-old" {
 		t.Fatalf("Amazon goal %q", amazon.PurchaseGoal)
 	}
+	if stored, err := service.Get(context.Background(), amazon.ID); err != nil || stored.PurchaseGoal != "gift for a 10-year-old" {
+		t.Fatalf("stored Amazon goal %q %v", stored.PurchaseGoal, err)
+	}
 	waitReviews(t, service, item.ID, true)
+	waitIdle(t, service)
 }
 
 func TestSetPurchaseGoalStartsReviewWithGoal(t *testing.T) {
@@ -63,8 +68,14 @@ func TestSetPurchaseGoalWithoutTokenAndErrors(t *testing.T) {
 	if item, _ := service.Get(context.Background(), "lbc"); item.PurchaseGoal != "Goal" {
 		t.Fatalf("stored goal %q", item.PurchaseGoal)
 	}
-	_, _, _, err = service.SetPurchaseGoal(context.Background(), "amz", "Goal")
-	assertServiceError(t, err, 422, "PURCHASE_GOAL_UNSUPPORTED")
+	// TC-006 (issue #305): an Amazon goal is saved and starts no review.
+	goal, changed, started, err = service.SetPurchaseGoal(context.Background(), "amz", " Goal ")
+	if err != nil || goal != "Goal" || !changed || started || reviewer.calls() != 0 || reviewer.amazonCalls() != 0 {
+		t.Fatalf("Amazon goal: %q %v %v %v", goal, changed, started, err)
+	}
+	if item, _ := service.Get(context.Background(), "amz"); item.PurchaseGoal != "Goal" {
+		t.Fatalf("stored Amazon goal %q", item.PurchaseGoal)
+	}
 	if _, _, _, err := service.SetPurchaseGoal(context.Background(), "missing", "Goal"); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("missing item: %v", err)
 	}
