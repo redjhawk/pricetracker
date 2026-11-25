@@ -1,8 +1,8 @@
 # Technical specification: Amazon human-like checks
 
-Status: ready (issue #168); TS-AMZ-HCHK-013–014 ready (issue #186); TS-AMZ-HCHK-015 ready (issue #187); TS-AMZ-HCHK-016–017 ready (issue #217); TS-AMZ-HCHK-018–019 ready (issue #233)
-Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010, FR-AMZ-HCHK-011–012 (issue #186), FR-AMZ-HCHK-013 (issue #187), FR-AMZ-HCHK-014 (issue #217), FR-AMZ-HCHK-015 (issue #233); modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
-Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032; issue #186: [testcases.md](../../changes/2026-11-22-1943-issue-186-treat-a-2xx-navigation-with-errortext-as/testcases.md), TC-001–006 (section [Success response not opened as a page](#success-response-not-opened-as-a-page-issue-186)); issue #187: [testcases.md](../../changes/2026-11-23-1043-issue-187-skip-used-offer-requests-when-the-produc/testcases.md), TC-001–004 (section [Unavailable listing on the browser's error page](#unavailable-listing-on-the-browsers-error-page-issue-187)); issue #217: [testcases.md](../../changes/2026-11-23-1124-issue-217-deny-downloads-in-the-amazon-browser-and/testcases.md), TC-001–004 (section [Downloads refused](#downloads-refused-issue-217)); issue #233: [testcases.md](../../changes/2026-11-23-1234-issue-233-clear-the-amazon-browser-http-cache-even/testcases.md), TC-001–006 (section [Interrupted check](#interrupted-check-issue-233))
+Status: ready (issue #168); TS-AMZ-HCHK-013–014 ready (issue #186); TS-AMZ-HCHK-015 ready (issue #187); TS-AMZ-HCHK-016–017 ready (issue #217); TS-AMZ-HCHK-018–019 ready (issue #233); TS-AMZ-HCHK-020 ready (issue #240)
+Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010, FR-AMZ-HCHK-011–012 (issue #186), FR-AMZ-HCHK-013 (issue #187), FR-AMZ-HCHK-014 (issue #217), FR-AMZ-HCHK-015 (issue #233), FR-AMZ-HCHK-016 (issue #240); modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
+Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032; issue #186: [testcases.md](../../changes/2026-11-22-1943-issue-186-treat-a-2xx-navigation-with-errortext-as/testcases.md), TC-001–006 (section [Success response not opened as a page](#success-response-not-opened-as-a-page-issue-186)); issue #187: [testcases.md](../../changes/2026-11-23-1043-issue-187-skip-used-offer-requests-when-the-produc/testcases.md), TC-001–004 (section [Unavailable listing on the browser's error page](#unavailable-listing-on-the-browsers-error-page-issue-187)); issue #217: [testcases.md](../../changes/2026-11-23-1124-issue-217-deny-downloads-in-the-amazon-browser-and/testcases.md), TC-001–004 (section [Downloads refused](#downloads-refused-issue-217)); issue #233: [testcases.md](../../changes/2026-11-23-1234-issue-233-clear-the-amazon-browser-http-cache-even/testcases.md), TC-001–006 (section [Interrupted check](#interrupted-check-issue-233)); issue #240: [testcases.md](../../changes/2026-11-25-1255-issue-240-neutral-wording-for-the-cache-clear-fail/testcases.md), TC-001–004 (section [Neutral cache-clear log line](#neutral-cache-clear-log-line-issue-240))
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon human-like checks (issue #168)" (no shape change)
 Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) (gate, failure count and stops unchanged)
 
@@ -30,6 +30,7 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-017 | HCHK-014 (with HCHK-011) | `browserTab.load`: when an `errorText` navigation did not record a non-2xx Document response (a download, no content, or no response seen within the wait), `Network.clearBrowserCache` is called before the failure is returned, so the response body is not kept in the profile's HTTP disk cache (issue #217) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-018 | HCHK-015 (with HCHK-014) | `browserTab.clearCache(ctx)` sends `Network.clearBrowserCache` in its own context, `context.WithTimeout(context.WithoutCancel(ctx), 5 s)`. The end of the check's context never abandons the clear, and a browser that does not answer holds the check for at most 5 s. The failure log line gives the real cause: a protocol error, the browser exited, or no answer within 5 s (issue #233) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-019 | HCHK-015 (with HCHK-014) | `browserTab.load`: when `Page.navigate` fails because `loadContext` ended (check interrupted, or navigation timeout), `clearCache` runs before the error is returned. The result is unchanged (issue #233) | `internal/amazon/browser.go` |
+| TS-AMZ-HCHK-020 | HCHK-016 (with HCHK-015) | `browserTab.clearCache` logs `Amazon browser cache could not be cleared: <cause>` for both callers, without the reason the clear was started; causes, conditions and bound unchanged (issue #240) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
 ## Backend
@@ -450,7 +451,7 @@ Not affected: no new state, field or message. An interrupted check gives the fai
           err = fmt.Errorf("Network.clearBrowserCache: no answer within %s", cacheClearTimeout)
       }
       if err != nil {
-          log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
+          log.Printf("Amazon browser cache could not be cleared: %v", err) // wording of issue #240 (TS-AMZ-HCHK-020)
       }
   }
   ```
@@ -552,6 +553,85 @@ Risks, for the developer to check when the tests first run:
 
 Out of scope: `cdp.go` (`call` keeps returning `ctx.Err()` at once for every other call), the failure causes of interrupted checks, the service's time limit, the stop rules, the UI.
 
+## Neutral cache-clear log line (issue #240)
+
+Origin: review comment R2-02 on #236 (`doc/todo/issue-233-r2-02.md`). Since issue #233, `clearCache` has two callers in `load`: the `errorText` branch (a page not opened, TS-AMZ-HCHK-017) and the interrupted `Page.navigate` (no answer to the navigation, TS-AMZ-HCHK-019). Its log line still said `after a page not opened`, which is wrong for the second caller.
+
+### Frontend
+
+Not affected: the change is one server log line. No state, field or message reaches the UI. No Playwright case; `tests/item-refresh.spec.ts` and `tests/platform-tabs.spec.ts` are unchanged.
+
+### Backend (TS-AMZ-HCHK-020)
+
+`internal/amazon/browser.go`, `browserTab.clearCache` only:
+
+```go
+if err != nil {
+    log.Printf("Amazon browser cache could not be cleared: %v", err)
+}
+```
+
+- The suffix is dropped (FR-AMZ-HCHK-016), and the caller does not pass a reason. Both call sites stay `t.clearCache(ctx)`, and the signature is unchanged.
+- The cause (`%v`) is the same as in TS-AMZ-HCHK-018: `Network.clearBrowserCache: <protocol error message>`, `Network.clearBrowserCache: no answer within 5s`, or the browser's exit reported by `call`. It is never `context canceled` or `context deadline exceeded`, because the clear runs in `context.WithoutCancel(ctx)` bounded by `cacheClearTimeout`.
+- There is one `log.Printf` per failed clear, as before, so exactly one line per failed clearing. A successful clear logs nothing.
+- When the clear runs, its 5 s bound, the `Browser.close` ordering, the check result, the gate and the stop rules are unchanged. Service, store, validation, persistence, migrations: none. Concurrency: unchanged (the clear runs on the check's goroutine with `BrowserCollector.mu` held).
+- Compatibility: anything matching the prefix `Amazon browser cache could not be cleared` still matches, including `cacheLogLine` in `internal/amazon` and `linesWith` in `internal/httpapi`. No code parses the old suffix.
+
+### API
+
+Not affected: no endpoint, field, error code or result changes. `API_SPECIFICATION.md` is not changed.
+
+### Files to change
+
+| File | Change |
+| --- | --- |
+| `internal/amazon/browser.go` | TS-AMZ-HCHK-020 (`clearCache` log format) |
+| `internal/amazon/browser_cache_log_test.go` (new) | TC-001, TC-002 |
+
+### Test files
+
+Test names: `TestBrowserCacheLog_TCnnn_…` in `internal/amazon`, because the earlier issues already use these TC numbers. Each test carries a `// TC-nnn` comment. The new file reuses:
+
+- the fake browser of issue #233: `fakeBrowserOptions`, `useFakeBrowser`, `fakeBrowserScript`, `readFakeRecord`;
+- the helpers of `browser_interrupted_test.go`: `interruptedContext`, `collectInterrupted`, `assertInterruptedFailure`, `assertNavigatedBeforeInterruption`, `cacheLines`, `assertNoInterruptionGivenForCache`, `cacheLogLine`, `clearMethod`;
+- `captureOutput`, `browserCheck`, `fixtureItem` and `assertNavigationFailure`.
+
+The fake browser needs no change. No test uses `t.Parallel`.
+
+New helpers in `browser_cache_log_test.go`:
+
+```go
+// assertNeutralCacheLine checks that output holds exactly one cache log line, whose message (after the
+// standard log date and time) is "Amazon browser cache could not be cleared: " followed by a non-empty
+// cause containing cause and neither "context canceled" nor "context deadline exceeded".
+func assertNeutralCacheLine(t *testing.T, output, cause string)
+
+// assertNoOldCacheWording fails t when a line of output contains "after a page not opened".
+func assertNoOldCacheWording(t *testing.T, output string)
+```
+
+The message is the text after the `log.LstdFlags` prefix, matched with the regular expression `^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} `. A cache line without that prefix fails the test.
+
+Causes per subtest:
+
+- **error answer**: `Clear: "error"`, `ClearError: "cache clear refused by fake"`; expected cause `cache clear refused by fake`.
+- **no answer**: `Clear: "never"`; expected cause `no answer within`.
+
+Both tests fail before the change, because the line then reads `… cleared after a page not opened: …`.
+
+| Test case | File | Notes |
+| --- | --- | --- |
+| TC-001 | `internal/amazon/browser_cache_log_test.go` | `TestBrowserCacheLog_TC001_PageNotOpened`. Subtests **live check, error answer** and **live check, no answer**: `Navigate: "error"`, `Response: 200`, `SetUpUntil` 0, `browserCheck` on `NewBrowserCollector(fakeBrowserOptions(t))` under `captureOutput`. Assert `assertNavigationFailure(t, got, item, logged)`, `Browser.close` received in the record, `assertNeutralCacheLine` and `assertNoOldCacheWording`. Subtest **interrupted after the offer, error answer**: `Navigate: "error"`, `Response: 0`, `interruptAt := time.Now().Add(2 * time.Second)`, `SetUpUntil = interruptAt − 200 ms`, `interruptedContext(interruptionServerStop, interruptAt)` and `collectInterrupted`. Assert `assertNavigatedBeforeInterruption`, `Browser.close` received, `assertInterruptedFailure`, `assertNeutralCacheLine` and `assertNoOldCacheWording`. Subtest **repeated**: the live error-answer script runs twice on the same collector, with a new `useFakeBrowser` and `captureOutput` per check. Each output has exactly one neutral line (two in total) and the same failure. |
+| TC-002 | `internal/amazon/browser_cache_log_test.go` | `TestBrowserCacheLog_TC002_PageStillRequested`. `Navigate: "hold"`, `interruptAt := time.Now().Add(2 * time.Second)`, `SetUpUntil = interruptAt − 200 ms`. Subtests: {`time limit`, `server stop`} × {**error answer**, **no answer**}, each with `interruptedContext(kind, interruptAt)` and `collectInterrupted` (20 s bound). Assert `assertNavigatedBeforeInterruption`, exactly one `clearMethod` received, `Browser.close` received, `assertInterruptedFailure`, `assertNeutralCacheLine`, `assertNoOldCacheWording` and `assertNoInterruptionGivenForCache`. |
+| TC-003 | `internal/amazon/browser_interrupted_test.go` (existing, unchanged) | `TestBrowserInterrupted_TC001_ClearConfirmedBeforeClose`, `TestBrowserInterrupted_TC002_PageStillRequestedIsCleared`, and `TestBrowserInterrupted_TC006_UninterruptedCheckIsUnchanged` (subtest `download`). `assertNoCacheLogLine` matches the kept prefix. |
+| TC-004 | `internal/httpapi/amazon_browser_interrupted_test.go`, `internal/amazon/browser_interrupted_test.go` (existing, unchanged) | `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` and `TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile` (real Chromium): no line contains `Amazon browser cache could not be cleared`. |
+
+`TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged` must keep passing unchanged: it matches the prefix and the causes, not the suffix.
+
+### Refactoring
+
+None. Out of scope: the causes of a failed clear, when the clear runs, the UI, and `doc/todo/issue-233-r2-02.md` (the issue does not ask for it).
+
 ## Verification and open questions
 
 - `gofmt -l .`, `go vet ./...`, `go test ./...` (browser tests need Chromium; present in the CI image under `/ms-playwright`), `npm run build`, `npx playwright test`; gosec and govulncheck.
@@ -564,3 +644,4 @@ Out of scope: `cdp.go` (`call` keeps returning `ctx.Err()` at once for every oth
   - The clear waits at most 5 s, so a server stop waits at most about 12 s for an Amazon check.
   - A navigation timeout during `Page.navigate` also clears the cache, since the same path is affected.
   - The HTTP harness runs in open mode, so TC-005 runs each owner's Refresh price through `RefreshItem` with that owner's principal and reads the results with `store.List(owner)`.
+- Issue #240: no open question. TC-001 and TC-002 use the fake browser and need no Chromium; TC-004 needs Chromium (with `CI` set it cannot skip). Technical interpretation: the suffix is dropped rather than passed by the caller, as chosen by FR-AMZ-HCHK-016.

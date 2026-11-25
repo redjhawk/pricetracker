@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 030, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 033, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -233,6 +233,71 @@ Change folder for issue #200: [issue 200](../../changes/2026-11-25-0944-issue-20
 Issue #200 frontend, backend and API: not affected, as only `technical.md` text changes (FR-RESPONSIVE-030). `API_SPECIFICATION.md` is unchanged. No refactoring for issue #200.
 
 Issue #200 tests: no test code, as FR-RESPONSIVE-030 allows no change outside `doc/`. TC-001 to TC-003 are `grep`, `awk` and `git diff` checks against `master`. TC-004 runs `go vet ./...` and `go test -count=1 ./...`. TC-005 runs the existing gates `node --test scripts/*.test.mjs`, `npm run build` and `npx playwright test`, including `tests/responsive-layout.spec.ts`.
+
+### Login form width override (issue #202, FR-RESPONSIVE-031 to 033)
+
+Change folder: [issue 202](../../changes/2026-11-25-1349-issue-202-clarify-max-width-override-in-the-login/issue.md). This is stylesheet maintenance with no behaviour change. There are no use cases (see the change folder's `no-use-cases.md`).
+
+#### Current state (inspected)
+
+- Inside `@media (max-width: 1055.98px)`, `src/index.css` has the TS-RESPONSIVE-019 rule `.login-form, .login-form .cds--btn[type="submit"] { width: 100%; max-width: none; }`. It sits between the `.page-feedback .cds--inline-notification, .login-form .cds--inline-notification` rule and the `.item-cell` rule.
+- `.login-form` is the `className` of the Carbon `Form` in `src/components/LoginPage.tsx`. The only other rule for it is the top-level `.login-form { width: min(100%, 24rem); }`, and Carbon sets no max width on `.cds--form`. So the computed `max-width` of the form is already `none`, and that half of the declaration has no effect.
+- Carbon's `.cds--btn` sets `max-inline-size: 20rem`. `max-width` and `max-inline-size` set the same value in horizontal writing mode. The button selector has higher specificity than `.cds--btn`, so its `max-width: none` lifts the cap.
+
+#### Requirement mapping
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-031 | TS-RESPONSIVE-030 | `src/index.css` | TC-001, TC-002 |
+| FR-RESPONSIVE-032 | TS-RESPONSIVE-031 | none (follows from TS-RESPONSIVE-030) | TC-004, TC-005 |
+| FR-RESPONSIVE-033 | TS-RESPONSIVE-032 | none | TC-003, TC-005, TC-006 |
+
+#### Frontend
+
+- **TS-RESPONSIVE-030 Split rule (FR-RESPONSIVE-031).** In the same place in the 1055.98 px media block, replace the combined rule with these two rules:
+
+  ```css
+    .login-form {
+      width: 100%;
+    }
+
+    /* Lift Carbon's 20rem button cap so Log in spans the form. */
+    .login-form .cds--btn[type="submit"] {
+      width: 100%;
+      max-width: none;
+    }
+  ```
+
+  The comment goes directly above the button rule, with nothing but whitespace between them. It contains `20rem` as written. The issue offered either splitting the rule or adding a comment; this design does both, as a technical choice. No new media query is added. The inline-notification rule, the `.item-cell` rule and the top-level `.login-form` rule stay as they are. From now on, this replaces the rule text given in TS-RESPONSIVE-019; the intent of TS-RESPONSIVE-019 is unchanged.
+- **TS-RESPONSIVE-031 Same rendering (FR-RESPONSIVE-032).** The form's computed `max-width` stays `none` (no rule sets it). Below 1056 px the button still gets `width: 100%; max-width: none`. At 1056 px and above, neither rule applies. Rendered widths are therefore identical at 320, 360, 775, 1055 and 1280 px, so FR-RESPONSIVE-009 and 022 still hold. There is no markup, state, focus or accessibility change.
+- **TS-RESPONSIVE-032 No other change (FR-RESPONSIVE-033).** Outside `doc/`, only the rule above changes in `src/index.css`. There are no `.tsx`, Go, test, dependency or `API_SPECIFICATION.md` changes. FR-RESPONSIVE-001 to 030, the TS entries of earlier issues, the issue #140, #165, #200 and #203 change records, the existing files under `doc/todo/` and UC-RL-01 are unchanged. New follow-up records `doc/todo/issue-202-r*.md` may be added. No ID is renumbered.
+
+#### Backend and API
+
+Backend: not affected. Only presentation changes: there is no handler, validation, persistence, migration or concurrency change. API: not affected. No endpoint, field, status or error changes, and `API_SPECIFICATION.md` is unchanged.
+
+#### Files to change
+
+- `src/index.css`: TS-RESPONSIVE-030.
+- `doc/specifications/responsive-layout/technical.md`: this section (already written).
+
+#### Tests
+
+There is no committed test code, because FR-RESPONSIVE-033 allows no file change outside `doc/` apart from the login form rule. The developer records this in the change folder's `no-tests.md`, with the commands below.
+
+| Test case | How it runs | TS IDs |
+| --- | --- | --- |
+| TC-001 | `grep -n -B3 -A4 'login-form' src/index.css`: one `max-width: none` rule with `.login-form` in its selector, whose selector is the button selector alone and which has the `20rem` comment directly above it | 030 |
+| TC-002 | Read the 1055.98 px media block: `width: 100%` on `.login-form` and on the button selector; the top-level `.login-form` rule is unchanged | 030 |
+| TC-003 | `git diff --name-status master -- . ':!doc'` lists only `M src/index.css`; `git diff -U0 master -- src/index.css` hunks lie between the inline-notification rule and `.item-cell` | 032 |
+| TC-004 | Uncommitted Playwright measurement (based on `TC-011 login page uses the full width` in `tests/responsive-layout.spec.ts`), run on a `master` build and on the branch build at 320, 360, 775, 1055 and 1280 px | 031 |
+| TC-005 | Existing gates, unchanged: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (including `tests/responsive-layout.spec.ts`) | 031, 032 |
+| TC-006 | `git diff` of `functional.md`, the issue #140, #165, #200 and #203 change folders and `doc/todo/` against `master` | 032 |
+
+#### Refactoring and risks
+
+- **Refactoring:** splitting the rule is the change itself. Reason: FR-RESPONSIVE-031. Scope: one rule of `src/index.css`. Risk: very low, because the removed declaration had no effect; TC-004 and TC-005 guard against regressions.
+- **Risk:** a Carbon upgrade that renames `.cds--btn` or changes its 20rem cap would make the comment stale. The existing TC-011 e2e test would catch a narrower button.
 
 ## Backend
 
