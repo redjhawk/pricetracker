@@ -50,6 +50,15 @@ import (
 //   - TC-004: with buildModule reduced to go build ./..., the test-file control fails.
 //   - TC-005: runs on master and with the change give the same subtests and results, plus the new subtest.
 //   - TC-007: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #344: the subtest with analyzer findings also runs go vet ./... with all its default analyzers on its
+// fixture and fails if that succeeds, so it cannot pass without findings. Cases proved outside this file:
+//   - TC-002: with every finding removed from the fixture, never committed, the subtest fails with the guard's
+//     message.
+//   - TC-003: temporary edits of vetArgs and of the fixture, never committed, show that the guard and the build
+//     check are reported independently.
+//   - TC-005: runs on master and with the change give the same subtests and results.
+//   - TC-006: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -409,6 +418,15 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 		})
 		if err := buildModule(dir); err != nil {
 			t.Errorf("valid fixture does not build: %v", err)
+		}
+		// Issue #344: the fixture must have analyzer findings, or this subtest proves nothing, so go vet ./... with
+		// all its default analyzers (not vetArgs, which names one analyzer and so turns the others off) must fail
+		// on the same module.
+		cmd := exec.Command("go", "vet", "./...")
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), fixtureEnv...)
+		if cmd.Run() == nil {
+			t.Error("the fixture has no analyzer finding, so the subtest proves nothing")
 		}
 	})
 }
