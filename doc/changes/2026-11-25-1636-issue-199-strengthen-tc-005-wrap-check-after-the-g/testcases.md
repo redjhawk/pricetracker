@@ -45,7 +45,7 @@ Conventions:
 - When the run executes
 - Then TC-005 fails at 775 px, and the failure message names the width and card (for example `775px Amazon card 0`), the tab, the value `Prices`, its width and the free space
 - And, without the fault injection, the run passes (TC-001)
-- And, with the same fault injection on `master` (the test file before the change), the run passes, which shows the gap the change closes
+- And, with the same fault injection on `master` (the test file before the change), the wrap check passes every 775 px card, which shows the gap the change closes
 - Corner cases:
   - the failure comes from the wrap check, not from a same-line or label check: Prices, Amazon second-hand offer and Status stay together on their line, and every value is still labelled;
   - the reported free space is clearly larger than the Prices width, not about 0.

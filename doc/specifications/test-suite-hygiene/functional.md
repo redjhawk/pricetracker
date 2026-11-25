@@ -491,7 +491,7 @@ Issue #260:
 
 Issue #199:
 
-- Temporarily giving the item value a much larger base width in `src/index.css` (for example `flex: 1 1 40rem` on `.responsive-table tbody tr td:has(> .item-cell)`), so that at 775 px Prices starts a new line below the item while 14rem plus the Prices width fits in the card, makes TC-005 fail with the message of FR-TEST-HYG-095; on master the same change leaves TC-005 passing (FR-TEST-HYG-094, FR-TEST-HYG-095).
+- Temporarily giving the item value a much larger base width in `src/index.css` (for example `flex: 1 1 40rem` on `.responsive-table tbody tr td:has(> .item-cell)`), so that at 775 px Prices starts a new line below the item while 14rem plus the Prices width fits in the card, makes TC-005 fail with the message of FR-TEST-HYG-095; on master the same change leaves the wrap check of TC-005 passing every 775 px card (FR-TEST-HYG-094, FR-TEST-HYG-095).
 - The wrap check of TC-005 does not compute the free space as the card's right edge minus the previous value's right edge, and uses 14rem as the item base width rather than reading it from the page's styles (FR-TEST-HYG-094).
 - Without the temporary change, TC-005 passes, with its same-line and label checks unchanged, and the other tests of `tests/responsive-layout.spec.ts` give the same results (FR-TEST-HYG-096).
 - TC-005 in the issue #165 test case document contains "14rem" in its Then clause about a value starting a later line (FR-TEST-HYG-097).

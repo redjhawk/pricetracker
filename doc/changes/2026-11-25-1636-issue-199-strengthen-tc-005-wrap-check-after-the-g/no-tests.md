@@ -30,12 +30,12 @@ It replaces `const free = card.right - card.cells[position - 1].right;` and the 
 | Test case | Proved by |
 | --- | --- |
 | TC-001 | Run 1: TC-005 passes at 775 and 1055 px, on both tabs and for every card, including both Amazon cards. |
-| TC-002 | Run 2: with the 40rem item basis, the new check fails at `775px Amazon card 0` on `Prices`, with a free space of 551.0 px against a width of 175.8 px. With the same injection, the old check passes every 775 px card (see the note in run 2). |
+| TC-002 | Run 2: with the 40rem item basis, the new check fails at `775px Amazon card 0` on `Prices`, with a free space of 551.0 px against a width of 175.8 px. With the same injection, the old wrap check passes every 775 px card, as TC-002 states (see the note in run 2). |
 | TC-003 | Code check of the wrap check above. `card.right - card.cells[position - 1].right` is gone. The free space is `card.right - card.left` minus every value of the previous line, found by walking back with `followsOnLine`. The first cell counts as `ITEM_BASIS_REM * rem`, with the constant 14 and not a style read. The other values count at `width`. `toBeLessThan(current.width + 1)` is kept. |
 | TC-004 | Run 3: with the 100% item basis, the new check fails at 775 px on `Prices`, the value starting the line after the item, with the same message form. The old check passes the whole test with that injection. |
 | TC-005 | Run 4: the list output of `tests/responsive-layout.spec.ts` gives the same 50 test names and results (50 passed) with the old and the new wrap check. Code check: the diff is limited to the items listed above. |
 | TC-006 | The technical specification stage already made the edit (commit 91a37ac). `git diff master` of the issue #165 `testcases.md` is one line, the TC-005 Then line, which now contains "14rem". |
-| TC-007 | Run 5 and "Gates" below: outside `doc/`, only `tests/responsive-layout.spec.ts` differs from `master`, and `src/index.css` is identical to `master` after the reverts. |
+| TC-007 | Run 5 and "Gates" below (two runs, every gate passed): outside `doc/`, only `tests/responsive-layout.spec.ts` differs from `master`, and `src/index.css` is identical to `master` after the reverts. |
 
 ## Runs and fault injections
 
@@ -44,7 +44,7 @@ It replaces `const free = card.right - card.cells[position - 1].right;` and the 
 1. **No injection.** `R`: 1 passed. `R --repeat-each=3`: 3 passed, both before the injections and again after the last revert.
 2. **`flex: 1 1 40rem`.**
    - New check: **FAIL** at 775 px, from the wrap check: `Error: 775px Amazon card 0: free space 551.0 before value Prices (width 175.8)`, `Expected: < 176.75`, `Received: 551`. The same-line and label checks of that card ran before it and passed.
-   - Old check: every 775 px card passes, on both tabs, so the wrap check misses the gap. The test then fails later at 1055 px, on a different check: `Error: 1055px Amazon card 0: Prices and Status on the same line`. The reason is that with a 40rem item, Prices and Status no longer fit on one line at that width. So the whole `master` test does not pass with this injection, contrary to what the TC-002 wording expects. Still, its wrap check lets through at 775 px exactly the fault that the new check reports.
+   - Old check: every 775 px card passes, on both tabs, so the wrap check misses the gap. The test then fails later at 1055 px, on a different check: `Error: 1055px Amazon card 0: Prices and Status on the same line`. The reason is that with a 40rem item, Prices and Status no longer fit on one line at that width. So the whole `master` test does not pass with this injection, but its wrap check lets through at 775 px exactly the fault that the new check reports. TC-002, TS-TEST-HYG-128, design run 2 and the issue #199 acceptance criterion now state this (review comment R1-02); run 3 gives the full `master` pass.
 3. **`flex: 1 1 100%`.**
    - Old check: **PASS** (1 passed). The gap the change closes.
    - New check: **FAIL** at 775 px: `Error: 775px Amazon card 0: free space 551.0 before value Prices (width 175.8)`. Prices is the value that starts the line after the item.
