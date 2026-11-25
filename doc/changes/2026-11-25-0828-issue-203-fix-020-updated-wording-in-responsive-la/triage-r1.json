@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: WORKFLOW.md stage 4 requires `technical.md` per subject, and functional.md names `doc/specifications/responsive-layout/technical.md` as the technical handoff target. That file still ends at TS-RESPONSIVE-023 and does not trace FR-RESPONSIVE-025 to 027. This is the only change folder in doc/changes with its own technical.md; maintenance precedents such as #181 and #349 have none. The stated reason is wrong: FR-RESPONSIVE-027 freezes only FR-RESPONSIVE-001 to 024, the #140/#165 change records, doc/todo/ and non-doc files, not the subject's technical.md. So TC-004's 'technical.md unchanged' corner case and its doc/ file list go beyond the requirement. This breaks the workflow's artifact contract and leaves TS-RESPONSIVE-024 to 026 open to reuse, and the fix is a small documentation edit in this PR.",
+    "title": "",
+    "todo": ""
+  }
+]
