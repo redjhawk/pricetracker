@@ -230,6 +230,12 @@ func TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged(t *testing.
 			if strings.Contains(lines[0], "context canceled") {
 				t.Fatalf("the interruption of the check is given as the cause of the cache clear failure: %s", lines[0])
 			}
+			// Issue #239: a clear that never answers gives its bound as the cause, and no line about the cache gives the
+			// interruption of the check (context canceled or context deadline exceeded).
+			if test.clear == "never" && !strings.Contains(lines[0], "no answer within") {
+				t.Fatalf("cache log line without \"no answer within\", the cause of a clear that never answers: %s", lines[0])
+			}
+			assertNoInterruptionGivenForCache(t, logged)
 		})
 	}
 }
