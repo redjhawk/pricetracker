@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R2-01",
+    "file": "src/components/AmazonAiReview.tsx",
+    "line": 99,
+    "category": "spec",
+    "body": "When the details page is stale (the item was stopped or lost its current price after the page loaded, e.g. by a scheduled check), a click on Refresh AI review gets `409 AI_REVIEW_ITEM_STOPPED` / `AI_REVIEW_NO_CURRENT_PRICE`. This component then shows 'Could not start the AI review' with the API message, but the **Refresh AI review** button is still shown and enabled, and the stopped / no-current-price info notice is missing. `App.handleAiReviewRefresh` (src/App.tsx:275-287) only reloads the item on success, and detail polling runs only while `aiReview.running` or a price check is pending, so nothing refreshes `unavailableReason`. The page stays in this contradictory state, and the user can retry with the same refusal, until they navigate away. This breaks FR-AMZ-ITEM-AIR-032/033 ('the Refresh AI review button is not shown and the section informs the user'). Suggested fix: in `handleAiReviewRefresh`, also reload the details after a failed request (for example `getItem(id).then(setDetailItem).catch(() => {})` in the catch/finally), so `unavailableReason` hides the button and shows the matching notice. This is platform-neutral and harmless for LeBoncoin. Add an e2e case: the mock answers the POST with 409 AI_REVIEW_ITEM_STOPPED, and the next GET returns `unavailableReason: \"stopped\"`."
+  },
+  {
+    "id": "R2-02",
+    "file": "internal/amazon/collector.go",
+    "line": 101,
+    "category": "test",
+    "body": "The round-1 fix (R1-01) now reads the whole `#acrPopover` element with `elementEnd`. That looks right: on the fixture markup without `title`, the text becomes `4,5 4,5 sur 5 étoiles` and gives 45. But no test proves it. The only text-fallback case is still 'rating in the text only' (customer_rating_test.go:91), where `a-icon-alt` is the first child and which also passed with the old, broken `elementContentByID` code. So a regression to the first-close cut would go unnoticed. Suggested fix: add a TC-001 case that uses the real nested markup of `rating-fr.html` (lines 14-17) without the `title` attribute and expects 45/1234. If test files are locked for this round, record it as a follow-up."
+  }
+]

@@ -18,12 +18,22 @@ func (f *fakeClaude) Review(context.Context, string, claude.ReviewInput) (model.
 	return model.AIReviewContent{}, errors.New("not used by settings tests")
 }
 
-// fakeReviewer returns err (or a fixed review) and can block until release is closed.
+func (f *fakeClaude) ReviewAmazon(context.Context, string, claude.AmazonReviewInput) (model.AmazonAIReviewContent, error) {
+	return model.AmazonAIReviewContent{}, errors.New("not used by settings tests")
+}
+
+// fakeReviewer returns err (or a fixed review) and can block until release is closed. Amazon
+// reviews are recorded in amazonInputs (with their tokens) and return amazonErr or amazonReview.
 type fakeReviewer struct {
-	mu      sync.Mutex
-	inputs  []claude.ReviewInput
-	err     error
-	release chan struct{}
+	mu           sync.Mutex
+	inputs       []claude.ReviewInput
+	err          error
+	release      chan struct{}
+	amazonInputs []claude.AmazonReviewInput
+	amazonTokens []string
+	amazonErr    error
+	amazonReview *model.AmazonAIReviewContent // nil = a fixed valid review
+	amazonStart  chan struct{}                // receives one value when an Amazon review starts
 }
 
 func (f *fakeReviewer) Verify(context.Context, string) error { return nil }
@@ -39,10 +49,43 @@ func (f *fakeReviewer) Review(ctx context.Context, _ string, input claude.Review
 	return model.AIReviewContent{Price: model.AIRating{Rating: "fair", Explanation: "ok"}, Condition: model.AIConditionRating{Rating: &good, Explanation: "ok"}}, f.err
 }
 
+func (f *fakeReviewer) ReviewAmazon(ctx context.Context, token string, input claude.AmazonReviewInput) (model.AmazonAIReviewContent, error) {
+	f.mu.Lock()
+	f.amazonInputs = append(f.amazonInputs, input)
+	f.amazonTokens = append(f.amazonTokens, token)
+	release, err, review, start := f.release, f.amazonErr, f.amazonReview, f.amazonStart
+	f.mu.Unlock()
+	if start != nil {
+		start <- struct{}{}
+	}
+	if release != nil {
+		<-release
+	}
+	if err != nil {
+		return model.AmazonAIReviewContent{}, err
+	}
+	if review != nil {
+		return *review, nil
+	}
+	return validAmazonReview(), nil
+}
+
 func (f *fakeReviewer) calls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.inputs)
+}
+
+func (f *fakeReviewer) amazonCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.amazonInputs)
+}
+
+func (f *fakeReviewer) amazonInput(index int) claude.AmazonReviewInput {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.amazonInputs[index]
 }
 
 // newReviewService returns a service whose LeBoncoin collector reports *price.
@@ -181,14 +224,20 @@ func TestRequestAIReviewErrorsAndUnretrievedListing(t *testing.T) {
 	if _, _, err := service.RequestAIReview(context.Background(), "missing"); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("missing item: %v", err)
 	}
+	// Issue #305 (TC-007, TC-012): a never-priced Amazon item is refused before the token check.
 	_, _, err := service.RequestAIReview(context.Background(), "amz")
-	assertServiceError(t, err, 422, "AI_REVIEW_UNSUPPORTED")
+	assertServiceError(t, err, 409, "AI_REVIEW_NO_CURRENT_PRICE")
 	_, _, err = service.RequestAIReview(context.Background(), "lbc")
 	assertServiceError(t, err, 409, "CLAUDE_TOKEN_MISSING")
-	if amazon, _ := service.Get(context.Background(), "amz"); amazon.Platform == "amazon" {
-		if state, _ := service.AIReview(context.Background(), amazon); state != nil {
-			t.Fatal("Amazon item has an AI review state")
-		}
+	amazon, err := service.Get(context.Background(), "amz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state, err := service.AIReview(context.Background(), amazon); err != nil || state == nil || state.UnavailableReason == nil || *state.UnavailableReason != "no_current_price" {
+		t.Fatalf("Amazon AI review state %+v %v", state, err)
+	}
+	if state := waitReviews(t, service, "lbc", false); state.UnavailableReason != nil {
+		t.Fatalf("LeBoncoin unavailable reason %q", *state.UnavailableReason)
 	}
 
 	withToken, _, _, _ := newReviewService(t, true)
