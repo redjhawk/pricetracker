@@ -1,0 +1,10 @@
+# Issue #349 Require analyzer findings in both the non-test and the test file of the analyzer-findings fixture
+
+**Problem:** In `internal/amazon/amazontest/server_dependencies_test.go` (subtest `analyzer findings in non-test and test files do not fail the check`, guard at about line 422-430), the issue #344 guard only checks that `go vet ./...` fails somewhere in the fixture module. If a later edit removes the findings from `cmd/app/main_test.go` (renames `Testfoo` and fixes its `Printf`) and `cmd/app/main.go` keeps its findings, vet still fails and the subtest passes. It then no longer proves that `buildModule` (`go vet -atomic`) ignores findings in test files. `no-tests.md` run 2 already shows a partial case: renaming only `Testfoo` leaves the subtest passing.
+
+**Suggested work:** Capture the guard's output with `cmd.CombinedOutput()` and also require that it contains both `cmd/app/main.go:` and `cmd/app/main_test.go:`. These are the file positions vet prints for each finding, so the check does not depend on analyzer message wording. Fail with a message naming the file that has no finding. Alternatively, state in the subtest comment that only the module as a whole is guarded. Update FR-TEST-HYG-082 / TS-TEST-HYG-107 to match if the guarantee changes.
+
+From review comment R1-01 on #348 (`doc/todo/issue-344-r1-01.md`).
+
+## Comments by trusted authors
+
