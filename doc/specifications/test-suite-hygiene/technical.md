@@ -1,7 +1,7 @@
 # Test suite hygiene: technical specification
 
-Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295); TS-TEST-HYG-048–055 implemented (issue #195); TS-TEST-HYG-056–060 implemented (issue #312); TS-TEST-HYG-061–068 implemented (issue #315); TS-TEST-HYG-069–073 implemented (issue #324)
-Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295, issue #195, issue #312, issue #315, issue #324.
+Status: TS-TEST-HYG-001–003 ready (issue #208); TS-TEST-HYG-004–009 ready (issue #232); TS-TEST-HYG-010–015 implemented (issue #244); TS-TEST-HYG-016–020 implemented (issue #251); TS-TEST-HYG-021–024 implemented (issue #241; TS-TEST-HYG-022 is the manual close of issue #238 after the merge); TS-TEST-HYG-025–030 implemented (issue #185); TS-TEST-HYG-031–034 implemented (issue #238; TS-TEST-HYG-033 replaces the manual close of TS-TEST-HYG-022); TS-TEST-HYG-035–037 implemented (issue #181; the document edit is made by the technical specification stage); TS-TEST-HYG-038–043 implemented (issue #182); TS-TEST-HYG-044–047 implemented (issue #295); TS-TEST-HYG-048–055 implemented (issue #195); TS-TEST-HYG-056–060 implemented (issue #312); TS-TEST-HYG-061–068 implemented (issue #315); TS-TEST-HYG-069–073 implemented (issue #324); TS-TEST-HYG-074–079 implemented (issue #290)
+Requirements: [functional](functional.md). Sources: issue #208, issue #232, issue #244, issue #251, issue #241, issue #185, issue #238, issue #181, issue #182, issue #295, issue #195, issue #312, issue #315, issue #324, issue #290.
 
 ## Design
 
@@ -483,6 +483,45 @@ t.Cleanup(func() { // the temporary profile is removed however the subtest ends,
 
 Refactoring: none.
 
+### The 1025-space token test asserts that no save request is sent (issue #290)
+
+Only the test `long whitespace TC-005 a 1025-space token input sends no replacement, shows no message and closes` in `tests/claude-token-settings.spec.ts` changes. On `master`, after `await expect(dialog).toBeHidden()` (line 100):
+
+- line 101, `await expect(page.getByText(/too long|Saving settings…/i)).toHaveCount(0)`: the `Saving settings…` alternative can never match, as `InlineLoading` with that text is rendered only inside the open modal (`src/components/SettingsModal.tsx:211`);
+- lines 102–105 loop over `api.puts` and pass when the list is empty;
+- line 106, `expect(JSON.stringify(api.puts)).not.toContain(" ".repeat(1025))`, also passes on an empty list.
+
+**Change.** Lines 101–106 become:
+
+```ts
+  await expect(page.getByText(/too long/i)).toHaveCount(0);
+  expect(api.puts).toEqual([]);
+```
+
+- The `Saving settings…` alternative, the loop and the `JSON.stringify` line are removed, not commented out (FR-TEST-HYG-057). The `JSON.stringify` check follows from the empty list, so it is dropped as redundant.
+- `expect(api.puts).toEqual([])` is the same assertion as TC-016 of issue #265 (an untouched Save sends nothing). It fails on any recorded body, including `{}` and `{ claudeToken: { remove: true } }`, and reports it (FR-TEST-HYG-058).
+- **Why right after `toBeHidden()` and a non-retrying `expect`.** `save()` either closes the modal at once without a request (empty change, `SettingsModal.tsx:128–131`) or closes it only after `await saveSettings(change)` has its answer (`:138–139`). The `mockApi` route pushes the body into `api.puts` before it fulfils the request. So once `toBeHidden()` passes, any request sent by the Save click is already recorded, and none can follow. The assertion runs before the second `openSettings(page)`, so a request of the reopened modal cannot be confused with it; the reopened modal sends only `GET` requests anyway.
+- The "too long" check keeps the whole page (`page`, not `dialog`) and the `i` flag (FR-TEST-HYG-058).
+- Unchanged: the test name and its comment, the `mockApi` call with `lastRejectedAt: "2026-10-03T20:00:00Z"`, the 1025-space fill, the Save click, `toBeHidden()`, the three reopening checks (FR-TEST-HYG-059), `mockApi`, `openSettings` and every other test of the file, including the 9000-space session test.
+
+**Delivery (same as issue #295).** The change is the test code itself, and the test passes on `master` application code before and after it, so a red phase cannot fail. Test files are locked after the TDD red commit. So the **tests stage** makes the edit above and writes `<change folder>/no-tests.md`: why the red phase is skipped, the runs and fault injections below with their results, and where each TC is proved. The red gate is then skipped. The development stage writes no code.
+
+**Runs and fault injections (tests stage, recorded in `no-tests.md`).** Run command: `npx playwright test tests/claude-token-settings.spec.ts -g "1025-space token input"`. The web server is the Vite dev server (`playwright.config.ts`), so an edit of `src/` applies without a build. Each injection is a temporary `Edit`, reverted with `Edit` before the next step; none is committed.
+
+1. Normal run, then `--repeat-each=3`, then the whole file `tests/claude-token-settings.spec.ts`: every run passes (TC-002).
+2. In `save()` of `src/components/SettingsModal.tsx`, one edit at a time (TC-003):
+   1. `else if (claudeValue.trim()) change.claudeToken = { value: claudeValue };` → `else if (claudeValue) change.claudeToken = { value: claudeValue };`;
+   2. append `else if (claudeValue) change.claudeToken = { remove: true };` after that line;
+   3. remove the early return `if (!change.leboncoinSession && !change.claudeToken) { onClose(); return; }`, so `{}` is sent.
+
+   Each run fails at `expect(api.puts).toEqual([])`, with the sent body in the received value, before the reopening.
+3. In the test, right after `await expect(dialog).toBeHidden()`, add `await page.evaluate((text) => { const note = document.createElement("p"); note.textContent = text; document.body.append(note); }, "<text>")`, run once each with `Token too long`, `TOO LONG` and `Value is Too Long`: each run fails at `page.getByText(/too long/i)` (TC-004).
+4. After the reverts: run 1 passes again, and `git diff master -- . ':!doc'` holds only the hunk of the change above (TC-005).
+
+- **Development stage.** No code. It sets FR-TEST-HYG-057–060 and TS-TEST-HYG-074–079 to implemented. It runs the gates and the repository checks of TC-001 and TC-005, and restores any file outside `doc/` that differs from `master` and is not `tests/claude-token-settings.spec.ts` (for example a fault injection left in `SettingsModal.tsx`).
+
+Refactoring: none.
+
 ## Tiers
 
 - Frontend: not affected. Only Go test and test-support code changes; no view, component, state or asset.
@@ -499,6 +538,7 @@ Refactoring: none.
 - Issue #312 changes the wait of one test in `internal/amazon/browser_profile_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as no production Go file changes and `_test.go` files are not part of the server binary; no validation, persistence, migration or application concurrency change. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #315 changes the hold stub and the hold rows' wait in `internal/amazon/browser_profile_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as no production Go file changes and `_test.go` files are not part of the server binary; no validation, persistence, migration or application concurrency change. The only new concurrency is in the test: the stub process creates a marker file that the test goroutine polls. API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
 - Issue #324 adds a `t.Cleanup` to one subtest of `internal/amazon/browser_profile_values_test.go`. Frontend: not affected, as no view, component or Playwright spec changes. Backend: not affected at runtime, as `BrowserCollector.profile` and every production Go file are unchanged and `_test.go` files are not part of the server binary; no validation, persistence, migration or concurrency change (the cleanup runs in the test's own goroutine after the subtest). API: not affected, as no handler is involved and `API_SPECIFICATION.md` is unchanged.
+- Issue #290 changes the checks of one Playwright test in `tests/claude-token-settings.spec.ts`. Frontend: not affected, as `SettingsModal.tsx` and every view, component, state, style and asset are unchanged (edited only temporarily for fault injections); its behaviour stays FR-SECRET-014/TS-SECRET-019, and there is no accessibility or UI state change. Backend: not affected, as no Go file changes. API: not affected, as the mocked `PUT /api/v1/settings` contract and the other mocked requests are unchanged and `API_SPECIFICATION.md` is unchanged.
 
 ## Technical IDs
 
@@ -577,6 +617,12 @@ Refactoring: none.
 | TS-TEST-HYG-071 | FR-TEST-HYG-055 | The removal removes `path` only when the parent of `path` is `filepath.Clean(os.TempDir())` and its base name starts with `pricefollower-browser-` (the subtest's location check), and otherwise removes nothing; it never removes the parent of `path`, a glob or another path. A removal error is reported with `t.Errorf("remove the temporary profile: %v", err)`; a missing path is not an error. |
 | TS-TEST-HYG-072 | FR-TEST-HYG-056 | The diff outside `doc/` is `M internal/amazon/browser_profile_values_test.go`, limited to the `t.Cleanup` block in the subtest; no import, helper, other subtest or production file changes. The tests stage delivers the change and writes `no-tests.md`; the development stage writes no code. `gofmt -l internal/amazon` is empty; `go vet ./...` and `go test ./...` pass. |
 | TS-TEST-HYG-073 | FR-TEST-HYG-053–055 (proof) | Runs and reverted fault injections 1–8 of the issue #324 design (fatal stop with a non-empty profile, with and without the removal; nil cleanup; error; regular file; cleanup that does nothing; empty path), each run with a fresh `TMPDIR`, recorded in `no-tests.md`. |
+| TS-TEST-HYG-074 | FR-TEST-HYG-057 | In the 1025-space token test, the `Saving settings…` alternative of the line 101 regular expression, the `for (const put of api.puts)` loop (lines 102–105) and the `JSON.stringify(api.puts)` check (line 106) are removed, not commented out; no `Saving settings…` text is left in the test. |
+| TS-TEST-HYG-075 | FR-TEST-HYG-058 | `expect(api.puts).toEqual([])` runs after `await expect(dialog).toBeHidden()` and before the second `openSettings(page)`. A non-retrying `expect` is enough: the modal closes either without a request or after the answer to its request, and `mockApi` records the body before fulfilling it. |
+| TS-TEST-HYG-076 | FR-TEST-HYG-058 | `await expect(page.getByText(/too long/i)).toHaveCount(0)` is kept right after `toBeHidden()`, on the whole page and case-insensitive. |
+| TS-TEST-HYG-077 | FR-TEST-HYG-059 | The setup (saved token `wxyz` with `lastRejectedAt` `2026-10-03T20:00:00Z`), the 1025-space fill, the Save click, `toBeHidden()` and the three reopening checks are unchanged. Proved by run 1 of the issue #290 design. |
+| TS-TEST-HYG-078 | FR-TEST-HYG-058 (proof) | Reverted fault injections 2 (three `save()` edits: no `trim()`, removal for a blank input, no early return) and 3 (a "too long" text in three casings added after the modal has closed) of the issue #290 design, each failing at its assertion, recorded in `no-tests.md`. |
+| TS-TEST-HYG-079 | FR-TEST-HYG-060 | The diff outside `doc/` is `M tests/claude-token-settings.spec.ts`, limited to lines 101–106 of the 1025-space token test; `mockApi`, `openSettings`, the other tests, `src/`, Go code, `API_SPECIFICATION.md`, `package.json` and the lock file are unchanged. The tests stage delivers the change and writes `no-tests.md`; the development stage writes no code. The e2e suite, `go vet ./...`, `go test ./...` and `node --test scripts/*.test.mjs` pass. |
 
 ## Files to change
 
@@ -626,8 +672,23 @@ Refactoring: none.
 | `internal/amazon/browser_profile_values_test.go` | tests (issue #324) | subtest "TC-003 temporary profile": register the guarded `t.Cleanup` removal of `path` right after `profileOf("")` |
 | `doc/changes/2026-11-24-1503-issue-324-register-removal-of-the-temporary-profil/no-tests.md` | tests (issue #324) | explain why the red phase is skipped (the change is the locked test code itself); record runs and fault injections 1–8 and their results; where each TC is proved |
 | `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #324) | set the status of FR-TEST-HYG-053–056 and TS-TEST-HYG-069–073 to implemented |
+| `tests/claude-token-settings.spec.ts` | tests (issue #290) | 1025-space token test: replace lines 101–106 with the `/too long/i` check and `expect(api.puts).toEqual([])` |
+| `doc/changes/2026-11-25-0104-issue-290-replace-the-vacuous-progress-check-in-th/no-tests.md` | tests (issue #290) | explain why the red phase is skipped (the change is the locked test code itself); record runs and fault injections 1–4 and their results; where each TC is proved |
+| `doc/specifications/test-suite-hygiene/functional.md`, `technical.md` | development (issue #290) | set the status of FR-TEST-HYG-057–060 and TS-TEST-HYG-074–079 to implemented |
 
-No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. Issue #195 changes `internal/amazon/browser_profile_test.go` and no other test file. Issue #312 changes only the `t.Run` loop of one test in that file. Issue #315 changes only that file. Issue #324 changes only one subtest of `internal/amazon/browser_profile_values_test.go`; `internal/amazon/browser.go` is edited only temporarily for fault injections and never committed. No test file is deleted.
+No production code, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json`, `playwright.config.ts`, CI or `scripts/` change. Issue #182 changes one existing test file and adds one. Issues #232 and #244 change no existing test file other than `internal/amazon/amazontest/amazontest_test.go`, and issue #251 changes no test file other than `internal/amazon/amazontest/server_dependencies_test.go`. Issue #241 changes no test file. Issue #185 adds two test files and changes no existing one (except a `gofmt` fix if one is needed). Issue #238 changes no file outside `doc/`. Issue #181 changes no file outside `doc/`. Issue #295 changes one line of `tests/platform-tabs.spec.ts` and no other test file. Issue #195 changes `internal/amazon/browser_profile_test.go` and no other test file. Issue #312 changes only the `t.Run` loop of one test in that file. Issue #315 changes only that file. Issue #324 changes only one subtest of `internal/amazon/browser_profile_values_test.go`; `internal/amazon/browser.go` is edited only temporarily for fault injections and never committed. Issue #290 changes only one test of `tests/claude-token-settings.spec.ts`; `src/components/SettingsModal.tsx` is edited only temporarily for fault injections and never committed. No test file is deleted.
+
+## Test case mapping (issue #290)
+
+No test is added: the tests stage edits the 1025-space token test and writes `no-tests.md`. Runs below refer to the issue #290 design.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Code check of the 1025-space token test in `tests/claude-token-settings.spec.ts`: no `Saving settings…` text and no loop over `api.puts`; `await expect(page.getByText(/too long/i)).toHaveCount(0)` and `expect(api.puts).toEqual([])` between `await expect(dialog).toBeHidden()` and the second `openSettings(page)`; setup, fill, Save click and reopening checks unchanged (TS-TEST-HYG-074–077) |
+| TC-002 | Run 1 (tests stage, recorded in `no-tests.md`): the test alone, with `--repeat-each=3`, and the whole file pass. Also the `npx playwright test` gate |
+| TC-003 | Fault injections 2.1–2.3: each run fails at `expect(api.puts).toEqual([])` with the sent body, before the reopening, and passes again after the revert |
+| TC-004 | Fault injection 3: each of `Token too long`, `TOO LONG` and `Value is Too Long` makes the run fail at `page.getByText(/too long/i)`, and the test passes again after the revert |
+| TC-005 | Repository checks: `git diff --name-only master -- . ':!doc'` lists only `tests/claude-token-settings.spec.ts`; `git diff master -- tests/claude-token-settings.spec.ts` holds only the replaced lines 101–106; `src/`, `API_SPECIFICATION.md`, `package.json`, the lock file, the issue #286 change folder and `doc/todo/issue-286-r1-03.md` are unchanged and no fault injection remains. Gates: `npx playwright test`, `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs` pass, twice |
 
 ## Test case mapping (issue #324)
 
@@ -873,3 +934,4 @@ Issue #208 cases (unchanged record):
 - Issue #312: none. The test runs in `go test ./...`; no CI, `scripts/` or dependency change is needed.
 - Issue #315: none. The test runs in `go test ./...` and needs only `/bin/sh` and a temporary folder; no CI, `scripts/` or dependency change is needed.
 - Issue #324: none. The subtest runs in `go test ./...` and needs only the system temporary folder; no CI, `scripts/` or dependency change is needed.
+- Issue #290: none. The test runs in the existing `npx playwright test` gate; no CI, `scripts/`, dependency or `playwright.config.ts` change is needed.
