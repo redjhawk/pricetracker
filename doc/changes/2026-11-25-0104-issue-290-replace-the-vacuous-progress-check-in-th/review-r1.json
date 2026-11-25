@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/changes/2026-11-25-0104-issue-290-replace-the-vacuous-progress-check-in-th/no-tests.md",
+    "line": 64,
+    "category": "nit",
+    "body": "The \"Gates\" section ends with \"Results: see below.\" but nothing follows, and the TC-005 row (line 35) points to this section for its gate evidence. So the record of TC-005's gate part is empty. Either add the gate results (pass/fail of `npx playwright test`, `node --test scripts/*.test.mjs`, `go vet ./...`, `go test ./...`) or change the sentence to say that the pipeline's deterministic gates prove this part. The test change itself (tests/claude-token-settings.spec.ts:101-102) is correct: `save()` closes the modal either with no request or only after `saveSettings` resolves, and `mockApi` pushes the body before it fulfils the request, so the non-retrying `expect(api.puts).toEqual([])` after `toBeHidden()` is sound."
+  }
+]
