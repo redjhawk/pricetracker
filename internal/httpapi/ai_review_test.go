@@ -27,11 +27,13 @@ func TestItemDetailsAIReviewField(t *testing.T) {
 	insertItem(t, database, "lbc", "leboncoin")
 	insertItem(t, database, "amz", "amazon")
 	lbc := callPath(server, http.MethodGet, "/api/v1/items/lbc", "")
-	want := `"aiReview":{"tokenConfigured":false,"running":false,"lastAttempt":null,"latest":null,"history":[]}`
+	want := `"aiReview":{"tokenConfigured":false,"running":false,"lastAttempt":null,"latest":null,"history":[],"unavailableReason":null}`
 	if lbc.Code != 200 || !strings.Contains(lbc.Body.String(), want) || !strings.Contains(lbc.Body.String(), `"id":"lbc"`) {
 		t.Fatalf("LeBoncoin details %d %s", lbc.Code, lbc.Body.String())
 	}
-	if amz := callPath(server, http.MethodGet, "/api/v1/items/amz", ""); !strings.Contains(amz.Body.String(), `"aiReview":null`) {
+	// Issue #305 (TC-005, TC-012): Amazon items have an aiReview object; a never-priced item has no current price.
+	want = `"aiReview":{"tokenConfigured":false,"running":false,"lastAttempt":null,"latest":null,"history":[],"unavailableReason":"no_current_price"}`
+	if amz := callPath(server, http.MethodGet, "/api/v1/items/amz", ""); !strings.Contains(amz.Body.String(), want) {
 		t.Fatalf("Amazon details %s", amz.Body.String())
 	}
 	if list := callPath(server, http.MethodGet, "/api/v1/items", ""); strings.Contains(list.Body.String(), "aiReview") {
@@ -44,7 +46,8 @@ func TestRequestAIReviewStatuses(t *testing.T) {
 	insertItem(t, database, "lbc", "leboncoin")
 	insertItem(t, database, "amz", "amazon")
 	assertError(t, callPath(server, http.MethodPost, "/api/v1/items/missing/ai-review", ""), 404, "ITEM_NOT_FOUND", "Tracked item was not found.")
-	assertError(t, callPath(server, http.MethodPost, "/api/v1/items/amz/ai-review", ""), 422, "AI_REVIEW_UNSUPPORTED", "AI reviews are available for LeBoncoin items only.")
+	// Issue #305 (TC-011, TC-012): the Amazon refusals come before the token check.
+	assertError(t, callPath(server, http.MethodPost, "/api/v1/items/amz/ai-review", ""), 409, "AI_REVIEW_NO_CURRENT_PRICE", "No current price: an AI review needs a current Amazon price.")
 	assertError(t, callPath(server, http.MethodPost, "/api/v1/items/lbc/ai-review", ""), 409, "CLAUDE_TOKEN_MISSING", "Configure a Claude token in Settings.")
 	recorder := callPath(server, http.MethodGet, "/api/v1/items/lbc/ai-review", "")
 	assertError(t, recorder, 405, "METHOD_NOT_ALLOWED", "")

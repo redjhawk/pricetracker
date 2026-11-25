@@ -60,8 +60,8 @@ func itemGoal(t *testing.T, service *Service, ctx context.Context, id string) st
 	return item.PurchaseGoal
 }
 
-// TC-001: distinct exact texts, alphabetical ignoring case, own LeBoncoin items only.
-func TestPurchaseGoals_TC001_DistinctAlphabeticalOwnLeboncoinOnly(t *testing.T) {
+// TC-001: distinct exact texts, alphabetical ignoring case, own items of both platforms.
+func TestPurchaseGoals_TC001_DistinctAlphabeticalOwnItems(t *testing.T) {
 	service, database := newSessionService(t)
 	alice, aliceID := userContext(t, service, "alice")
 	bob, bobID := userContext(t, service, "bob")
@@ -73,29 +73,29 @@ func TestPurchaseGoals_TC001_DistinctAlphabeticalOwnLeboncoinOnly(t *testing.T) 
 	insertGoal(t, database, "B000000001", "amazon", "Amazon goal", aliceID)
 	insertGoal(t, database, "bob1", "leboncoin", "Office", bobID)
 
-	want := []string{"browsing", "Gaming", "gaming", "install a light Linux distro for my parents", "photo editing"}
+	want := []string{"Amazon goal", "browsing", "Gaming", "gaming", "install a light Linux distro for my parents", "photo editing"}
 	for range 3 {
 		assertGoals(t, service, alice, want...)
 	}
 	assertGoals(t, service, bob, "Office")
 	assertGoals(t, service, dave)
 
-	// Corner cases: spacing and line breaks kept, empty and whitespace-only goals and Amazon rows dropped.
+	// Corner cases: spacing and line breaks kept, empty and whitespace-only goals dropped, Amazon goals kept.
 	for i, goal := range []string{"Gaming on Linux", "Gaming  on Linux", "line one\nline two", "line one\nline two", "", "   "} {
 		insertGoal(t, database, "carol"+string(rune('a'+i)), "leboncoin", goal, carolID)
 	}
 	insertGoal(t, database, "B000000002", "amazon", "Brand new text", carolID)
-	assertGoals(t, service, carol, "Gaming  on Linux", "Gaming on Linux", "line one\nline two")
+	assertGoals(t, service, carol, "Brand new text", "Gaming  on Linux", "Gaming on Linux", "line one\nline two")
 }
 
-// TC-001: open mode lists the goals of all LeBoncoin items.
-func TestPurchaseGoals_TC001_OpenModeListsAllLeboncoinGoals(t *testing.T) {
+// TC-001: open mode lists the goals of all items.
+func TestPurchaseGoals_TC001_OpenModeListsAllGoals(t *testing.T) {
 	service, database := newSessionService(t)
 	insertGoal(t, database, "a", "leboncoin", "photo editing", 0)
 	insertGoal(t, database, "b", "leboncoin", "Gaming", 0)
 	insertGoal(t, database, "c", "leboncoin", "", 0)
 	insertGoal(t, database, "B000000001", "amazon", "Amazon goal", 0)
-	assertGoals(t, service, context.Background(), "Gaming", "photo editing")
+	assertGoals(t, service, context.Background(), "Amazon goal", "Gaming", "photo editing")
 }
 
 // newGoalService has open-mode LeBoncoin items A ("Gaming") and B ("Office").
@@ -170,19 +170,19 @@ func TestPurchaseGoals_TC003_IdenticalAndCaseVariantAdditions(t *testing.T) {
 	assertGoals(t, service, ctx, "Gaming", "gaming", "Office")
 }
 
-// TC-003: an Amazon item stores no goal and leaves the list unchanged.
-func TestPurchaseGoals_TC003_AmazonAdditionLeavesListUnchanged(t *testing.T) {
+// TC-003: an Amazon item stores its goal, which joins the list (issue #305).
+func TestPurchaseGoals_TC003_AmazonAdditionJoinsList(t *testing.T) {
 	service, _, ctx := newGoalService(t)
 	for url, goal := range map[string]string{"https://www.amazon.fr/dp/B012345678": "Gaming", "https://www.amazon.fr/dp/B087654321": "Brand new text"} {
 		item, err := service.Add(ctx, url, goal)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stored := itemGoal(t, service, ctx, item.ID); stored != "" {
-			t.Fatalf("Amazon item stored goal %q", stored)
+		if stored := itemGoal(t, service, ctx, item.ID); stored != goal {
+			t.Fatalf("Amazon item stored goal %q, want %q", stored, goal)
 		}
 	}
-	assertGoals(t, service, ctx, "Gaming", "Office")
+	assertGoals(t, service, ctx, "Brand new text", "Gaming", "Office")
 }
 
 // TC-003: a refused removal leaves the list unchanged.

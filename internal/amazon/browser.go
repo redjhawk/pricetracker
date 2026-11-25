@@ -500,7 +500,7 @@ func (t *browserTab) clearCache(ctx context.Context) {
 		err = fmt.Errorf("Network.clearBrowserCache: no answer within %s", cacheClearTimeout)
 	}
 	if err != nil {
-		log.Printf("Amazon browser cache could not be cleared after a page not opened: %v", err)
+		log.Printf("Amazon browser cache could not be cleared: %v", err)
 	}
 }
 

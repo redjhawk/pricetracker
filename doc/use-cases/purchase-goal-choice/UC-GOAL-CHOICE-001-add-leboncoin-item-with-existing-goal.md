@@ -31,7 +31,7 @@
 - **"No goal" kept:** the item is added without a goal.
 - **Added while goals are loading:** at step 2 the operator adds the item; it is added without a goal (FR-GOAL-CHOICE-012).
 - **Goals cannot be loaded:** the form shows the free-text "Purchase goal" field instead of the drop-down; a typed goal is saved as before (FR-GOAL-CHOICE-013, FR-PURCHASE-GOAL-001).
-- **Open mode:** without login, the existing goals are those of all LeBoncoin items (FR-MODE-001).
+- **Open mode:** without login, the existing goals are those of all items (FR-MODE-001).
 - **Add fails (invalid, unsupported or duplicate URL):** the form shows the error as in UC-IM-01; no goal is saved.
 
 ## Postconditions

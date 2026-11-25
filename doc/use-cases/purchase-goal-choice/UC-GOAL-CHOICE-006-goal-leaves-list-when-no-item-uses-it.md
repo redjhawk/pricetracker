@@ -25,4 +25,4 @@
 
 ## Postconditions
 
-- The list offers exactly the distinct goals of the operator's current LeBoncoin items.
+- The list offers exactly the distinct goals of the operator's current items (LeBoncoin and Amazon).

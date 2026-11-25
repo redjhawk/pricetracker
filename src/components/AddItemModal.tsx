@@ -83,7 +83,7 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
       <PurchaseGoalChoice
         id="add-item-purchase-goal"
         label="Purchase goal (optional)"
-        helperText="LeBoncoin only. Sent to the AI review, e.g. what you will use the item for."
+        helperText="Sent to the AI review, e.g. what you will use the item for."
         goals={goals.state}
         value={choice}
         onChange={setChoice}

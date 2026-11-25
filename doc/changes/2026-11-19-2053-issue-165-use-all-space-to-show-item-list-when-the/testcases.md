@@ -69,7 +69,7 @@ The change is presentation only: no API, store or handler behaviour changes. Go 
 - **Then:**
   - On the Amazon tab, each card's Prices, Amazon second-hand offer and Status values are on the same line.
   - On the LeBoncoin tab, Prices and Status are on the same line.
-  - For every value that starts a later line in a card, the free space to the right of the previous line is smaller than that value's width, so the right part of the card is not left empty while a value would fit there.
+  - For every value that starts a later line in a card, the free space of the previous line, counting the item value at its base width of 14rem, not at its grown width, is smaller than that value's width, so the right part of the card is not left empty while a value would fit there.
   - Each value is still associated with its label or column name.
 - **Corner cases:** the two widths in the card range; both tabs; an Amazon card with and one without a second-hand offer.
 

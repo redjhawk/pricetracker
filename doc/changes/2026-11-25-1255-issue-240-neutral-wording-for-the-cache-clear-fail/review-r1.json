@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/httpapi/amazon_browser_cache_log_test.go",
+    "line": 430,
+    "category": "spec",
+    "body": "This new test is not in the technical specification. Its 'Files to change' table lists only browser.go and internal/amazon/browser_cache_log_test.go (TC-001, TC-002). The TC-004 row says it is covered by the existing, unchanged `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` and `TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFile`. The test copies TC-005 of internal/httpapi/amazon_browser_interrupted_test.go almost line for line: same fixture, same server-stop sequence, same per-owner Refresh price and the same assertions. The only addition is a no-cache-line check after each Refresh price. So each CI run starts another real-Chromium scenario (up to 60 s + 20 s waits) for no new coverage. The second string checked in `assertNoCacheLine` (\"after a page not opened\") also adds nothing: the old line contained the prefix \"Amazon browser cache could not be cleared\", so the first string already matches it. Suggested fix: list this file in delete.txt and rely on the existing TC-005 as the spec states. If the no-cache-line check after Refresh price is wanted, add that one assertion to the existing test and record it in the technical specification."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/browser_cache_log_test.go",
+    "line": 353,
+    "category": "spec",
+    "body": "The technical specification does not list `TestBrowserCacheLog_TC003_SuccessfulClearLogsNothing`. It assigns TC-003 to the existing, unchanged tests `TestBrowserInterrupted_TC001_ClearConfirmedBeforeClose`, `TestBrowserInterrupted_TC002_PageStillRequestedIsCleared` and `TestBrowserInterrupted_TC006_UninterruptedCheckIsUnchanged` (subtest `download`). The new test repeats the same scripts: Navigate error or hold, Clear answer with ClearDelay 300 ms, both interruption kinds, a repeated live check. It also repeats the same assertions (`assertClearConfirmedBeforeClose`, `assertInterruptedFailure`, `assertNoCacheLogLine`). That adds about 4 × 2 s of interrupted runs of duplicate coverage. Its `assertNoOldCacheWording` calls cannot fail on their own once `assertNoCacheLogLine` passes, because any old-wording line contains `cacheLogLine`. Suggested fix: remove this test and keep TC-003 on the existing tests, as specified, or update the technical specification's file and test tables if the stage meant to add it."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/amazon/browser_cache_log_test.go",
+    "line": 307,
+    "category": "simplify",
+    "body": "In the `repeated` subtest, the `total` counter and the final `total != 2` check can never fail. `assertNeutralCacheLine` already calls t.Fatalf unless each check's output has exactly one cache line, so after two iterations `total` is always 2. Suggested fix: drop `total` and its check (lines 296, 307, 309-311). The per-check `assertNeutralCacheLine` already proves 'one more neutral line per failed clearing'."
+  }
+]

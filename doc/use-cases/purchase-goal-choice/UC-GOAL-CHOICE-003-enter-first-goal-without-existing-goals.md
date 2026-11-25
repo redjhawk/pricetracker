@@ -2,13 +2,13 @@
 
 **Primary actor:** Operator (in protected mode, the logged-in user)
 **Supporting systems:** PriceFollower application, add-item form, LeBoncoin item details page
-**Trigger:** The operator enters a goal while none of their LeBoncoin items has a goal (for example, their first goal).
+**Trigger:** The operator enters a goal while none of their items has a goal (for example, their first goal).
 **Origin:** Issue #304.
 **Covers:** FR-GOAL-CHOICE-003, FR-GOAL-CHOICE-008
 
 ## Preconditions
 
-- No LeBoncoin item of the operator has a goal. Items shared by other users may have goals; they do not count.
+- No item of the operator has a goal. Items shared by other users may have goals; they do not count.
 
 ## Main flow
 

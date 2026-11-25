@@ -44,7 +44,7 @@ Conventions:
 
 ## Cases
 
-### TC-001 — Existing goals: distinct exact texts, alphabetical ignoring case, own LeBoncoin items only
+### TC-001 — Existing goals: distinct exact texts, alphabetical ignoring case, own items only
 
 - Covers: FR-GOAL-CHOICE-001, FR-GOAL-CHOICE-005, FR-GOAL-CHOICE-006, FR-GOAL-CHOICE-011 (goals of others not offered); UC-GOAL-CHOICE-001, UC-GOAL-CHOICE-008
 - Level: integration (Go service, real SQLite)
@@ -55,9 +55,9 @@ Conventions:
   - spacing: goals "Gaming on Linux" and "Gaming  on Linux" (two spaces) are two entries;
   - multi-line goal "line one\nline two" is listed once with its line break;
   - empty goals (items without a goal) are not listed;
-  - an Amazon row with a non-empty goal inserted directly in the database is not listed;
+  - an Amazon item's non-empty goal is listed like a LeBoncoin one (issue #305: alice's Amazon goal "Amazon goal" comes first);
   - bob's list is exactly "Office"; a user with no item gets an empty list (not an error);
-  - open mode (no regular user): the list holds the goals of all LeBoncoin items;
+  - open mode (no regular user): the list holds the goals of all items;
   - repeated reads return the same order.
 
 ### TC-002 — Goals endpoint over HTTP
@@ -206,14 +206,14 @@ Conventions:
   - Escape closes the open drop-down without changing the selection;
   - narrow screen (320 px wide): in the add-item form and on the details page, the drop-down, its open options and the field fit inside the viewport without horizontal page scroll, and each option label stays on one line.
 
-### TC-013 — Amazon URL: goal choice offered, goal not saved
+### TC-013 — Amazon URL: goal choice offered, goal saved
 
 - Covers: FR-GOAL-CHOICE-009; UC-GOAL-CHOICE-007
 - Level: e2e (Playwright, mocked API) and integration (Go service, real SQLite, in TC-003)
-- Given the goals route returns "Gaming", and `POST /api/v1/items` answers 201 with an Amazon item whose `purchaseGoal` is empty
+- Given the goals route returns "Gaming", and `POST /api/v1/items` answers 201 with an Amazon item that keeps the sent `purchaseGoal`
 - When the operator enters an Amazon URL, selects "Gaming" and adds the item
-- Then the drop-down is shown as for a LeBoncoin URL, the item is added (dialog closes, item listed), and its details page shows no purchase goal entry.
-- Corner cases: "New goal" with typed text and an Amazon URL is added normally; the server side (no goal stored, list unchanged) is proved by TC-003.
+- Then the drop-down is shown as for a LeBoncoin URL, the item is added (dialog closes, item listed), and its details page shows the goal choice with "Gaming" selected.
+- Corner cases: "New goal" with typed text and an Amazon URL saves the text, which the reopened form offers; the server side (goal stored, list updated) is proved by TC-003.
 
 ### TC-014 — Item shared by another user: goal read-only
 

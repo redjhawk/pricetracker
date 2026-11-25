@@ -14,7 +14,7 @@ Let the operator state, as free text, what a LeBoncoin item is intended for, so 
 
 Included: optional purchase goal entered in the add-item form and on the item details page; stored per item; included in every review request; editing or clearing the goal starts a new review.
 
-Excluded: Amazon items; the items list; goal history; showing the goal in review history entries; a dedicated goal section or verdict in the review (D-5); length limit (D-6).
+Excluded: Amazon items (issue #305 extends the goal to Amazon items, amending FR-PURCHASE-GOAL-001 and -008: see [Amazon item AI review](../amazon-item-ai-review/functional.md)); the items list; goal history; showing the goal in review history entries; a dedicated goal section or verdict in the review (D-5); length limit (D-6).
 
 ## Requirements
 

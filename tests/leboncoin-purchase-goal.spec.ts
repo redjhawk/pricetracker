@@ -10,7 +10,7 @@ const baseItem = {
 };
 const idleReview = { tokenConfigured: true, running: false, lastAttempt: null, latest: null, history: [] };
 
-async function mockApi(context: BrowserContext, options: { goal?: string; platform?: string; failSave?: boolean } = {}) {
+async function mockApi(context: BrowserContext, options: { goal?: string; failSave?: boolean } = {}) {
   const state = { goal: options.goal ?? "", running: false, puts: [] as string[], posts: [] as unknown[] };
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -18,7 +18,7 @@ async function mockApi(context: BrowserContext, options: { goal?: string; platfo
     if (!url.pathname.startsWith("/api/")) return route.continue();
     if (url.pathname === "/api/v1/auth/session") return route.fulfill({ json: { mode: "open", user: null } });
     const method = route.request().method();
-    const item = () => ({ ...baseItem, platform: options.platform ?? "leboncoin", purchaseGoal: state.goal });
+    const item = () => ({ ...baseItem, purchaseGoal: state.goal });
     if (method === "GET" && url.pathname === "/api/v1/items") return route.fulfill({ json: { items: [] } });
     if (method === "POST" && url.pathname === "/api/v1/items") {
       const body = route.request().postDataJSON();
@@ -27,7 +27,7 @@ async function mockApi(context: BrowserContext, options: { goal?: string; platfo
       return route.fulfill({ status: 201, json: item() });
     }
     if (method === "GET" && url.pathname === `/api/v1/items/${baseItem.id}`) {
-      return route.fulfill({ json: { ...item(), aiReview: options.platform === "amazon" ? null : { ...idleReview, running: state.running } } });
+      return route.fulfill({ json: { ...item(), aiReview: { ...idleReview, running: state.running } } });
     }
     if (method === "PUT" && url.pathname === `/api/v1/items/${baseItem.id}/purchase-goal`) {
       const goal = route.request().postDataJSON().purchaseGoal;
@@ -91,13 +91,6 @@ test("failed save shows an error and keeps the text; keyboard save works", async
   expect(api.puts).toEqual(["Long goal\nwith several paragraphs"]);
 });
 
-test("Amazon details have no purchase goal field", async ({ page, context }) => {
-  await mockApi(context, { platform: "amazon" });
-  await page.goto(`/items/${baseItem.id}`);
-  await expect(page.getByRole("heading", { name: "LeBoncoin laptop" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Purchase goal" })).toHaveCount(0);
-});
-
 // Issue #304: choose an existing purchase goal (TC-006 to TC-014).
 
 type GoalsReply = "ok" | "hold" | "fail" | "abort";
@@ -123,7 +116,7 @@ test.afterEach(async () => {
 });
 
 // mockGoalsApi serves the goals list as the server derives it: the goals of other items
-// (otherGoals) plus the current goals of the mocked LeBoncoin items, merged and ordered.
+// (otherGoals) plus the current goals of the mocked items, merged and ordered.
 async function mockGoalsApi(context: BrowserContext, options: {
   otherGoals?: string[];
   items?: MockItem[];
@@ -139,7 +132,7 @@ async function mockGoalsApi(context: BrowserContext, options: {
     posts: [] as { url: string; purchaseGoal: string }[],
     puts: [] as { id: string; purchaseGoal: string }[],
     goals() {
-      const all = [...(options.otherGoals ?? []), ...state.items.filter((item) => item.platform === "leboncoin").map((item) => item.goal)];
+      const all = [...(options.otherGoals ?? []), ...state.items.map((item) => item.goal)];
       return [...new Set(all.filter((goal) => goal.trim() !== ""))].sort(byGoal);
     },
     async releaseGoals() {
@@ -177,7 +170,7 @@ async function mockGoalsApi(context: BrowserContext, options: {
         return route.fulfill({ status: options.postStatus, json: { error: { code: "ITEM_ALREADY_TRACKED", message: "This listing is already being tracked." } } });
       }
       const platform = body.url.includes("amazon.") ? "amazon" : "leboncoin";
-      const item: MockItem = { id: `added-${state.posts.length}`, platform, goal: platform === "amazon" ? "" : body.purchaseGoal.trim() };
+      const item: MockItem = { id: `added-${state.posts.length}`, platform, goal: body.purchaseGoal.trim() };
       state.items.push(item);
       return route.fulfill({ status: 201, json: json(item) });
     }
@@ -599,24 +592,23 @@ test.describe("issue #304 add form", () => {
     await expectFitsNarrowScreen(page, addChoice(dialog), goalText(dialog));
   });
 
-  test("TC-013 an Amazon URL offers the goal choice and adds the item without a goal", async ({ page, context }) => {
+  test("TC-013 an Amazon URL offers the goal choice and saves the chosen goal", async ({ page, context }) => {
     const api = await mockGoalsApi(context, { otherGoals: ["Gaming"] });
     await page.goto("/");
     const dialog = await openAddForm(page, amazonUrl);
     await choose(page, addChoice(dialog), "Gaming");
     await expect(goalText(dialog)).toHaveValue("Gaming");
     await submitAddForm(dialog);
-    expect(api.posts).toHaveLength(1);
+    expect(api.posts).toEqual([{ url: amazonUrl, purchaseGoal: "Gaming" }]);
     await expect(page.getByText("Amazon lamp").first()).toBeVisible();
     await page.goto(`/items/${api.items[0].id}`);
     await expect(page.getByRole("heading", { name: "Amazon lamp" })).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Purchase goal" })).toHaveCount(0);
-    await expect(page.getByRole("textbox", { name: "Purchase goal" })).toHaveCount(0);
-    await expect(goalText(page)).toHaveCount(0);
-    await expect(saveGoal(page)).toHaveCount(0);
+    await expect(selectedValue(detailChoice(page))).toHaveText("Gaming");
+    await expect(goalText(page)).toHaveValue("Gaming");
+    await expect(saveGoal(page)).toBeVisible();
   });
 
-  test("TC-013 an Amazon URL with a new goal is added normally", async ({ page, context }) => {
+  test("TC-013 an Amazon URL with a new goal saves it and offers it next time", async ({ page, context }) => {
     const api = await mockGoalsApi(context, { otherGoals: ["Gaming"] });
     await page.goto("/");
     const dialog = await openAddForm(page, amazonUrl);
@@ -624,8 +616,10 @@ test.describe("issue #304 add form", () => {
     await goalText(dialog).fill("Brand new text");
     await submitAddForm(dialog);
     expect(api.posts).toHaveLength(1);
-    expect(api.items[0]).toMatchObject({ platform: "amazon", goal: "" });
+    expect(api.items[0]).toMatchObject({ platform: "amazon", goal: "Brand new text" });
     await expect(page.getByText("Amazon lamp").first()).toBeVisible();
+    const next = await openAddForm(page, otherLbcUrl);
+    await expectOptions(page, addChoice(next), ["No goal", "Brand new text", "Gaming", "New goal"]);
   });
 });
 

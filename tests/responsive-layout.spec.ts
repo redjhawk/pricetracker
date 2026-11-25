@@ -362,6 +362,8 @@ const EDGE = 0.5; // Text or a control at x <= 0.5 or right >= width - 0.5 touch
 const cardWidths = [320, 360, 671, 672, 700, 775, 1055];
 const tabs = ["Amazon", "LeBoncoin"] as const;
 const cardLabels = { Amazon: ["Prices", "Amazon second-hand offer", "Status"], LeBoncoin: ["Prices", "Status"] };
+// Flex basis of the item value in a card (td:has(> .item-cell), FR-RESPONSIVE-024), before it grows.
+const ITEM_BASIS_REM = 14;
 
 // Baseline measured on master before issue #165: at >= 1056 px the page inset is Carbon's .cds--content
 // padding (2rem) plus the .page-shell inset (spacing-07, 2rem, since the --cds-spacing-* tokens are
@@ -390,7 +392,7 @@ declare global {
       scan(): Scan;
       insetProblems(container: Element): string[];
       labelShown(cell: Element): boolean;
-      cells(row: Element): { right: number; cells: CardCell[] };
+      cells(row: Element): { left: number; right: number; cells: CardCell[] };
     };
   }
 }
@@ -506,11 +508,12 @@ function layoutProbe() {
     const index = [...cell.parentElement!.children].indexOf(cell);
     return head.querySelectorAll("th")[index]?.textContent?.trim() === label;
   };
-  // The cells of a card (a table row), in DOM order, and the right edge of the card's content box.
+  // The cells of a card (a table row), in DOM order, and the left and right edges of the card's content box.
   const cells = (row: Element) => {
     const box = row.getBoundingClientRect();
     const style = getComputedStyle(row);
     return {
+      left: box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth),
       right: box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth),
       cells: [...row.children].map((cell) => {
         const cellBox = cell.getBoundingClientRect();
@@ -711,6 +714,7 @@ test("TC-005 card values side by side", async ({ page, context }) => {
   await expect(table.getByRole("button", { name: sampleAmazon.title })).toBeVisible();
   for (const width of [775, 1055]) {
     await page.setViewportSize({ width, height: 800 });
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
     for (const tab of tabs) {
       await page.getByRole("tab", { name: tab }).click();
       const rows = table.locator("tbody tr");
@@ -727,10 +731,16 @@ test("TC-005 card values side by side", async ({ page, context }) => {
           expect(cell(first).labelShown, `${what}: ${first} labelled`).toBe(true);
         }
         // A value starts a new line only when it does not fit in the space left on the previous one.
+        // Lines break on base sizes: the item value (first cell) counts at its 14rem basis, not at the
+        // width it grows to; the other values do not grow (issue #199).
         card.cells.forEach((current, position) => {
           if (position === 0 || followsOnLine(card.cells[position - 1], current)) return;
-          const free = card.right - card.cells[position - 1].right;
-          expect(free, `${what}: free space before value ${current.label || position} (width ${current.width})`).toBeLessThan(current.width + 1);
+          let start = position - 1;
+          while (start > 0 && followsOnLine(card.cells[start - 1], card.cells[start])) start--;
+          const used = card.cells.slice(start, position)
+            .reduce((sum, cell, offset) => sum + (start + offset === 0 ? ITEM_BASIS_REM * rem : cell.width), 0);
+          const free = card.right - card.left - used;
+          expect(free, `${what}: free space ${free.toFixed(1)} before value ${current.label || position} (width ${current.width.toFixed(1)})`).toBeLessThan(current.width + 1);
         });
       }
     }

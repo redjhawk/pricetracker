@@ -8,13 +8,13 @@ Extends: [LeBoncoin purchase goal technical specification](../leboncoin-purchase
 
 ## Summary
 
-The list of existing goals is not stored: the server derives it at each request from the requester's LeBoncoin items (`GET /api/v1/purchase-goals`). Choosing a goal is purely client-side: the chosen or edited text is sent through the unchanged `POST /api/v1/items` and `PUT /api/v1/items/{id}/purchase-goal`. Copy semantics (FR-GOAL-CHOICE-007) and list maintenance (FR-GOAL-CHOICE-008) follow from this without new writes, tables or migrations.
+The list of existing goals is not stored: the server derives it at each request from the requester's items (LeBoncoin and Amazon) (`GET /api/v1/purchase-goals`). Choosing a goal is purely client-side: the chosen or edited text is sent through the unchanged `POST /api/v1/items` and `PUT /api/v1/items/{id}/purchase-goal`. Copy semantics (FR-GOAL-CHOICE-007) and list maintenance (FR-GOAL-CHOICE-008) follow from this without new writes, tables or migrations.
 
 ## Requirement mapping
 
 | Technical ID | Functional IDs | Technical solution |
 | --- | --- | --- |
-| TS-GOAL-CHOICE-001 | FR-GOAL-CHOICE-005, -006, -008, -009, -011 | Store `PurchaseGoals(ctx, ownerID)` selects the distinct non-empty goals of the owner's tracked LeBoncoin items (exact match, `BINARY` collation). Service `PurchaseGoals(ctx)` uses `ownerFrom(ctx)` and sorts alphabetically: base letters (case and accents ignored), then `strings.ToLower` comparison, then exact byte order. Derived at each call, so additions, deletions and goal changes are reflected at once and a goal disappears with its last item. |
+| TS-GOAL-CHOICE-001 | FR-GOAL-CHOICE-005, -006, -008, -009, -011 | Store `PurchaseGoals(ctx, ownerID)` selects the distinct non-empty goals of the owner's tracked items (both platforms since issue #305) (exact match, `BINARY` collation). Service `PurchaseGoals(ctx)` uses `ownerFrom(ctx)` and sorts alphabetically: base letters (case and accents ignored), then `strings.ToLower` comparison, then exact byte order. Derived at each call, so additions, deletions and goal changes are reflected at once and a goal disappears with its last item. |
 | TS-GOAL-CHOICE-002 | FR-GOAL-CHOICE-001, -003, -013 | `GET /api/v1/purchase-goals` → `200 {"purchaseGoals": [...]}` (`[]` when none), behind the existing access checks of `handleAPI`; other methods `405` with `Allow: GET`; storage error `500 INTERNAL_ERROR`. |
 | TS-GOAL-CHOICE-003 | FR-GOAL-CHOICE-001, -008, -012, -013 | Frontend `listPurchaseGoals()` in `src/api/items.ts` and hook `usePurchaseGoals(active)` with states `loading` / `ready` / `failed`; fetched each time the add-item form opens and when the details goal entry mounts or after a successful save. |
 | TS-GOAL-CHOICE-004 | FR-GOAL-CHOICE-001, -002, -004, -006, -014, -015, -016 | Presentational `PurchaseGoalChoice` component: Carbon `Dropdown` ("No goal", goals in server order, "New goal") plus a `TextArea` for the goal text; selection rules of FR-GOAL-CHOICE-014; four-word labels (`goalLabel`). |
@@ -39,11 +39,11 @@ Defined in `API_SPECIFICATION.md` ("List the existing purchase goals (issue #304
 ### Store (`internal/store/store.go`)
 
 ```go
-// PurchaseGoals returns the distinct non-empty purchase goals of the owner's LeBoncoin items, unordered.
+// PurchaseGoals returns the distinct non-empty purchase goals of the owner's items, unordered.
 func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error)
 ```
 
-SQL: `SELECT DISTINCT purchase_goal FROM items WHERE owner_id = ? AND tracked = 1 AND platform = 'leboncoin' AND purchase_goal <> ''`. The column has the default `BINARY` collation, so `DISTINCT` merges only identical texts (case, spacing and line breaks kept). Rows are scanned into a slice initialised as `[]string{}`. No schema change, no migration, no index (one owner has few items; the query is a scan of `items` like `List`).
+SQL: `SELECT DISTINCT purchase_goal FROM items WHERE owner_id = ? AND tracked = 1 AND purchase_goal <> ''`. The column has the default `BINARY` collation, so `DISTINCT` merges only identical texts (case, spacing and line breaks kept). Rows are scanned into a slice initialised as `[]string{}`. No schema change, no migration, no index (one owner has few items; the query is a scan of `items` like `List`).
 
 ### Service (`internal/service/purchase_goal.go`)
 
@@ -56,7 +56,7 @@ func (s *Service) PurchaseGoals(ctx context.Context) ([]string, error)
 - Drops entries for which `strings.TrimSpace` is empty (defence for rows written outside the service; the service already stores trimmed goals).
 - Sorts with `slices.SortFunc(goals, compareGoals)`, the order of `API_SPECIFICATION.md`: compare the lower-case texts with Latin diacritics mapped to their base letters and ligatures expanded (`baseLetters`, a `strings.Replacer`); on equality compare `strings.ToLower(a)` with `strings.ToLower(b)`; then `a` with `b` (`strings.Compare`). Gives "browsing", "écran", "Gaming", "gaming", … deterministically, with accented first letters among their base letters (FR-GOAL-CHOICE-006 for French goals). The mapping covers the Latin-1 letters and `œ`; `golang.org/x/text/collate` would cover all scripts but adds a dependency, which this change avoids.
 - Read only; no transaction, lock or interaction with reviews. Concurrent goal changes are seen by the next request.
-- Unchanged: `Add` (trims, stores goal only for LeBoncoin, so an Amazon add never changes the list), `SetPurchaseGoal` (one item, review only for that item, unchanged text → no write, no review), `Remove` (owner-checked; a refused removal leaves the list as is).
+- Unchanged: `Add` (trims and stores the goal for both platforms since issue #305, so an Amazon add with a goal joins the list), `SetPurchaseGoal` (one item, review only for that item, unchanged text → no write, no review), `Remove` (owner-checked; a refused removal leaves the list as is).
 
 ### HTTP (`internal/httpapi/purchase_goal.go`, `internal/httpapi/server.go`)
 
@@ -101,12 +101,12 @@ Props: `id`, `label`, `helperText`, `goals: GoalsState`, `value: GoalChoice`, `o
 
 - `const goals = usePurchaseGoals(open)`; state `choice: GoalChoice`, initially and after close/success `{ option: none, text: "" }`. The list is fetched again at every opening (FR-GOAL-CHOICE-008).
 - Renders `PurchaseGoalChoice` with `id="add-item-purchase-goal"`, `label="Purchase goal (optional)"`, the current helper text, `disabled={submitting}`.
-- Submit sends `onAdded(url.trim(), goalToSave(goals.state, choice))` for any URL (Amazon included, FR-GOAL-CHOICE-009; the server ignores it). While loading the add action stays enabled and sends `""`. On failure the dialog, selection and text stay.
+- Submit sends `onAdded(url.trim(), goalToSave(goals.state, choice))` for any URL (Amazon included, FR-GOAL-CHOICE-009; stored since issue #305). While loading the add action stays enabled and sends `""`. On failure the dialog, selection and text stay.
 - `App.tsx` `handleAdd` is unchanged.
 
 ### Details page (`src/components/PurchaseGoal.tsx`, `src/components/ItemDetail.tsx`)
 
-- `ItemDetail` renders `<PurchaseGoal key={item.id} …>` so state and the goals request reset per item. Still only for LeBoncoin items (Amazon unchanged).
+- `ItemDetail` renders `<PurchaseGoal key={item.id} …>` so state and the goals request reset per item. Shown for LeBoncoin and Amazon items (issue #305).
 - `PurchaseGoal` keeps its props (`itemId`, `goal`, `onSaved`) and the existing `dirty` pattern: `choice` is re-synced to `choiceFor(goal)` while not dirty (polling may update `goal`); selecting or typing sets `dirty`.
 - `const goals = usePurchaseGoals(true)`; the state passed to `PurchaseGoalChoice` is `goals.state` with `withGoal(goals, goal)` applied when `ready`. So the details page shows the choice once any goal exists, including right after the first goal is saved on a page that showed only the free-text field (TC-009).
 - `PurchaseGoalChoice` with `id="purchase-goal"`, `label="Purchase goal"`, the current helper text, `disabled={saving}`.
@@ -136,7 +136,7 @@ Carbon defaults suffice for width: the `Dropdown` is full width, its option labe
 
 | Test case | Test file | Notes |
 | --- | --- | --- |
-| TC-001 | `internal/service/purchase_goal_choice_test.go` (new) | `PurchaseGoals` with `WithPrincipal`; Amazon row with a goal inserted through `database.Insert` or SQL. |
+| TC-001 | `internal/service/purchase_goal_choice_test.go` (new) | `PurchaseGoals` with `WithPrincipal`; Amazon row with a goal inserted through `database.Insert` or SQL, listed like a LeBoncoin one. |
 | TC-002 | `internal/httpapi/purchase_goal_choice_test.go` (new) | `newSettingsServer`; protected and open mode; `[]` checked on the raw body. |
 | TC-003 | `internal/service/purchase_goal_choice_test.go` | Uses `Add`, `Remove`, `SetPurchaseGoal`. |
 | TC-004 | `internal/service/purchase_goal_choice_test.go` | `newReviewService(t, true)` and the fake reviewer. |

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R4-01",
+    "file": "doc/changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/no-use-cases.md",
+    "line": 9,
+    "category": "nit",
+    "body": "R3-01 and R3-02 are fixed: TS-RESPONSIVE-029, no-tests.md TC-003 and testcases.md TC-003 now apply the `doc/todo/` rule only to existing files (`--diff-filter=DMRT`). The FR-RESPONSIVE-030 summary in no-use-cases.md still says that `doc/todo/` is unchanged, but the branch adds `doc/todo/issue-200-r1-02.md`. This is the same scoping slip in a summary file, and no check depends on it. Suggested fix: say 'the existing files under `doc/todo/` are unchanged', to match TS-RESPONSIVE-029 and TC-003. Not blocking."
+  }
+]

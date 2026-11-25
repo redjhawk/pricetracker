@@ -150,7 +150,7 @@ export default function SettingsModal({ open, onClose, launcherButtonRef }: Prop
 
   const loaded = Boolean(settings && claudeToken);
   const loading = open && !loaded && !loadError;
-  const claudeHelp = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for LeBoncoin AI reviews. Leave it empty to keep the saved token."
+  const claudeHelp = "Paste the token printed by claude setup-token (Claude Pro/Max subscription). It is used for Amazon and LeBoncoin AI reviews. Leave it empty to keep the saved token."
     + (claudeToken && !claudeToken.saved ? " AI reviews are unavailable until a token is saved." : "");
   const sessionHelp = "Paste the datadome value or a cookie string containing datadome=…. Leave it empty to keep the saved session.";
   const warning = settings ? sessionWarning(settings) : null;
