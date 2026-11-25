@@ -28,6 +28,12 @@ import (
 //     fixtureCases, keep their subtest names and results.
 //   - TC-003: rows f, g and h of the same test keep failing as listing failures with the same messages.
 //   - TC-004: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #254: the fixture build check also compiles the fixtures' test files (go vet ./...);
+// TestFixtureModulesBuild_Issue251_TC001 and its test-file control prove it. Cases proved outside this file:
+//   - TC-003: temporary edits of row d's test files, never committed, make that test fail.
+//   - TC-005 and TC-007: runs on master and with the change give the same subtests and results.
+//   - TC-008: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -298,19 +304,24 @@ func TestListServerDependencies_TC003_FixtureModules(t *testing.T) {
 	})
 }
 
-// buildModule runs go build ./... offline in the fixture module dir; a failure holds the tool's output.
+// buildModule compiles the fixture module dir offline: go build ./... compiles its non-test files, then
+// go vet ./... type-checks its packages with their test files. A failure names the command and holds the
+// tool's output.
 func buildModule(dir string) error {
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), fixtureEnv...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go build ./...: %w: %s", err, strings.TrimSpace(string(out)))
+	for _, args := range [][]string{{"build", "./..."}, {"vet", "./..."}} {
+		cmd := exec.Command("go", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), fixtureEnv...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
 	}
 	return nil
 }
 
-// Issue #251 TC-001: every valid fixture module builds offline; the invalid ones and a program using a
-// name the stub does not declare do not, so the check is not vacuous.
+// Issue #251 TC-001 and issue #254: every valid fixture module, its test files included, compiles offline;
+// the invalid ones, a program using a name the stub does not declare and a test file doing so do not,
+// so the check is not vacuous.
 func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 	for _, tc := range fixtureCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -345,6 +356,23 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "DownloadMarker") {
 			t.Errorf("build failure %q does not name DownloadMarker", err)
+		}
+	})
+
+	t.Run("control: a test file uses a name the stub does not declare", func(t *testing.T) {
+		dir := writeModule(t, map[string]string{
+			"cmd/app/main.go":      plainMain,
+			"cmd/app/main_test.go": "package main\n\nimport \"pricefollower.local/internal/amazon/amazontest\"\n\nvar _ = amazontest.Nope\n",
+		})
+		err := buildModule(dir)
+		if err == nil {
+			t.Fatal("the module compiles, want a failure on the undeclared Nope in a test file")
+		}
+		if !strings.Contains(err.Error(), "amazontest.Nope") {
+			t.Errorf("build failure %q does not name amazontest.Nope", err)
+		}
+		if !strings.HasPrefix(err.Error(), "go vet ./...") {
+			t.Errorf("build failure %q is not reported by go vet ./..., so the non-test files do not build on their own", err)
 		}
 	})
 }
