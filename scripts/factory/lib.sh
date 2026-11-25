@@ -105,7 +105,7 @@ run_agent() {
   case "$profile" in
     # Edit rules (which also cover Write) are limited to the paths each profile produces; Bash to fixed commands.
     docs)   tools="Read,Glob,Grep,Edit(doc/**),Edit(API_SPECIFICATION.md)" ;;
-    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Edit(cmd/**),Edit(internal/**),Edit(src/**),Edit(tests/**),Edit(web/**),Edit(README.md),Edit(deploy/README.md),Edit($CHANGE_DIR/**)"
+    code)   tools="Read,Glob,Grep,Edit(doc/specifications/**),Edit(doc/FUNCTIONAL_SPECIFICATIONS.md),Edit(cmd/**),Edit(internal/**),Edit(src/**),Edit(tests/**),Edit(web/**),Edit(README.md),Edit(deploy/README.md),Edit($CHANGE_DIR/**)"
             tools+=",Bash(go test:*),Bash(go vet:*),Bash(go build:*),Bash(gofmt:*),Bash(npm run build),Bash(npx playwright test:*),Bash(node --test:*)"
             tools+=",Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*),Bash(date -u:*)" ;;
     review) tools="Read,Glob,Grep,Edit($CHANGE_DIR/**),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" ;;
