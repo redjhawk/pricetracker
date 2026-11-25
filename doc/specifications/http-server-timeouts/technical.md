@@ -11,7 +11,7 @@ API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "HTTP server
 | Technical ID | Functional IDs | Technical solution | Files |
 | --- | --- | --- | --- |
 | TS-HTTP-TMO-001 | FR-HTTP-TMO-001, -002, -003, -004, -007 | Server constructor `httpapi.NewHTTPServer(cfg, handler)` returns the one `*http.Server` with `ReadHeaderTimeout` 5 s, `ReadTimeout` 15 s, `WriteTimeout` 60 s, `IdleTimeout` 60 s, `MaxHeaderBytes` 64 KiB. | `internal/httpapi/http_server.go` (new) |
-| TS-HTTP-TMO-002 | FR-HTTP-TMO-001 | A request body whose read passes the read deadline aborts the handler with `http.ErrAbortHandler`, so no response is written and nothing is handled. | `internal/httpapi/http_server.go`, `internal/httpapi/server.go` |
+| TS-HTTP-TMO-002 | FR-HTTP-TMO-001 | A request body whose read passes the read deadline aborts the handler with `http.ErrAbortHandler`, so no response is written and nothing is handled. Handlers that never read the body are not affected. | `internal/httpapi/http_server.go`, `internal/httpapi/server.go` |
 | TS-HTTP-TMO-003 | FR-HTTP-TMO-001..007 | `cmd/pricefollower/main.go` builds its server only with `httpapi.NewHTTPServer`; no `http.Server{` literal is left in `cmd/`. | `cmd/pricefollower/main.go` |
 | TS-HTTP-TMO-004 | FR-HTTP-TMO-003, -004 | Header size: Go reads at most `MaxHeaderBytes` + 4096 = 69,632 bytes of request line and headers and answers `431` itself above that. | (net/http behaviour, no code) |
 | TS-HTTP-TMO-005 | FR-HTTP-TMO-005, -006 | Handler duration check: no handler runs longer than 60 s; the longest is `PUT /api/v1/settings` (Claude verification bounded at 20 s). Long work stays in background workers. No code change. | (review, no code) |
