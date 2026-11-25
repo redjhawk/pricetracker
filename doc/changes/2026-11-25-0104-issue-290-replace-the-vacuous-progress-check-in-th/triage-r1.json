@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: no-tests.md:64 ends with \"Results: see below.\" and nothing follows. This is a gap in the evidence record, not in the code or tests. TC-005's gate part is the pipeline's deterministic gates (testcases.md:82), and the pipeline runs and enforces them itself. The test change in tests/claude-token-settings.spec.ts:101-102 is correct, as the reviewer also says.",
+    "title": "Complete the empty \"Gates\" section in the #290 evidence file",
+    "todo": "**Problem:** `doc/changes/2026-11-25-0104-issue-290-replace-the-vacuous-progress-check-in-th/no-tests.md:64` ends the \"Gates\" section with \"Results: see below.\", but nothing follows. The TC-005 row (line 35) points to this section for its gate evidence, so the record of TC-005's gate part is empty.\n\n**Suggested work:** Replace the sentence with the actual results (pass/fail) of `npx playwright test`, `node --test scripts/*.test.mjs`, `go vet ./...` and `go test ./...`, or say that the pipeline's deterministic gates prove this part of TC-005. Also check that the evidence-file template or stage prompt does not leave such placeholders.\n\n**File:** `doc/changes/2026-11-25-0104-issue-290-replace-the-vacuous-progress-check-in-th/no-tests.md`, lines 35 and 62-64."
+  }
+]
