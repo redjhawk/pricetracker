@@ -26,3 +26,12 @@ Changing the wording of the current goal on the details page >> the usercan sele
 
 @claude can you continue?
 
+### redjhawk at 2026-11-25T19:15:37Z
+
+PUedes continuar 
+
+
+### redjhawk at 2026-11-25T21:39:24Z
+
+@claude Done: `API_SPECIFICATION.md` now has the three-step alphabetical order for `GET /api/v1/purchase-goals` and `technical.md` line 32 reads "Order (review R1-02):" (commit 6b0d452 on `ai-dev/issue-304`). Resume at implement for R2-01.
+
