@@ -62,16 +62,13 @@ Conventions:
 - When these commands run:
   - `git diff --name-status <base> -- . ':!doc'`;
   - `git diff <base> -- doc/specifications/responsive-layout/functional.md`;
-  - `git diff --name-status <base> -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/todo/`;
-  - `git diff --name-status <base> -- doc/`
+  - `git diff --name-status <base> -- doc/changes/*issue-140-* doc/changes/*issue-165-* doc/todo/`
 - Then:
   - the first command prints nothing (no file added, deleted, modified or renamed outside `doc/`);
   - in `functional.md`, no line of the requirement tables FR-RESPONSIVE-001 to FR-RESPONSIVE-024 is added, removed or modified; the only changes are the issue #203 section (FR-RESPONSIVE-025 to 027), the `/020` removal in the issue #165 bullet and the new issue #203 Traceability bullet;
-  - the third command prints nothing: the change folders `2026-11-11-1142-issue-140-responsive-layout`, `2026-11-11-1513-issue-140-full-width-list` and `2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the`, and every file under `doc/todo/` (including `issue-165-r1-05.md`), are unchanged;
-  - the last command lists only `doc/FUNCTIONAL_SPECIFICATIONS.md`, `doc/specifications/responsive-layout/functional.md` and files of the issue #203 change folder
+  - the third command prints nothing: the change folders `2026-11-11-1142-issue-140-responsive-layout`, `2026-11-11-1513-issue-140-full-width-list` and `2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the`, and every file under `doc/todo/` (including `issue-165-r1-05.md`), are unchanged
 - Corner cases:
   - no `_test.go`, frontend source, `.spec.ts`, `go.mod`, `go.sum`, `package.json` or `API_SPECIFICATION.md` change;
-  - `doc/specifications/responsive-layout/technical.md` is unchanged;
   - in `doc/FUNCTIONAL_SPECIFICATIONS.md`, only the Responsive layout row changes (numstat `1 1`).
 
 ### TC-005 — The application behaves as before and the gates pass

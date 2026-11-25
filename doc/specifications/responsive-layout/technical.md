@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 024, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 027, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -197,6 +197,24 @@ No other refactoring.
 
 - The design relies on Carbon internals: `.cds--content` padding, the `.cds--tab-content` padding, the `.cds--tab--list` width, the `.cds--table-toolbar` layout and the `.cds--inline-notification` breakpoint widths. A Carbon upgrade may change them. TC-001, TC-007 and TC-010 detect it.
 - Stretched tabs and phone heading buttons are a visible change below 1056 px. FR-RESPONSIVE-022 requires them.
+
+### Specification wording (issue #203, FR-RESPONSIVE-025 to 027)
+
+Change folder: [issue 203](../../changes/2026-11-25-0828-issue-203-fix-020-updated-wording-in-responsive-la/issue.md). Maintenance only: there is no code change. The functional specification stage made both wording fixes. No use cases.
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-025 | TS-RESPONSIVE-024 | `doc/FUNCTIONAL_SPECIFICATIONS.md` | TC-001, TC-003 |
+| FR-RESPONSIVE-026 | TS-RESPONSIVE-025 | `doc/specifications/responsive-layout/functional.md` | TC-002, TC-003 |
+| FR-RESPONSIVE-027 | TS-RESPONSIVE-026 | none | TC-004, TC-005 |
+
+- **TS-RESPONSIVE-024 Index row wording.** The issue #165 entry of the Responsive layout row of `doc/FUNCTIONAL_SPECIFICATIONS.md` reads `FR-RESPONSIVE-018 to 024 specified, 016/017 updated (issue #165)`. The row gets the issue #203 entry. Nothing else in that file changes.
+- **TS-RESPONSIVE-025 Traceability wording.** Owner answer (4) of the issue #165 Traceability bullet in `functional.md` reads `→ FR-RESPONSIVE-022, 023, FR-RESPONSIVE-016/017 updated.`. Only `/020` is removed from that bullet. Only the FR-RESPONSIVE-025 and 026 definitions quote `016/017/020`, as their check.
+- **TS-RESPONSIVE-026 No other change.** The text of FR-RESPONSIVE-001 to 024, the issue #140 and #165 change records, `doc/todo/` and every file outside `doc/` are unchanged. The existing Go and Playwright suites run unchanged and pass.
+
+Frontend, backend and API: not affected. `API_SPECIFICATION.md` is unchanged.
+
+Tests: no test code. FR-RESPONSIVE-027 allows no change outside `doc/` (see the change folder's `no-tests.md`). TC-001 to TC-004 are `grep` and `git diff` checks against `master`. TC-005 runs the existing gates: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build` and `npx playwright test`.
 
 ## Backend
 
