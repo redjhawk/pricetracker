@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "reason": "Confirmed: POST /api/v1/admin/users decodes its body through decodeCredentials (auth.go:162, 213-216) behind abortLateBodies (server.go:32), so a slow body is dropped with no response. The API_SPECIFICATION.md row for the 15 s limit lists the body-reading endpoints without it and files it under 'Any other request is handled once its headers arrive', so the contract added by this PR states the opposite of the behaviour; FR-HTTP-TMO-001's list and technical.md have the same omission.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R2-02",
+    "blocking": false,
+    "reason": "Postconditions in a use case describe the main flow's outcome; the 'Endpoint without a request body' alternative (UC-HTTP-TMO-001 line 26) states its own outcome explicitly, as does 'Whole request received in time'. The wording could be scoped more precisely but does not misstate a requirement.",
+    "title": "UC-HTTP-TMO-001: scope postconditions to body-reading endpoints",
+    "todo": "**Problem:** The Postconditions of `doc/use-cases/http-server-timeouts/UC-HTTP-TMO-001-slow-client-request-is-dropped.md` (lines 34-35) say without qualification that the request was not handled and no data changed, while the 'Endpoint without a request body' alternative (line 26) has the request handled and its response sent.\n\n**Suggested work:** Scope the postconditions to the main flow, e.g. 'For an endpoint that reads a request body: the connection is closed, the request was not handled and no data changed.'"
+  },
+  {
+    "id": "R2-03",
+    "blocking": false,
+    "reason": "No current bug: every body is decoded synchronously on the handler goroutine (auth.go:215, settings.go:45, purchase_goal.go:24, server.go:68), where net/http recovers http.ErrAbortHandler. Documenting the invariant for future handlers is a readability improvement.",
+    "title": "Document that abortLateBodies bodies must be read on the handler goroutine",
+    "todo": "**Problem:** `lateBody.Read` in `internal/httpapi/http_server.go:54` panics with `http.ErrAbortHandler`, which net/http recovers only on the goroutine serving the request. A future handler that reads `r.Body` from another goroutine (an `io.Copy` into a pipe, a proxied request body written by `http.Transport`) would crash the process on a slow client instead of closing one connection.\n\n**Suggested work:** Add to the `abortLateBodies` comment (`internal/httpapi/http_server.go:38-39`) that the request body must be read on the handler's goroutine."
+  }
+]
