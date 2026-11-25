@@ -1,7 +1,8 @@
 {
   "issue": 200,
-  "stage": "triage",
+  "stage": "implement",
   "round": 3,
-  "series_start": 0,
-  "pr": 352
+  "series_start": 3,
+  "pr": 352,
+  "extra_series": 1
 }
