@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: in the hold branch of the t.Run loop (browser_profile_test.go:544-549), `case <-exited:` ends the 2 s hold early without any trace, and the ESRCH check passes whether the stub was killed or exited by itself. So TC-003 ('still running (the row kills it; it has not exited by itself)', FR-TEST-HYG-049), which no-tests.md claims is proved, is not: a 'TC-002 slow start' stub that signals and then exits gives exactly the expected result. The test does not prove its case.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Readability only: the closure assigning the outer `signalled` (default `true` for non-hold rows) and the 15 s bound written twice (`15*time.Second` and 'within 15 s') work correctly; no behaviour or requirement is affected.",
+    "title": "Simplify the hold-row wait in the issue #195 fixture-check test",
+    "todo": "**Problem:** In `internal/amazon/browser_profile_test.go` (around lines 538-557, `TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal`), the hold branch passes a closure to `runBrowserOnProfileUntil` that writes the outer `signalled` (initialised to `true`, which only stands for non-hold rows) through an assignment inside an `if`, then runs a nested `select`. The 15 s signal bound is written twice: `15*time.Second` and the message `within 15 s`.\n\n**Suggested work:**\n- Move the hold wait into a small helper next to `waitForOutputSignal`, for example `holdAfterOutputSignal(signal string, bound, hold time.Duration, signalled *bool) func(exited <-chan struct{})`, so the loop body reads as one call per branch.\n- Introduce `const signalBound = 15 * time.Second` and use it for both the call and the error message (`fmt.Sprintf`).\n- Declare `signalled` inside the hold branch, or comment that non-hold rows have no signal to wait for.\n\nKeep the behaviour of FR-TEST-HYG-048 to FR-TEST-HYG-051 unchanged."
+  }
+]

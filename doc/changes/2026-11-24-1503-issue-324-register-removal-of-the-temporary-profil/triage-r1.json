@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Verified: the t.Cleanup at internal/amazon/browser_profile_values_test.go:212-219 skips only \"\" and os.TempDir(), so any other path that profile() (internal/amazon/browser.go:304-323) might return after a regression, such as a persistent default profile directory, would be deleted with os.RemoveAll. That breaks FR-TEST-HYG-055 (\"never removes anything other than the temporary profile it was given\") and risks data on developer and CI machines. Fix: guard the removal with the subtest's own location check (parent is filepath.Clean(os.TempDir()) and the base name has the prefix pricefollower-browser-), and update the wording of TS-TEST-HYG-071 to match.",
+    "title": "",
+    "todo": ""
+  }
+]
