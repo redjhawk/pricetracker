@@ -114,7 +114,7 @@ CSS only, in `src/index.css`. There are no component, markup, state or dependenc
   - `.responsive-table tbody tr td` gets `width: auto; flex: 0 1 auto; min-width: 0; max-width: 100%`, replacing `width: 100%`. `display: block` and the padding are kept.
   - `table` and `tbody` stay `display: block; width: 100%`. The visually hidden `thead`, the `td[data-label]::before` labels and `.row-actions { justify-content: flex-start }` are unchanged.
 
-  Flex line breaking puts each cell on the current line when its max-content width fits, and otherwise starts a new line. This is the rule of FR-RESPONSIVE-024. Cells do not grow, so the free space left on a line is always smaller than the next cell's width.
+  Flex line breaking puts each cell on the current line when its max-content width fits, and otherwise starts a new line. This is the rule of FR-RESPONSIVE-024. Value cells do not grow; only the item cell grows into the space left on its line, and the actions cell is pushed to the line end (TS-RESPONSIVE-023).
 
   A cell wider than the card, such as a long title or an 80-character username, takes its own line, is clamped to the card width, and wraps (`overflow-wrap: anywhere` on `.responsive-table td`, already present). No `order` or reversed direction is used, so visual order equals DOM order: Item, Prices, Amazon second-hand offer, Status, actions; or Username, Last login. Reading and Tab order follow it (FR-RESPONSIVE-012). Below 672 px the existing phone rules still remove `white-space: nowrap` from `.latest-price` and `.price-history-list li`. From 672 to 1055 px they keep `nowrap`, which keeps each value's max-content width compact.
 - **TS-RESPONSIVE-018 Full-width blocks above and around the list.**
