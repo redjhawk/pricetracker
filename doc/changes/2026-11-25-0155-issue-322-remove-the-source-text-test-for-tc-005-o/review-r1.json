@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 725,
+    "category": "spec",
+    "body": "The TC-004 row of the issue #322 test case mapping says the `TestBrowserProfile_Issue197` runs pass \"with `-count=1`, `-count=3` and `-race`\". But run 4 of the same design (technical.md, Runs and fault injections, step 4) and `no-tests.md` (run 4 and the TC-004 row) both say `-race` could not run on this runner because there is no cgo/gcc. So the mapping claims evidence that was never produced, and the `testcases.md` TC-004 step (line 68: 'then again with `-count=3` and with `-race`') is not fully met. Suggested fix: change the row to 'Run 4: the `TestBrowserProfile_Issue197` runs with `-count=1` and `-count=3` pass (`-race` is not available on the runner, as for issues #315 and #324) ...', so it matches `no-tests.md`. You can also add a note to TC-004 in `testcases.md` that the `-race` run depends on cgo being available."
+  }
+]
