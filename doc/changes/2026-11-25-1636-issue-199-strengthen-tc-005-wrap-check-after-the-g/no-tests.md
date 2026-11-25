@@ -35,7 +35,7 @@ It replaces `const free = card.right - card.cells[position - 1].right;` and the 
 | TC-004 | Run 3: with the 100% item basis, the new check fails at 775 px on `Prices`, the value starting the line after the item, with the same message form. The old check passes the whole test with that injection. |
 | TC-005 | Run 4: the list output of `tests/responsive-layout.spec.ts` gives the same 50 test names and results (50 passed) with the old and the new wrap check. Code check: the diff is limited to the items listed above. |
 | TC-006 | The technical specification stage already made the edit (commit 91a37ac). `git diff master` of the issue #165 `testcases.md` is one line, the TC-005 Then line, which now contains "14rem". |
-| TC-007 | Run 5 and "Gates" below (two runs, every gate passed): outside `doc/`, only `tests/responsive-layout.spec.ts` differs from `master`, and `src/index.css` is identical to `master` after the reverts. |
+| TC-007 | Run 5 and "Gates" below: `git diff --name-only master -- . ':!doc'` lists only `tests/responsive-layout.spec.ts`, the issue #165 change folder lists only `testcases.md`, and `src/index.css` is identical to `master` after the reverts. The e2e suite, `go vet ./...`, `go test ./...` and `node --test scripts/*.test.mjs` each ran twice and passed both times, with the same counts. |
 
 ## Runs and fault injections
 
@@ -53,9 +53,19 @@ It replaces `const free = card.right - card.cells[position - 1].right;` and the 
 
 ## Gates
 
-Run once in this stage, after the reverts:
+Run twice in the development stage (round 2), after the reverts, on the unchanged tree:
 
-- `node --test scripts/*.test.mjs`: 50 passed.
-- `npx playwright test`, `go vet ./...` and `go test ./...`: see below.
+| Command | Run 1 | Run 2 |
+| --- | --- | --- |
+| `git diff --name-only master -- . ':!doc'` | `tests/responsive-layout.spec.ts` only | (tree unchanged) |
+| `git diff --name-only master -- doc/changes/2026-11-19-2053-issue-165-use-all-space-to-show-item-list-when-the/` | `testcases.md` only | (tree unchanged) |
+| `gofmt -l .` | empty | — |
+| `go vet ./...` | no output, passed | no output, passed |
+| `go test -count=1 ./...` | 9 packages ok, 3 without test files, 0 failed | 9 packages ok, 3 without test files, 0 failed |
+| `node --test scripts/*.test.mjs` | 50 tests, 50 passed, 0 failed | 50 tests, 50 passed, 0 failed |
+| `npm run build` | built | — |
+| `npx playwright test` (whole e2e suite) | 156 passed, 0 failed (7.1 min) | 156 passed, 0 failed (7.1 min) |
+
+`git status` lists no tracked file as modified after the runs.
 
 `npx tsc` was not run in this stage because the command needed approval. Playwright transpiles the spec, and every run above compiled and ran it.

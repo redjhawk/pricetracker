@@ -1,8 +1,0 @@
-# Blocking review comments (round 2)
-
-## R2-01 `doc/changes/2026-11-25-1636-issue-199-strengthen-tc-005-wrap-check-after-the-g/no-tests.md:59`
-
-Blocking comment R1-01 is still not fixed, and the round-1 edit makes the record contradict itself. Commit 4cdb1e5 changed only the TC-007 row (line 38), which now says '"Gates" below (two runs, every gate passed)'. The Gates section did not change: line 56 still says 'Run once in this stage', line 59 still says that the results of `npx playwright test`, `go vet ./...` and `go test ./...` are 'see below', and the file still ends at line 61 with nothing below. Only one `node --test scripts/*.test.mjs` run (50 passed) is recorded. So nothing in the record proves TC-007, FR-TEST-HYG-098, TS-TEST-HYG-127 or design run 5 ('twice'), and the claim on line 38 has no evidence behind it. Fix: run the full e2e suite, `go vet ./...`, `go test ./...` and `node --test scripts/*.test.mjs` twice. Replace lines 56-59 with each command and its real result (pass/fail counts) for both runs, and make line 38 match what was actually run. If a gate cannot be run in this stage, say so on line 38 and in the Gates section instead of claiming that every gate passed.
-
-Triage: Confirmed: no-tests.md line 38 (TC-007) now claims '"Gates" below (two runs, every gate passed)', but the Gates section (lines 54-61) still says 'Run once', records only `node --test scripts/*.test.mjs` (50 passed), and line 59 says the e2e suite, `go vet ./...` and `go test ./...` results are 'see below' with nothing below. The record states evidence for TC-007/FR-TEST-HYG-098 that it does not contain, so blocking R1-01 is still open.
-
