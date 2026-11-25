@@ -1,36 +1,16 @@
 # Questions for issue #305: purchase goal and AI review for Amazon items
 
-The purchase goal and the AI review section, refresh button, history, no-token and error states are specified as for LeBoncoin ([draft](../../specifications/amazon-item-ai-review/functional.md)). The points below do not carry over from LeBoncoin and need your answer.
+Thank you for the answers to Q-1–Q-5. They are recorded as D-1–D-5 in the [specification](../../specifications/amazon-item-ai-review/functional.md): review content B, manual **Refresh AI review** only with the reviewed price shown, no automatic review of existing items, and the review receives a + d + e. Three points remain.
 
-1. **Review content.** A LeBoncoin review has: Price rating (Good deal / Fair / Overpriced), Condition rating from the photos (Excellent / Good / Fair / Poor), Overall recommendation (Buy / Negotiate / Avoid), fair price range and suggested offer, scam/risk signs, missing accessories and questions for the seller, and whether the description matches the photos. Several parts suit second-hand listings more than new Amazon products. What should an Amazon review contain?
-   - a) Exactly the same parts as LeBoncoin.
-   - b) Price rating with explanation, fair price range, and Overall recommendation with explanation, with Buy / Wait for a lower price / Avoid replacing Negotiate. No condition, scam, seller questions or photo-match parts.
-   - c) Price rating with explanation only, as in the earlier Amazon search reviews (issue #56).
-   - d) Something else (please list the parts).
+6. **Where the review information is read.** Q-4 did not choose between f and g. Today an Amazon check records the price and the Amazon-sold second-hand offer, but not the customer rating and number of ratings (Q-4 e). When you click **Refresh AI review**:
+   - a) The server reads the Amazon product page again (one extra Amazon request per review) and sends what it reads now: current price, second-hand offer and customer rating. The current price read this way is also recorded in the price history, as a price check would. A failed read fails the review and, per your answer to Q-5 a, is not counted toward the 5 consecutive Amazon failures.
+   - b) Same as a), but the price read for the review is not recorded in the price history.
+   - c) No Amazon request: the review uses the latest check. Price checks are extended to also record the customer rating and number of ratings.
 
-2. **Automatic reviews.** With a token saved, LeBoncoin items are reviewed automatically when added, when a check records a different price, and when the goal changes. Amazon prices can change often (two checks a day), and each review uses your Claude usage. In issue #56 you chose not to review again on a price change, only to show that the last review was made at an older price. Which automatic triggers apply to Amazon items? Choose any combination:
-   - a) When the item is added.
-   - b) When a check records a different price.
-   - c) Instead of b: a price change starts no review; the section shows "Price changed: last AI review was based on X €".
-   - d) When the goal changes.
-   - e) When the Amazon-sold second-hand offer changes.
-   - f) None: manual **Refresh AI review** only.
+7. **Refresh AI review on a stopped item.** Your answer to Q-5 b was "ai refresh is not required. inform the user". Which one do you mean?
+   - a) While the item is stopped, **Refresh AI review** sends no request: it is disabled or refused, with a message such as "Amazon checks are stopped: restart the item with Refresh price before requesting an AI review".
+   - b) While the item is stopped, the review still runs, without any Amazon request, from the latest recorded data, and the section tells the user that the data date from the last successful check (with its date/time).
 
-3. **Amazon items added before this feature.** Should they:
-   - a) not be reviewed automatically, with **Refresh AI review** or another trigger from Q-2 producing the first review (as for LeBoncoin), or
-   - b) each be reviewed once automatically when a token is available?
-
-4. **Information sent to the AI.** Today an Amazon check records the title, price, thumbnail and the Amazon-sold second-hand offer. What should a review receive? Choose any combination:
-   - a) Title, marketplace, current price and recorded price history.
-   - b) Product description, feature bullets and technical details from the product page.
-   - c) Product photos.
-   - d) The Amazon-sold second-hand offer (price, condition) and its history.
-   - e) Customer rating and number of ratings.
-
-   And where should it come from?
-   - f) From the latest price check only: no extra Amazon request for a review (the check records what the review needs).
-   - g) From a new Amazon page request made at review time, as LeBoncoin reviews read the listing again.
-
-5. **Amazon failure stop.** Only relevant if a review makes its own Amazon request (Q-4 g).
-   - a) Does a failed review request count toward the 5 consecutive Amazon failures that stop all Amazon items? (yes / no)
-   - b) While Amazon items are stopped, is **Refresh AI review** refused with a message, or still allowed?
+8. **Item without a current price.** When the latest check found no price ("price not found" or "listing unavailable"), what does **Refresh AI review** do?
+   - a) It is refused with a message (for example "No current price: refresh the price first").
+   - b) The review still runs from the recorded price history and states that no current price is available.
