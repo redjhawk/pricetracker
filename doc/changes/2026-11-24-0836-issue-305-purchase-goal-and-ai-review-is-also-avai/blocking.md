@@ -1,0 +1,8 @@
+# Blocking review comments (round 1)
+
+## R1-01 `internal/amazon/collector.go:98`
+
+The fallback for a missing or unreadable `title` on `#acrPopover` does not read the element's text content as TS-AMZ-ITEM-AIR-001 says. `elementContentByID` cuts the content at the first closing tag with the same name and does not handle nesting. Amazon's `#acrPopover` is a `<span>` with nested `<span>`s (see the `rating-fr.html` fixture: `<span class="a-declarative"><a ...><span class="a-size-base a-color-base">4,5</span><i ...><span class="a-icon-alt">4,5 sur 5 étoiles</span>`). So without the title, the fallback only gets `4,5`, `starsPattern` does not match, and the rating is recorded as absent. The test case 'rating in the text only' passes only because its `a-icon-alt` span is the first child. Suggested fix: when the title does not match, run `starsPattern` on the text of the page slice from the `acrPopover` opening tag to the `acrCustomerReviewText` element (or to a bounded length), or read the `a-icon-alt` text inside that slice. Add a case with the fixture markup without its `title` attribute.
+
+Triage: Confirmed: `elementContentByID` (internal/amazon/collector.go:497-511) stops at the first `</span>`, so on the real `#acrPopover` markup (internal/amazon/testdata/rating-fr.html:14-17) the fallback text is only `4,5`, `starsPattern` does not match and the rating is recorded as absent. That breaks the TS-AMZ-ITEM-AIR-001 contract ('else its text content'). The 'rating in the text only' case (customer_rating_test.go:91) passes only because `a-icon-alt` is the first child, so the test does not prove the case.
+
