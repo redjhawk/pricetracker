@@ -30,12 +30,31 @@ export function goalToSave(goals: GoalsState, choice: GoalChoice): string {
   return choice.text;
 }
 
-// compareGoals is the server order: letter case ignored, then the exact text.
+// baseLetters maps lower-case Latin letters with diacritics and ligatures to their base
+// letters, as the server does.
+const baseLetters: Record<string, string> = {
+  à: "a", á: "a", â: "a", ã: "a", ä: "a", å: "a", æ: "ae",
+  ç: "c", ð: "d",
+  è: "e", é: "e", ê: "e", ë: "e",
+  ì: "i", í: "i", î: "i", ï: "i",
+  ñ: "n",
+  ò: "o", ó: "o", ô: "o", õ: "o", ö: "o", ø: "o", œ: "oe",
+  ß: "ss",
+  ù: "u", ú: "u", û: "u", ü: "u",
+  ý: "y", ÿ: "y",
+};
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+// compareGoals is the server order: base letters (letter case and accents ignored),
+// then letter case ignored, then the exact text.
 function compareGoals(a: string, b: string): number {
   const x = a.toLowerCase();
   const y = b.toLowerCase();
-  if (x !== y) return x < y ? -1 : 1;
-  return a < b ? -1 : a > b ? 1 : 0;
+  const base = (text: string) => text.replace(/[^\x00-\x7f]/g, (letter) => baseLetters[letter] ?? letter);
+  return compareText(base(x), base(y)) || compareText(x, y) || compareText(a, b);
 }
 
 // withGoal adds the item's own goal to the list when it is missing (stale list).

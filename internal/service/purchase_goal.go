@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"log"
@@ -8,8 +9,32 @@ import (
 	"strings"
 )
 
-// PurchaseGoals returns the requester's existing purchase goals in display order:
-// letter case ignored, then the exact text.
+// baseLetters maps lower-case Latin letters with diacritics and ligatures to
+// their base letters, so that "écran" sorts with the e's.
+var baseLetters = strings.NewReplacer(
+	"à", "a", "á", "a", "â", "a", "ã", "a", "ä", "a", "å", "a", "æ", "ae",
+	"ç", "c", "ð", "d",
+	"è", "e", "é", "e", "ê", "e", "ë", "e",
+	"ì", "i", "í", "i", "î", "i", "ï", "i",
+	"ñ", "n",
+	"ò", "o", "ó", "o", "ô", "o", "õ", "o", "ö", "o", "ø", "o", "œ", "oe",
+	"ß", "ss",
+	"ù", "u", "ú", "u", "û", "u", "ü", "u",
+	"ý", "y", "ÿ", "y",
+)
+
+// compareGoals is the alphabetical display order: base letters (letter case and
+// accents ignored), then letter case ignored, then the exact text.
+func compareGoals(a, b string) int {
+	lowerA, lowerB := strings.ToLower(a), strings.ToLower(b)
+	return cmp.Or(
+		strings.Compare(baseLetters.Replace(lowerA), baseLetters.Replace(lowerB)),
+		strings.Compare(lowerA, lowerB),
+		strings.Compare(a, b),
+	)
+}
+
+// PurchaseGoals returns the requester's existing purchase goals in alphabetical order.
 func (s *Service) PurchaseGoals(ctx context.Context) ([]string, error) {
 	stored, err := s.store.PurchaseGoals(ctx, ownerFrom(ctx))
 	if err != nil {
@@ -21,12 +46,7 @@ func (s *Service) PurchaseGoals(ctx context.Context) ([]string, error) {
 			goals = append(goals, goal)
 		}
 	}
-	slices.SortFunc(goals, func(a, b string) int {
-		if order := strings.Compare(strings.ToLower(a), strings.ToLower(b)); order != 0 {
-			return order
-		}
-		return strings.Compare(a, b)
-	})
+	slices.SortFunc(goals, compareGoals)
 	return goals, nil
 }
 

@@ -46,7 +46,8 @@ export default function PurchaseGoalChoice({ id, label, helperText, goals, value
         helperText={helperText}
         rows={3}
         value={value.text}
-        onChange={(event) => onChange({ ...value, text: event.target.value })}
+        // Typed text is a new goal, so it stays visible if the drop-down appears meanwhile.
+        onChange={(event) => onChange({ option: value.option.kind === "none" ? { kind: "new" } : value.option, text: event.target.value })}
         disabled={disabled}
       />
     );
