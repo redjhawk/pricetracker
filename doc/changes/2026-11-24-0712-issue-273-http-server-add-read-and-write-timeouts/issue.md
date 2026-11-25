@@ -7,3 +7,7 @@
 
 ## Comments by trusted authors
 
+### redjhawk at 2026-11-24T22:06:27Z
+
+Done: R1-01 and R1-02 applied as listed (all 11 edits) on `ai-dev/issue-273` in 739d2c5. Please resume.
+
