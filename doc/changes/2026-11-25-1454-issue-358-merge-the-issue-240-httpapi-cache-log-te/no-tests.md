@@ -1,6 +1,6 @@
 # No red phase for issue #358
 
-The change is test code. It adds a check to the per-owner loop of `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` (`internal/httpapi/amazon_browser_interrupted_test.go`) and deletes the duplicate `internal/httpapi/amazon_browser_cache_log_test.go`. The check covers behaviour that has already shipped (FR-AMZ-HCHK-016: a check that opens the page logs no cache clear failure). So it passes on `master`'s production code, and there is nothing for the development stage to implement. The test file is locked after this stage, and FR-TEST-HYG-098 allows no other file outside `doc/`. So this stage makes the change itself (TS-TEST-HYG-128). Runs 2 and 3 show the red state. The development stage writes no code and only sets the statuses.
+The change is test code. It adds a check to the per-owner loop of `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` (`internal/httpapi/amazon_browser_interrupted_test.go`) and deletes the duplicate `internal/httpapi/amazon_browser_cache_log_test.go`. The check covers behaviour that has already shipped (FR-AMZ-HCHK-016: a check that opens the page logs no cache clear failure). So it passes on `master`'s production code, and there is nothing for the development stage to implement. The test file is locked after this stage, and FR-TEST-HYG-107 allows no other file outside `doc/`. So this stage makes the change itself (TS-TEST-HYG-140). Runs 2 and 3 show the red state. The development stage writes no code and only sets the statuses.
 
 ## Delivered
 

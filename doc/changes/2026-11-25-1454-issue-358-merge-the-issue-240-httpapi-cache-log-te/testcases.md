@@ -1,6 +1,6 @@
 # Test cases: merge the issue #240 httpapi cache-log test into TC-005 of issue #233 (issue #358)
 
-Sources: functional specification [test-suite-hygiene](../../specifications/test-suite-hygiene/functional.md) (FR-TEST-HYG-094 to FR-TEST-HYG-098). There are no use cases: see [no-use-cases.md](no-use-cases.md).
+Sources: functional specification [test-suite-hygiene](../../specifications/test-suite-hygiene/functional.md) (FR-TEST-HYG-103 to FR-TEST-HYG-107). There are no use cases: see [no-use-cases.md](no-use-cases.md).
 
 Conventions:
 
@@ -17,17 +17,17 @@ Conventions:
 
 | Requirement | Test cases | Use cases |
 | --- | --- | --- |
-| FR-TEST-HYG-094 | TC-001, TC-002, TC-003, TC-005 | — |
-| FR-TEST-HYG-095 | TC-001, TC-004, TC-005 | — |
-| FR-TEST-HYG-096 | TC-006 | — |
-| FR-TEST-HYG-097 | TC-007 | — |
-| FR-TEST-HYG-098 | TC-001, TC-008 | — |
+| FR-TEST-HYG-103 | TC-001, TC-002, TC-003, TC-005 | — |
+| FR-TEST-HYG-104 | TC-001, TC-004, TC-005 | — |
+| FR-TEST-HYG-105 | TC-006 | — |
+| FR-TEST-HYG-106 | TC-007 | — |
+| FR-TEST-HYG-107 | TC-001, TC-008 | — |
 
 ## Cases
 
 ### TC-001: On a normal run TC-005 passes with the Refresh checks
 
-- Covers: FR-TEST-HYG-094, FR-TEST-HYG-095, FR-TEST-HYG-098
+- Covers: FR-TEST-HYG-103, FR-TEST-HYG-104, FR-TEST-HYG-107
 - Level: integration (Go, `internal/httpapi`; real SQLite, service, real Chromium collector)
 - Given the change applied, no fault injection, Chromium available
 - When the run executes, then the same command with `-count=2`
@@ -41,7 +41,7 @@ Conventions:
 
 ### TC-002: A neutral cache line during the Refresh prices fails TC-005, naming the first item
 
-- Covers: FR-TEST-HYG-094
+- Covers: FR-TEST-HYG-103
 - Level: integration (Go, `internal/httpapi`; real Chromium; fault injection in `internal/amazon`)
 - Given the change applied, and the Amazon browser collector temporarily logging `Amazon browser cache could not be cleared: test` at the end of every check that opened the product page (the server-stop check, answered with a download, does not open the page)
 - When the run executes
@@ -55,7 +55,7 @@ Conventions:
 
 ### TC-003: An old-wording cache line for the second item only fails TC-005, naming that item
 
-- Covers: FR-TEST-HYG-094
+- Covers: FR-TEST-HYG-103
 - Level: integration (Go, `internal/httpapi`; real Chromium; fault injection in `internal/amazon`)
 - Given the change applied, and the collector temporarily logging `Amazon browser cache could not be cleared after a page not opened: test` only at the end of the check of `B0INTR0052`
 - When the run executes
@@ -67,7 +67,7 @@ Conventions:
 
 ### TC-004: The existing checks of TC-005 still fail as before
 
-- Covers: FR-TEST-HYG-095
+- Covers: FR-TEST-HYG-104
 - Level: integration (Go, `internal/httpapi`; real Chromium; fault injection)
 - Given the change applied, and one of these temporary edits at a time:
   1. the collector logging `Amazon browser cache could not be cleared: test` only at the end of a check whose context was cancelled (the server-stop check);
@@ -82,7 +82,7 @@ Conventions:
 
 ### TC-005: The Refresh check is added to TC-005 and nothing else in it changes
 
-- Covers: FR-TEST-HYG-094, FR-TEST-HYG-095
+- Covers: FR-TEST-HYG-103, FR-TEST-HYG-104
 - Level: code check of `internal/httpapi/amazon_browser_interrupted_test.go` (`git diff origin/master -- internal/httpapi/amazon_browser_interrupted_test.go`)
 - Given the change applied
 - When the diff and TC-005 are read
@@ -96,7 +96,7 @@ Conventions:
 
 ### TC-006: The duplicate test no longer exists, and one real-Chromium scenario fewer runs
 
-- Covers: FR-TEST-HYG-096
+- Covers: FR-TEST-HYG-105
 - Level: repository check
 - Given the change applied
 - When `ls internal/httpapi/amazon_browser_cache_log_test.go`, `grep -rn 'TestAmazonBrowserCacheLog_TC004\|assertNoCacheLine' --include='*.go' .` and `go test -list . ./internal/httpapi/` are run, and the `go test -list` output is compared with the same command on `master`
@@ -108,7 +108,7 @@ Conventions:
 
 ### TC-007: The issue #240 test case and technical row name TC-005 as covering TC-004
 
-- Covers: FR-TEST-HYG-097
+- Covers: FR-TEST-HYG-106
 - Level: document check (`git diff origin/master -- doc/changes/2026-11-25-1255-issue-240-neutral-wording-for-the-cache-clear-fail/testcases.md doc/specifications/amazon-human-checks/technical.md`, and `grep`)
 - Given the change applied
 - When the 240 document and the 240 row are read and the diff is listed
@@ -122,7 +122,7 @@ Conventions:
 
 ### TC-008: Only the two test files change outside `doc/`, and the gates pass
 
-- Covers: FR-TEST-HYG-098
+- Covers: FR-TEST-HYG-107
 - Level: repository check and suite run (deterministic gates: `gofmt -l internal/httpapi`, `go vet ./...`, `go test ./...` and the change's diff)
 - Given the change applied on top of `master`
 - When `git diff --name-status origin/master -- . ':!doc'` is listed and the gates run
