@@ -91,3 +91,17 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-THUMB-001 — Add an Amazon item whose page offers an Amazon image over HTTPS](amazon-thumbnail-urls/UC-AMZ-THUMB-001-add-amazon-item-with-amazon-image.md)
 - [UC-AMZ-THUMB-002 — Add an Amazon item whose page offers no accepted Amazon image](amazon-thumbnail-urls/UC-AMZ-THUMB-002-add-amazon-item-without-accepted-image.md)
 - [UC-AMZ-THUMB-003 — Re-check an Amazon item that already has a thumbnail](amazon-thumbnail-urls/UC-AMZ-THUMB-003-recheck-amazon-item-with-stored-thumbnail.md)
+
+## Amazon item AI review and purchase goal
+
+- [UC-AMZ-ITEM-AIR-001 — Add an Amazon item with a purchase goal](amazon-item-ai-review/UC-AMZ-ITEM-AIR-001-add-amazon-item-with-purchase-goal.md)
+- [UC-AMZ-ITEM-AIR-002 — Edit the purchase goal of an Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-002-edit-amazon-item-purchase-goal.md)
+- [UC-AMZ-ITEM-AIR-003 — Request an AI review of an Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-003-request-ai-review-of-amazon-item.md)
+- [UC-AMZ-ITEM-AIR-004 — An AI review of an Amazon item fails](amazon-item-ai-review/UC-AMZ-ITEM-AIR-004-amazon-ai-review-fails.md)
+- [UC-AMZ-ITEM-AIR-005 — Open an Amazon item when no Claude token is saved](amazon-item-ai-review/UC-AMZ-ITEM-AIR-005-amazon-item-without-claude-token.md)
+- [UC-AMZ-ITEM-AIR-006 — See the AI review of a stopped Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-006-ai-review-of-stopped-amazon-item.md)
+- [UC-AMZ-ITEM-AIR-007 — See the AI review of an Amazon item without a current price](amazon-item-ai-review/UC-AMZ-ITEM-AIR-007-ai-review-of-amazon-item-without-current-price.md)
+- [UC-AMZ-ITEM-AIR-008 — An Amazon check records the customer rating](amazon-item-ai-review/UC-AMZ-ITEM-AIR-008-amazon-check-records-customer-rating.md)
+- [UC-AMZ-ITEM-AIR-009 — Get the first AI review of an Amazon item tracked before the upgrade](amazon-item-ai-review/UC-AMZ-ITEM-AIR-009-first-ai-review-of-amazon-item-tracked-before-upgrade.md)
+- [UC-AMZ-ITEM-AIR-010 — Read an Amazon review after the price changed](amazon-item-ai-review/UC-AMZ-ITEM-AIR-010-review-stays-after-price-change.md)
+- [UC-AMZ-ITEM-AIR-011 — Delete a reviewed Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-011-delete-reviewed-amazon-item.md)
