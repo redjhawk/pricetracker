@@ -34,6 +34,13 @@ import (
 //   - TC-003: temporary edits of row d's test files, never committed, make that test fail.
 //   - TC-005 and TC-007: runs on master and with the change give the same subtests and results.
 //   - TC-008: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #253: rows f and g of TestFixtureModulesBuild_Issue251_TC001 pass only on a build failure holding
+// their fails text. Cases proved outside this file:
+//   - TC-001: by hand, go build ./... on the row f and g fixtures prints that text.
+//   - TC-003: temporary edits, never committed, make the row f and g subtests fail.
+//   - TC-004 and TC-005: runs on master and with the change give the same subtests and results.
+//   - TC-006: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -319,9 +326,9 @@ func buildModule(dir string) error {
 	return nil
 }
 
-// Issue #251 TC-001 and issue #254: every valid fixture module, its test files included, compiles offline;
-// the invalid ones, a program using a name the stub does not declare and a test file doing so do not,
-// so the check is not vacuous.
+// Issue #251 TC-001, issue #254 and issue #253: every valid fixture module, its test files included, compiles
+// offline; the invalid ones (rows f and g, each failing with its own fails text), a program using a name the
+// stub does not declare and a test file doing so do not, so the check is not vacuous.
 func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 	for _, tc := range fixtureCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -334,6 +341,8 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 			default:
 				if err == nil {
 					t.Error("invalid fixture builds, want a build failure")
+				} else if !strings.Contains(err.Error(), tc.fails) {
+					t.Errorf("build failure %q does not hold %q", err, tc.fails)
 				}
 			}
 		})
