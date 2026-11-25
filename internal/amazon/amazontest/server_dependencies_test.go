@@ -29,7 +29,7 @@ import (
 //   - TC-003: rows f, g and h of the same test keep failing as listing failures with the same messages.
 //   - TC-004: the diff outside doc/ is limited to this file, and the gates pass.
 //
-// Issue #254: the fixture build check also compiles the fixtures' test files (go vet ./...);
+// Issue #254: the fixture build check also compiles the fixtures' test files (go vet -atomic ./..., see issue #340);
 // TestFixtureModulesBuild_Issue251_TC001 and its test-file control prove it. Cases proved outside this file:
 //   - TC-003: temporary edits of row d's test files, never committed, make that test fail.
 //   - TC-005 and TC-007: runs on master and with the change give the same subtests and results.
@@ -41,6 +41,15 @@ import (
 //   - TC-003: temporary edits, never committed, make the row f and g subtests fail.
 //   - TC-004 and TC-005: runs on master and with the change give the same subtests and results.
 //   - TC-006: the diff outside doc/ is limited to this file, and the gates pass.
+//
+// Issue #340: only compile errors fail the fixture build check; go vet runs with the atomic analyzer alone, so
+// its other analyzers' findings do not fail it. The subtest with analyzer findings proves it. Cases proved outside
+// this file:
+//   - TC-002 and TC-003: temporary edits of rows a and d, never committed, pass on analyzer findings and fail
+//     on compile errors.
+//   - TC-004: with buildModule reduced to go build ./..., the test-file control fails.
+//   - TC-005: runs on master and with the change give the same subtests and results, plus the new subtest.
+//   - TC-007: the diff outside doc/ is limited to this file, and the gates pass.
 
 const (
 	dependsOnHelper = "server depends on"
@@ -311,11 +320,15 @@ func TestListServerDependencies_TC003_FixtureModules(t *testing.T) {
 	})
 }
 
+// vetArgs is the go vet command of buildModule; see buildModule for why it names one analyzer.
+var vetArgs = []string{"vet", "-atomic", "./..."}
+
 // buildModule compiles the fixture module dir offline: go build ./... compiles its non-test files, then
-// go vet ./... type-checks its packages with their test files. A failure names the command and holds the
-// tool's output.
+// go vet -atomic ./... type-checks its packages with their test files. Naming one analyzer (atomic, which
+// no fixture triggers) turns vet's other analyzers off, so an analyzer finding does not fail the check;
+// only a compile error does. A failure names the command and holds the tool's output.
 func buildModule(dir string) error {
-	for _, args := range [][]string{{"build", "./..."}, {"vet", "./..."}} {
+	for _, args := range [][]string{{"build", "./..."}, vetArgs} {
 		cmd := exec.Command("go", args...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), fixtureEnv...)
@@ -326,9 +339,10 @@ func buildModule(dir string) error {
 	return nil
 }
 
-// Issue #251 TC-001, issue #254 and issue #253: every valid fixture module, its test files included, compiles
-// offline; the invalid ones (rows f and g, each failing with its own fails text), a program using a name the
-// stub does not declare and a test file doing so do not, so the check is not vacuous.
+// Issue #251 TC-001, issue #254, issue #253 and issue #340: every valid fixture module, its test files included,
+// compiles offline, and an analyzer finding alone does not fail it; the invalid ones (rows f and g, each failing
+// with its own fails text), a program using a name the stub does not declare and a test file doing so do not,
+// so the check is not vacuous.
 func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 	for _, tc := range fixtureCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -380,8 +394,21 @@ func TestFixtureModulesBuild_Issue251_TC001(t *testing.T) {
 		if !strings.Contains(err.Error(), "amazontest.Nope") {
 			t.Errorf("build failure %q does not name amazontest.Nope", err)
 		}
-		if !strings.HasPrefix(err.Error(), "go vet ./...") {
-			t.Errorf("build failure %q is not reported by go vet ./..., so the non-test files do not build on their own", err)
+		vetCmd := "go " + strings.Join(vetArgs, " ")
+		if !strings.HasPrefix(err.Error(), vetCmd+":") {
+			t.Errorf("build failure %q is not reported by %s, so the non-test files do not build on their own", err, vetCmd)
+		}
+	})
+
+	t.Run("analyzer findings in non-test and test files do not fail the check", func(t *testing.T) {
+		dir := writeModule(t, map[string]string{
+			"cmd/app/main.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nfunc lock(m sync.Mutex) {}\n\n" +
+				"func main() {\n\tfmt.Printf(\"%d\\n\", \"x\")\n\tlock(sync.Mutex{})\n}\n",
+			"cmd/app/main_test.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\n" +
+				"func Testfoo(t *testing.T) {\n\tfmt.Printf(\"%d\\n\", \"x\")\n}\n",
+		})
+		if err := buildModule(dir); err != nil {
+			t.Errorf("valid fixture does not build: %v", err)
 		}
 	})
 }
