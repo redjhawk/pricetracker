@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { InlineLoading, InlineNotification, Modal, TextArea, TextInput } from "@carbon/react";
+import { InlineLoading, InlineNotification, Modal, TextInput } from "@carbon/react";
+import { goalToSave, noGoalChoice, usePurchaseGoals, type GoalChoice } from "../purchaseGoalChoice";
+import PurchaseGoalChoice from "./PurchaseGoalChoice";
 
 interface Props {
   open: boolean;
@@ -9,14 +11,15 @@ interface Props {
 
 export default function AddItemModal({ open, onClose, onAdded }: Props) {
   const [url, setUrl] = useState("");
-  const [purchaseGoal, setPurchaseGoal] = useState("");
+  const goals = usePurchaseGoals(open);
+  const [choice, setChoice] = useState<GoalChoice>(noGoalChoice);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function close() {
     if (submitting) return;
     setUrl("");
-    setPurchaseGoal("");
+    setChoice(noGoalChoice);
     setError("");
     onClose();
   }
@@ -29,9 +32,9 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
     setSubmitting(true);
     setError("");
     try {
-      await onAdded(url.trim(), purchaseGoal);
+      await onAdded(url.trim(), goalToSave(goals.state, choice));
       setUrl("");
-      setPurchaseGoal("");
+      setChoice(noGoalChoice);
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The item could not be added.");
@@ -77,13 +80,13 @@ export default function AddItemModal({ open, onClose, onAdded }: Props) {
         invalidText={error}
         helperText="Supported: European Amazon marketplaces and French LeBoncoin listings"
       />
-      <TextArea
+      <PurchaseGoalChoice
         id="add-item-purchase-goal"
-        labelText="Purchase goal (optional)"
+        label="Purchase goal (optional)"
         helperText="Sent to the AI review, e.g. what you will use the item for."
-        rows={3}
-        value={purchaseGoal}
-        onChange={(event) => setPurchaseGoal(event.target.value)}
+        goals={goals.state}
+        value={choice}
+        onChange={setChoice}
         disabled={submitting}
       />
     </Modal>

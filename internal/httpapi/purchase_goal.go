@@ -11,6 +11,20 @@ import (
 // maxGoalBodyBytes caps add and purchase goal bodies; it is not a goal length rule.
 const maxGoalBodyBytes = 1 << 20
 
+func (s *Server) handlePurchaseGoals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "This method is not allowed for the route.")
+		return
+	}
+	goals, err := s.service.PurchaseGoals(r.Context())
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"purchaseGoals": goals})
+}
+
 func (s *Server) handlePurchaseGoal(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodPut {
 		w.Header().Set("Allow", "PUT")

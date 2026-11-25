@@ -184,7 +184,7 @@ export default function ItemDetail({
         </article>}
       </div>
 
-      <PurchaseGoal itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
+      <PurchaseGoal key={item.id} itemId={item.id} goal={item.purchaseGoal} onSaved={onPurchaseGoalSaved} />
 
       {item.platform === "amazon" && item.aiReview && (
         <AmazonAiReview

@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
-import { Button, InlineLoading, InlineNotification, TextArea } from "@carbon/react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, InlineLoading, InlineNotification } from "@carbon/react";
 import { savePurchaseGoal } from "../api/items";
+import { choiceFor, goalToSave, usePurchaseGoals, withGoal, type GoalChoice, type GoalsState } from "../purchaseGoalChoice";
+import PurchaseGoalChoice from "./PurchaseGoalChoice";
 
 interface Props {
   itemId: string;
@@ -9,15 +11,23 @@ interface Props {
 }
 
 export default function PurchaseGoal({ itemId, goal, onSaved }: Props) {
-  const [draft, setDraft] = useState(goal);
+  const goals = usePurchaseGoals(true);
+  const [choice, setChoice] = useState<GoalChoice>(() => choiceFor(goal));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!dirty) setDraft(goal);
+    if (!dirty) setChoice(choiceFor(goal));
   }, [goal, dirty]);
+
+  // The item's own goal is always an option, even if the list is stale.
+  const state = useMemo<GoalsState>(
+    () => goals.state.status === "ready" ? { status: "ready", goals: withGoal(goals.state.goals, goal) } : goals.state,
+    [goals.state, goal],
+  );
+  const draft = goalToSave(state, choice);
 
   async function save() {
     setSaving(true);
@@ -25,10 +35,11 @@ export default function PurchaseGoal({ itemId, goal, onSaved }: Props) {
     setError("");
     try {
       const result = await savePurchaseGoal(itemId, draft);
-      setDraft(result.purchaseGoal);
+      setChoice(choiceFor(result.purchaseGoal));
       setDirty(false);
       setSuccess(result.reviewStarted ? "Purchase goal saved. A new AI review was requested." : "Purchase goal saved.");
       onSaved();
+      goals.reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The purchase goal could not be saved.");
     } finally {
@@ -38,25 +49,27 @@ export default function PurchaseGoal({ itemId, goal, onSaved }: Props) {
 
   return (
     <section className="purchase-goal" aria-label="Purchase goal">
-      <TextArea
+      <PurchaseGoalChoice
         id="purchase-goal"
-        labelText="Purchase goal"
+        label="Purchase goal"
         helperText="Sent to the AI review, e.g. what you will use the item for."
-        rows={3}
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value);
+        goals={state}
+        value={choice}
+        onChange={(value) => {
+          setChoice(value);
           setDirty(true);
           setSuccess("");
         }}
         disabled={saving}
       />
-      <div className="purchase-goal-actions">
-        <Button kind="secondary" size="sm" onClick={() => void save()} disabled={saving || draft.trim() === goal}>
-          Save goal
-        </Button>
-        {saving && <InlineLoading description="Saving the purchase goal…" />}
-      </div>
+      {state.status !== "loading" && (
+        <div className="purchase-goal-actions">
+          <Button kind="secondary" size="sm" onClick={() => void save()} disabled={saving || draft.trim() === goal}>
+            Save goal
+          </Button>
+          {saving && <InlineLoading description="Saving the purchase goal…" />}
+        </div>
+      )}
       {success && (
         <InlineNotification kind="success" title={success} lowContrast className="detail-notification" onCloseButtonClick={() => setSuccess("")} />
       )}

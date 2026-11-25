@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "reason": "Confirmed: App.tsx:211-227 polls getItem while an AI review runs, so `goal` can change while PurchaseGoal is dirty. withGoal then makes the list non-empty, the draft `{option: none, text: \"Office\"}` switches to choice mode with the typed text hidden under \"No goal\", and Save (enabled because \"\" !== goal) clears the goal instead of saving the typed text. This is a real data-loss bug, and the one-line fix in PurchaseGoalChoice.tsx:49 (map typing under \"none\" to \"new\") removes it.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "reason": "FR-GOAL-CHOICE-006 (user answer Q-8) requires alphabetical order, case ignored. internal/service/purchase_goal.go:24-29 and compareGoals in src/purchaseGoalChoice.ts:34-39 compare lower-cased bytes, so a goal starting with an accented letter (\"écran\") sorts after \"zoom\". For a LeBoncoin (French) user that is a realistic unmet requirement. The API order rule and the tests (TC-001 uses ASCII only) need to change with the fix.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Duplication only: `reload` and the effect in src/purchaseGoalChoice.ts:52-70 both apply the same stale-answer guard correctly. The only difference, intentional, is that a failed reload keeps the current state. There is no behaviour defect.",
+    "title": "Deduplicate purchase goal list loading in usePurchaseGoals",
+    "todo": "**Problem:** `usePurchaseGoals` in `src/purchaseGoalChoice.ts` (effect at lines 52-61 and `reload` at lines 63-69) repeats the `listPurchaseGoals().then(...)` call and the `latest.current === request` stale-answer check.\n\n**Suggested work:** Extract one internal `load(setFailedOnError: boolean)` helper and use it in both the effect and `reload`, so the stale-answer rule lives in a single place. Keep the current behaviour: a failed initial load sets `failed`, and a failed reload keeps the current state."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "reason": "Documentation index status only. doc/FUNCTIONAL_SPECIFICATIONS.md:346 reads \"specified (issue #304)\" although the feature is implemented. Neither behaviour nor the contract is affected.",
+    "title": "Mark purchase goal choice as implemented in the functional specifications index",
+    "todo": "**Problem:** The feature index row for \"Purchase goal choice\" in `doc/FUNCTIONAL_SPECIFICATIONS.md` (line 346) still says `specified (issue #304)`, while the feature is implemented. FR-GOAL-CHOICE-011, the read-only goal on shared items, is pending sharing (TC-014).\n\n**Suggested work:** Change the status to `implemented (issue #304); FR-GOAL-CHOICE-011 pending sharing (TC-014)`, matching the other implemented rows."
+  }
+]

@@ -484,6 +484,28 @@ Request: `{ "purchaseGoal": "Install a light Linux distro" }` (`""` clears the g
 
 Every review (automatic, manual, or goal change) reads the item's goal when the review runs. A non-empty goal is sent to Claude as the buyer's purchase goal, delimited as untrusted data; an empty goal leaves the request unchanged. The review structure is unchanged.
 
+### List the existing purchase goals (issue #304)
+
+Agent-defined for [purchase goal choice](doc/specifications/purchase-goal-choice/technical.md). Additive; no existing request or response changes.
+
+```text
+GET /api/v1/purchase-goals
+```
+
+`200 OK`: `{ "purchaseGoals": ["browsing", "Gaming", "gaming", "install a light Linux distro for my parents"] }`
+
+- The distinct non-empty `purchaseGoal` values of the requester's own items, LeBoncoin and Amazon (open mode: the open-mode items, which are all items). Items of other users and empty goals are never included.
+- Values are the full stored (trimmed) texts, line breaks included. Only exactly identical texts are merged; texts differing in letter case or spacing are separate entries.
+- Order: alphabetical, in three steps. First by the base letters: the text in Unicode lower case, with the Latin letters with diacritics mapped to their base letters (`à á â ã ä å` → `a`, `ç` → `c`, `ð` → `d`, `è é ê ë` → `e`, `ì í î ï` → `i`, `ñ` → `n`, `ò ó ô õ ö ø` → `o`, `ù ú û ü` → `u`, `ý ÿ` → `y`) and the ligatures expanded (`æ` → `ae`, `œ` → `oe`, `ß` → `ss`), compared in byte order. Then by the lower-case text. Then by the exact text (byte order). So `"écran"` comes between `"dessin"` and `"zoom"`, `"ecran"` before `"écran"`, and `"Gaming"` before `"gaming"`. Repeated reads return the same order.
+- No goal: `{ "purchaseGoals": [] }` (an array, never `null`).
+- The list is computed at each request; there is no stored list and no endpoint to rename or remove entries. Selecting a goal is client-side: the client sends its text through `POST /api/v1/items` or `PUT /api/v1/items/{id}/purchase-goal`, unchanged.
+- Access follows "Users and login": `401 AUTH_REQUIRED` without a session in protected mode, `403 FORBIDDEN` for `admin`, open without login in open mode.
+
+| Status | `code` | When | Example `message` |
+| --- | --- | --- | --- |
+| 405 | `METHOD_NOT_ALLOWED` | Method other than GET (`Allow: GET`) | "This method is not allowed for the route." |
+| 500 | `INTERNAL_ERROR` | Storage failure | "The server could not complete the request." |
+
 ## Users and login (phase 1, 2026-10-04)
 
 Agent-defined from [the technical specification](doc/specifications/multi-user-login/technical.md). Existing request and response shapes are unchanged.
