@@ -32,7 +32,7 @@ Conventions:
   - contains `TS-RESPONSIVE-023`, in the sentence that carries these rules
 - Corner cases:
   - exactly one line of `technical.md` starts `- **TS-RESPONSIVE-017` (the entry is not duplicated or renumbered);
-  - the rest of the entry is unchanged from the base: the `tr` and `td` flex rules, the line-breaking sentence citing FR-RESPONSIVE-024, the long-cell, DOM-order and `nowrap` paragraph; `git diff <base> -- doc/specifications/responsive-layout/technical.md` touches only the sentence that held the old wording;
+  - the rest of the entry is unchanged from the base: the `tr` and `td` flex rules, the line-breaking sentence citing FR-RESPONSIVE-024, the long-cell, DOM-order and `nowrap` paragraph; within the entry, `git diff <base> -- doc/specifications/responsive-layout/technical.md` touches only the sentence that held the old wording (lines outside the entry are covered by TC-003);
   - the stated rules match the shipped CSS: `src/index.css` still contains `td:has(> .item-cell)` with `flex: 1 1 14rem` and `td:has(> .row-actions)` with `margin-inline-start: auto`;
   - on the base, the entry contains none of the three statements (the check fails before the change).
 
