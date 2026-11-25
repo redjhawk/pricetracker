@@ -13,3 +13,9 @@ This option will be available for Amazon items too
 4. a + d + e
 5. a) no    b) ai refresh is not required. inform the user 
 
+### redjhawk at 2026-11-25T19:08:04Z
+
+Where the review information is read. >> C
+Refresh AI review on a stopped item.  >>While the item is stopped, do not show the ai review button
+Item without a current price >> no ai ai review is available 
+

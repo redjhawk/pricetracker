@@ -110,9 +110,9 @@ When a Claude token is saved, an AI review of a LeBoncoin item is requested auto
 
 The add-item form offers an optional **Purchase goal** field, saved for LeBoncoin items only. The LeBoncoin details page shows the goal in an editable field with a save action. A non-empty goal is sent with every review request; an empty goal means no goal. Details: [purchase goal](specifications/leboncoin-purchase-goal/functional.md).
 
-### 5.6a Amazon item AI review and purchase goal (draft, issue #305)
+### 5.6a Amazon item AI review and purchase goal (specified, issue #305)
 
-Amazon items get the purchase goal (add-item form and an editable field on the details page) and an **AI review** section on their details page, with history, a **Refresh AI review** button, and the same no-token, pending and error states as LeBoncoin. Reviews are produced only by **Refresh AI review**: never automatically, including for Amazon items added before this feature. Each review shows the price it was based on and contains a price rating (Good deal / Fair / Overpriced) with explanation, a fair price range, and an overall recommendation (Buy / Wait for a lower price / Avoid) with explanation. The AI receives the title, marketplace, current price and price history, the Amazon-sold second-hand offer and its history, the customer rating and number of ratings, and the goal. Review failures do not count toward the Amazon failure stop. Open questions: whether a review reads the Amazon page again, **Refresh AI review** on a stopped item, and items without a current price. Details: [Amazon item AI review](specifications/amazon-item-ai-review/functional.md).
+Amazon items get the purchase goal (add-item form and an editable field on the details page) and an **AI review** section on their details page, with history, a **Refresh AI review** button, and the same no-token, pending and error states as LeBoncoin. Reviews are produced only by **Refresh AI review**: never automatically, including for Amazon items added before this feature. Each review shows the price it was based on and contains a price rating (Good deal / Fair / Overpriced) with explanation, a fair price range, and an overall recommendation (Buy / Wait for a lower price / Avoid) with explanation. The AI receives the title, marketplace, current price and price history, the Amazon-sold second-hand offer and its history, the customer rating and number of ratings, and the goal. A review sends no Amazon request: it uses the data recorded by the item's checks, which now also record the customer rating and number of ratings. Review failures do not count toward the Amazon failure stop. While the item is stopped, or when it has no current price (none recorded yet, or latest answer "price not found" or "listing unavailable"), the **Refresh AI review** button is not shown and the section explains why; earlier reviews stay visible. Details: [Amazon item AI review](specifications/amazon-item-ai-review/functional.md).
 
 ### 5.6b Amazon failure stop
 
@@ -173,7 +173,7 @@ The primary page contains the add-item action, a search field, and Amazon and Le
 
 ### Item details page
 
-Shows item metadata, recent price detections, collection status, source listing, refresh action, and deletion action. LeBoncoin items also show the purchase goal and the AI review section.
+Shows item metadata, recent price detections, collection status, source listing, refresh action, and deletion action. LeBoncoin items also show the purchase goal and the AI review section; Amazon items will too once issue #305 is implemented ([5.6a](#56a-amazon-item-ai-review-and-purchase-goal-specified-issue-305)).
 
 ### Header menu and Settings modal
 
@@ -240,7 +240,7 @@ The server is the source of truth for tracked items and price observations. The 
 | FR-40 | Failed logins are counted per client address (`CF-Connecting-IP` when valid, else the connection) and username: 5 consecutive failures refuse only that pair for 1 minute, without a password check; a login is answered 429 at once when the maximum number of password checks are already waiting; failure memory stays bounded (issue #266) ([FR-LOGIN-LIM-*](specifications/login-attempt-limits/functional.md)). | Must |
 | FR-41 | Once saved, the Claude token and LeBoncoin session are never sent back by the server; Settings shows whether each is saved with a masked hint (last 4 characters) and an empty input; an empty or whitespace-only input, of any length, keeps the secret unchanged (issue #286), removal is an explicit action, and the session-changed check applies only when the session is replaced or removed (issue #265) ([FR-SECRET-*](specifications/settings-secret-masking/functional.md)). | Must |
 | FR-42 | The session cookie set at login and cleared at logout is `Secure` when the request arrives over TLS or carries `X-Forwarded-Proto: https` (first entry, case-insensitive), and not `Secure` otherwise, so plain HTTP login keeps working in development; other cookie attributes are unchanged (issue #268) ([FR-COOKIE-*](specifications/session-cookie-security/functional.md)). | Must |
-| FR-43 | Draft (issue #305): Amazon items have a purchase goal and an AI review section with history and manual refresh only (no automatic review) on their details page; the Claude token help text mentions Amazon and LeBoncoin reviews; the review's information source and stopped-item behaviour pending open questions ([FR-AMZ-ITEM-AIR-*](specifications/amazon-item-ai-review/functional.md), FR-CLT-SET-014). | Must |
+| FR-43 | Specified (issue #305): Amazon items have a purchase goal and an AI review section with history and manual refresh only (no automatic review) on their details page; reviews use recorded check data (checks also record the customer rating) and are unavailable while the item is stopped or has no current price; the Claude token help text mentions Amazon and LeBoncoin reviews ([FR-AMZ-ITEM-AIR-*](specifications/amazon-item-ai-review/functional.md), FR-CLT-SET-014). | Must |
 | FR-31 | When a LeBoncoin item is added, a listed old price is recorded once in its price history, dated when possible, otherwise labelled “Old price”; no new column ([FR-LBC-OLD-PRICE-*](specifications/leboncoin-old-price/functional.md)). | Must |
 
 ## 9. Important states and edge cases
@@ -269,7 +269,7 @@ The interface should preserve and clearly label the latest successful observatio
 ## 10. Non-goals for v1
 
 - Item sharing between users, self-registration, email, external identity providers, and multi-factor authentication.
-- AI reviews of Amazon items (being added by issue #305, see [5.6a](#56a-amazon-item-ai-review-and-purchase-goal-draft-issue-305)).
+- AI reviews of Amazon items (being added by issue #305, see [5.6a](#56a-amazon-item-ai-review-and-purchase-goal-specified-issue-305)).
 - Marketplaces other than European Amazon and LeBoncoin France (Temu, Vinted, and Wallapop remain future work).
 - Price trends, percentage changes, or charts.
 - Notifications or target-price alerts.
@@ -353,7 +353,7 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Amazon searches | [amazon-searches](specifications/amazon-searches/functional.md) | superseded (issue #111) |
 | Amazon human browsing | [amazon-human-browsing](specifications/amazon-human-browsing/functional.md) | superseded (issue #111) |
 | Amazon AI review | [amazon-ai-review](specifications/amazon-ai-review/functional.md) | superseded (issue #111) |
-| Amazon item AI review and purchase goal | [amazon-item-ai-review](specifications/amazon-item-ai-review/functional.md) | draft — open questions (issue #305) |
+| Amazon item AI review and purchase goal | [amazon-item-ai-review](specifications/amazon-item-ai-review/functional.md) | specified (issue #305) |
 | Amazon searches removal | [amazon-searches-removal](specifications/amazon-searches-removal/functional.md) | specified (issue #111) |
 | Amazon request stop | [amazon-request-stop](specifications/amazon-request-stop/functional.md) | specified (issue #111) |
 | Amazon human-like checks | [amazon-human-checks](specifications/amazon-human-checks/functional.md) | specified (issue #168); FR-AMZ-HCHK-011–012 specified (issue #186); FR-AMZ-HCHK-013 specified (issue #187); FR-AMZ-HCHK-014 specified (issue #217); FR-AMZ-HCHK-015 specified (issue #233) |
