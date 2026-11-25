@@ -1,6 +1,6 @@
 # Functional specification: login attempt limits by client address
 
-Status: ready (issue #266)
+Status: ready (issue #266); FR-LOGIN-LIM-012–014 specified (issue #284, maintenance: no behaviour change)
 Owner: functional specification agent
 User decision/reference: GitHub issue #266 ("Login: limit failed attempts by client address instead of locking the username").
 
@@ -38,6 +38,14 @@ Terms:
 | FR-LOGIN-LIM-009 | A login needs a password check while the fixed maximum number of password checks are already waiting to run (the maximum is set by the technical specification and is at least 1). | The login is answered at once, without a password check and without waiting, with HTTP 429 and the message "Too many login attempts are being checked. Try again in a moment." It is not counted as a failure for its pair. | With password checks held running and the maximum number waiting, a further login with the right password is answered 429 with that message without waiting; once the waiting checks have finished, the same login succeeds. |
 | FR-LOGIN-LIM-010 | Fewer than the maximum number of password checks are waiting. | A login waits its turn and is then checked, as today; logins are never refused as busy while a slot to wait is free. | With one password check running and none waiting, a second login with the right password succeeds after the first check ends. |
 | FR-LOGIN-LIM-011 | A refused login (locked pair or too many waiting checks) is shown on the login screen. | The login screen shows the server's message in its existing "Could not log in" error, and the person stays logged out. | After a 429 for a locked pair or for too many waiting checks, the login screen shows the corresponding message and no session is created. |
+
+### Specification index status (issue #284, maintenance)
+
+PR #283 delivered FR-LOGIN-LIM-001 to 011 (issue #266), but the Login attempt limits row of the specification index still says they are only specified. The index must say they are implemented. No behaviour change.
+
+- **FR-LOGIN-LIM-012** The status cell of the Login attempt limits row in the Subject specifications table of `doc/FUNCTIONAL_SPECIFICATIONS.md` begins with “implemented (issue #266)”, as the other rows of delivered subjects say “implemented”. Check: that row contains “implemented (issue #266)” and does not contain “specified (issue #266)”.
+- **FR-LOGIN-LIM-013** Only that row of the index changes. The other rows, including the other rows that still say “specified (issue #NNN)” and the Multiple users and login row, are unchanged; updating them is out of scope of issue #284. Check: in the change's diff of `doc/FUNCTIONAL_SPECIFICATIONS.md`, the only changed line is the Login attempt limits row.
+- **FR-LOGIN-LIM-014** Nothing else changes: the text of FR-LOGIN-LIM-001 to 011, `technical.md` of this subject, the change records under `doc/changes/` of issue #266 and the files under `doc/todo/` are unchanged; the change's diff outside `doc/` is empty; `go vet ./...` and `go test ./...` pass, and the user observes no change in the application.
 
 ## States and corner cases
 

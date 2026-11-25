@@ -1,0 +1,12 @@
+# Issue #284 Mark login attempt limits as implemented in the specification index
+
+**Problem:** The specification index row 'Login attempt limits' in `doc/FUNCTIONAL_SPECIFICATIONS.md` (line 342) says `specified (issue #266)`, but PR #283 implements FR-LOGIN-LIM-* (service, HTTP layer and tests), so the status is out of date.
+
+**Suggested work:** Change the status cell to `implemented (issue #266)`, following the other implemented rows. You could also check the other `specified (issue #NNN)` rows for delivered issues and fix them the same way.
+
+**File:** `doc/FUNCTIONAL_SPECIFICATIONS.md:342`
+
+From review comment R1-01 on #283 (`doc/todo/issue-266-r1-01.md`).
+
+## Comments by trusted authors
+
