@@ -12,4 +12,11 @@ The test cases are checked this way (see `doc/specifications/responsive-layout/t
 
 ## TC-003 results
 
-To be filled in by the developer.
+The side-by-side measurement was not run. The developer stage may not write scratch files (in the repository or a temporary directory) or start its own dev server, and it may not add test files, so neither a standalone script nor a temporary spec could run against both builds. The result follows from the selectors instead (TS-RESPONSIVE-034), and the existing e2e tests confirm it:
+
+- Every `td` with class `.responsive-table` as an ancestor is a Carbon `TableCell` inside `TableBody` and a `TableRow` (`src/components/TrackedItemsPage.tsx`, `src/components/AdminPage.tsx`, the no-match `colSpan` cell included). There is no `tfoot` and no `td` in `thead`. So `.responsive-table td` and `.responsive-table tbody tr td` match the same cells.
+- The target rule is more specific, (0,1,3) against (0,1,1), and sits in the same media block. No rule that lost to `display: block` before can win now, so the computed `display` stays `block` below 1056 px. At 1056 px and above neither rule applies, so cells stay `table-cell`.
+- No other declaration changes, so every cell keeps its box at 320, 360, 775, 1055 and 1280 px.
+- `tests/responsive-layout.spec.ts` passes in full on the branch, and so does the whole `npx playwright test` run (208 passed, 1 skipped). That includes the cell geometry checks of issue #165 (TC-001 to TC-010, FR-RESPONSIVE-018 to 024), the 1056 px switch (TC-003) and the desktop layout (TC-012).
+
+TC-001 and TC-002 were checked with `git diff -U0 master -- src/index.css`. It shows only the removed standalone rule with its blank line and the added `display: block` as the first declaration of `.responsive-table tbody tr td`. `git diff --name-status master -- . ':!doc'` lists only `M src/index.css`.
