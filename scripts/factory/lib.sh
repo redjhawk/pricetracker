@@ -124,7 +124,11 @@ $extra"
   # The agent never sees the GitHub token, and Claude Code scrubs its own credentials from the environment
   # of the commands it runs (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB). factory.sh checks the sandbox dependencies.
   # The scrub forces the default permission mode, so the agent only gets what --allowedTools grants.
+  # Claude Code matches relative Edit rules (doc/**) against the Bash tool's current directory, so a `cd`
+  # (allowed in read-only commands) would make them miss; CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR returns
+  # Bash to the repository root after every command.
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
+    CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 \
   claude -p "$prompt" \
     --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
