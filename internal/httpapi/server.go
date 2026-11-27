@@ -29,7 +29,7 @@ func New(cfg config.Config, items *service.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/", s.handleAPI)
 	mux.HandleFunc("/", s.handleFrontend)
-	s.handler = securityHeaders(abortLateBodies(mux))
+	s.handler = securityHeaders(mux)
 	return s
 }
 

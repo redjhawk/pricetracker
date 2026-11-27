@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -84,7 +85,12 @@ func run() error {
 	defer func() { stop(); <-schedulerDone }()
 
 	api := httpapi.New(cfg, items)
-	server := httpapi.NewHTTPServer(cfg, api.Handler())
+	server := &http.Server{
+		Addr:              net.JoinHostPort(cfg.Host, fmt.Sprint(cfg.Port)),
+		Handler:           api.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Printf("PriceFollower listening on http://%s", server.Addr)
