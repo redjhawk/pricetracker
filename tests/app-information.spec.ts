@@ -375,7 +375,8 @@ test("TC-007 (#215) closing after fast tabbing returns focus to the menu control
       const dialog = await openInformationWithKeyboard(page);
       const count = await numberTabbables(dialog);
       expect(count).toBeGreaterThanOrEqual(2);
-      for (let presses = 0; presses <= count; presses += 1) await page.keyboard.press("Tab");      await close();
+      for (let presses = 0; presses <= count; presses += 1) await page.keyboard.press("Tab");
+      await close();
       await expect(dialog).toBeHidden();
       await expect(menu).toBeFocused();
       await expect(page.getByRole("menuitem")).toHaveCount(0);
