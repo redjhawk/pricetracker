@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/changes/2026-11-27-2044-issue-201-merge-card-td-display-rule-into-the-tbod/no-tests.md",
+    "line": 14,
+    "category": "test",
+    "body": "TC-003 (the only test case for FR-RESPONSIVE-035) was not run. The test case asks for a side-by-side measurement of every `.responsive-table td` (bounding box and computed `display`) on a base build and on the branch build at 320, 360, 775, 1055 and 1280 px, including the no-match `colSpan` row. `no-tests.md` replaces it with a selector and specificity argument plus the existing e2e run. The argument is sound: I checked that both tables (`TrackedItemsPage.tsx:176`, `AdminPage.tsx:136`) have `td` only under `tbody tr`, that neither uses `stickyHeader`, and that the only Carbon `td` display rule that could matter (`.cds--data-table--sticky-header td { display: flex }`, (0,1,1)) does not apply here. But the test case records no results, so TC-003 is not proven as written. Suggested fix: run the measurement (for example a throwaway Playwright script, not committed, using the `mockApi` fixtures against `npm run build` output from `master` and from the branch) and record the per-width results in `no-tests.md`. If the pipeline really cannot run it, say in the test cases that TC-003 is verified by analysis plus TC-004, so the record does not claim a measurement that was never taken. Not blocking: the CSS change itself (`src/index.css:690-693`) is correct and matches TS-RESPONSIVE-033 exactly."
+  }
+]

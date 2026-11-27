@@ -679,10 +679,6 @@ img {
     border-block-end: 1px solid var(--cds-border-subtle);
   }
 
-  .responsive-table td {
-    display: block;
-  }
-
   .responsive-table thead {
     display: block;
     position: absolute;
@@ -694,6 +690,7 @@ img {
   }
 
   .responsive-table tbody tr td {
+    display: block;
     flex: 0 1 auto;
     width: auto;
     min-width: 0;

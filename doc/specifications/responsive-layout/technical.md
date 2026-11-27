@@ -1,7 +1,7 @@
 # Technical specification: responsive layout
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 033, status ready)
+Functional specification: [functional.md](functional.md) (FR-RESPONSIVE-001 to 036, status ready)
 
 ## Current overflow sources (inspected)
 
@@ -298,6 +298,71 @@ There is no committed test code, because FR-RESPONSIVE-033 allows no file change
 
 - **Refactoring:** splitting the rule is the change itself. Reason: FR-RESPONSIVE-031. Scope: one rule of `src/index.css`. Risk: very low, because the removed declaration had no effect; TC-004 and TC-005 guard against regressions.
 - **Risk:** a Carbon upgrade that renames `.cds--btn` or changes its 20rem cap would make the comment stale. The existing TC-011 e2e test would catch a narrower button.
+
+### Card cell display rule (issue #201, FR-RESPONSIVE-034 to 036)
+
+Change folder: [issue 201](../../changes/2026-11-27-2044-issue-201-merge-card-td-display-rule-into-the-tbod/issue.md). This is stylesheet maintenance with no behaviour change. There are no use cases (see the change folder's `no-use-cases.md`).
+
+#### Current state (inspected)
+
+- Inside `@media (max-width: 1055.98px)`, `src/index.css` has a standalone `.responsive-table td { display: block; }` rule between the TS-RESPONSIVE-017 `.responsive-table tr` rule and the `.responsive-table thead` rule. The `.responsive-table tbody tr td` rule follows the `thead` rule and holds `flex: 0 1 auto`, `width: auto`, `min-width: 0`, `max-width: 100%`, `height: auto`, `padding: var(--cds-spacing-03) var(--cds-spacing-05)` and `border: 0`, with no `display`.
+- `.responsive-table` is used only on the Carbon `Table` of `src/components/TrackedItemsPage.tsx` and `src/components/AdminPage.tsx`. In both, every `TableCell` (`td`) is inside `TableBody` and a `TableRow`; the header uses `TableHeader` (`th`) and there is no `tfoot`. So both selectors match exactly the same elements.
+- Specificity: `.responsive-table td` is (0,1,1), `.responsive-table tbody tr td` is (0,1,3). Moving the declaration to the more specific rule in the same media block cannot let a rule that lost before win now, so the computed `display` stays `block` below 1056 px.
+
+#### Requirement mapping
+
+| Functional ID | Technical solution | Files | Verification |
+| --- | --- | --- | --- |
+| FR-RESPONSIVE-034 | TS-RESPONSIVE-033 | `src/index.css` | TC-001, TC-002 |
+| FR-RESPONSIVE-035 | TS-RESPONSIVE-034 | none (follows from TS-RESPONSIVE-033) | TC-003, TC-004 |
+| FR-RESPONSIVE-036 | TS-RESPONSIVE-035 | none | TC-002, TC-004, TC-005 |
+
+#### Frontend
+
+- **TS-RESPONSIVE-033 One card-cell rule (FR-RESPONSIVE-034).** In the 1055.98 px media block, delete the standalone `.responsive-table td { display: block; }` rule together with one adjacent blank line. Add `display: block;` as the first declaration of the `.responsive-table tbody tr td` rule, which becomes:
+
+  ```css
+    .responsive-table tbody tr td {
+      display: block;
+      flex: 0 1 auto;
+      width: auto;
+      min-width: 0;
+      max-width: 100%;
+      height: auto;
+      padding: var(--cds-spacing-03) var(--cds-spacing-05);
+      border: 0;
+    }
+  ```
+
+  The rule stays where it is. The other declarations, the `:has(> .item-cell)` and `:has(> .row-actions)` rules, the `.responsive-table td[data-label]::before` rule, the `thead` and `tr` rules, the comments and the top-level `overflow-wrap: anywhere` rule (whose selector list includes `.responsive-table td`) are unchanged. No other media query changes.
+- **TS-RESPONSIVE-034 Same rendering (FR-RESPONSIVE-035).** The same cells get the same computed values (see Current state), so card and table cells keep their boxes at 320, 360, 775, 1055 and 1280 px. At 1056 px and above, neither rule applies and cells stay `table-cell`. FR-RESPONSIVE-018 to 024 still hold. There is no markup, state, focus or accessibility change.
+- **TS-RESPONSIVE-035 No other change (FR-RESPONSIVE-036).** Outside `doc/`, only the two rules above change in `src/index.css`. There are no `.tsx`, Go, test, dependency or `API_SPECIFICATION.md` changes. FR-RESPONSIVE-001 to 033, the TS entries of earlier issues, the issue #140, #165, #200, #202 and #203 change records, the existing files under `doc/todo/` (including `issue-165-r1-03.md`), UC-TI-07 and UC-RL-02 are unchanged. New follow-up records `doc/todo/issue-201-r*.md` may be added. No ID is renumbered.
+
+#### Backend and API
+
+Backend: not affected. Only presentation changes: there is no handler, validation, persistence, migration or concurrency change. API: not affected. No endpoint, field, status or error changes, and `API_SPECIFICATION.md` is unchanged.
+
+#### Files to change
+
+- `src/index.css`: TS-RESPONSIVE-033.
+- `doc/specifications/responsive-layout/technical.md`: this section (already written).
+
+#### Tests
+
+There is no committed test code, because FR-RESPONSIVE-036 allows no file change outside `doc/` apart from the two card-cell rules. The developer records this in the change folder's `no-tests.md`, with the commands below and the TC-003 results.
+
+| Test case | How it runs | TS IDs |
+| --- | --- | --- |
+| TC-001 | `grep -n -A10 'responsive-table' src/index.css` and reading the media blocks: `display: block` once in the `.responsive-table tbody tr td` rule, its other declarations as on `master`, and no rule whose selector list is exactly `.responsive-table td` in any media query | 033 |
+| TC-002 | `git diff --name-status master -- . ':!doc'` lists only `M src/index.css`; `git diff -U0 master -- src/index.css` shows only the removed standalone rule and the added `display: block` | 033, 035 |
+| TC-003 | Uncommitted Playwright measurement reusing the `mockApi` fixtures of `tests/responsive-layout.spec.ts`: bounding box and computed `display` of every `.responsive-table td` on the Amazon and LeBoncoin tabs (including the no-match row) and the administrator page, at 320, 360, 775, 1055 and 1280 px, on a `master` build and on the branch build | 034 |
+| TC-004 | Existing gates, unchanged: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (including `tests/responsive-layout.spec.ts`) | 034, 035 |
+| TC-005 | `git diff` of `functional.md`, the issue #140, #165, #200, #202 and #203 change folders, `doc/todo/` and the UC-TI-07 and UC-RL-02 files against `master` | 035 |
+
+#### Refactoring and risks
+
+- **Refactoring:** merging the rules is the change itself. Reason: FR-RESPONSIVE-034. Scope: two rules of `src/index.css`. Risk: very low, because both selectors match the same cells and the target rule is more specific; TC-003 and TC-004 guard against regressions.
+- **Risk:** a future `td` in a `.responsive-table` outside `tbody tr` (for example a `tfoot`) would no longer get `display: block` below 1056 px. No such cell exists today; a change adding one must style it.
 
 ## Backend
 
