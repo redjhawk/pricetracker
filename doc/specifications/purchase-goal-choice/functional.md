@@ -1,6 +1,6 @@
 # Functional specification: choose an existing purchase goal
 
-Status: ready
+Status: ready; FR-GOAL-CHOICE-017–019 specified (issue #373, maintenance)
 Owner: functional specification agent
 User decision/reference: GitHub issue #304 (2026-11-24) and the user's answers in the issue comments of 2026-11-24 (Q-1 A, Q-2 copy, Q-3 B, Q-4 B, Q-5 no, Q-6 B, Q-7 no, Q-8 alphabetical, Q-9 always offered; Q-10 "just the first 4 words"; Q-11 "select 'new goal' and write a new one, or select an existing one and modify the text; modifying the text of an existing one does not impact other items"). Extends [LeBoncoin purchase goal](../leboncoin-purchase-goal/functional.md).
 
@@ -44,6 +44,14 @@ Excluded: a separate saved list of goals; renaming or removing goals from the li
 | FR-GOAL-CHOICE-015 | Operator selects an existing goal (add-item form or details page). | The goal text field is shown, pre-filled with the goal's full text, and stays editable (Q-11). The operator may modify the text; the drop-down keeps showing the selected goal. The modified text is saved for this item only (FR-GOAL-CHOICE-007, -014). | Given items A and B with goal "Gaming", when the operator opens A's details page, changes the field text to "Gaming on Linux" and saves, then A shows "Gaming on Linux", B still shows "Gaming", and both goals are now offered. |
 | FR-GOAL-CHOICE-016 | Existing goals shown in the drop-down (options and selected value). | Each existing goal is shown by its first four words, on one line, followed by "…" when the goal has more than four words (Q-10). Goals of four words or fewer are shown in full. Two goals with the same first four words remain separate options (FR-GOAL-CHOICE-005), in the order of FR-GOAL-CHOICE-006. The full text of the selected goal is visible in the goal text field (FR-GOAL-CHOICE-015). | Given the goal "install a light Linux distro for my parents", the option and the selected value read "install a light Linux…" and the field below shows the full text. Given the goal "photo editing", the option reads "photo editing". |
 
+### Store doc comment (issue #373, maintenance)
+
+The doc comment of `Store.PurchaseGoals` in `internal/store/store.go` says it returns the goals of the owner's "LeBoncoin items", but since issue #305 it returns the goals of the owner's tracked LeBoncoin and Amazon items (the query has no platform filter), as the Definitions above state. The comment must match. No behaviour change.
+
+- **FR-GOAL-CHOICE-017** The doc comment directly above `func (s *Store) PurchaseGoals` in `internal/store/store.go` is the single line `// PurchaseGoals returns the distinct non-empty purchase goals of the owner's tracked items (LeBoncoin and Amazon), unordered.` Check: the line just before the function declaration is exactly that text, the line before it is not a comment line, and `grep -n "owner's LeBoncoin items" internal/store/store.go` prints nothing.
+- **FR-GOAL-CHOICE-018** `Store.PurchaseGoals` keeps its signature, its query and its body: it still returns the goals of the owner's tracked LeBoncoin and Amazon items, with no platform filter. Check: `git diff origin/master -- internal/store/store.go` changes only the doc comment line of FR-GOAL-CHOICE-017; FR-GOAL-CHOICE-001 to 016 still hold and the existing purchase goal choice tests pass.
+- **FR-GOAL-CHOICE-019** Nothing else changes: the text of FR-GOAL-CHOICE-001 to 016, the issue #304 and #305 change records under `doc/changes/` and the files under `doc/todo/` (including `doc/todo/issue-304-r3-01.md`, which the issue does not ask to change) are unchanged. Check: outside `doc/`, `git diff --name-only origin/master` lists only `internal/store/store.go`; `gofmt -l internal/store` prints nothing; `go vet ./...`, `go test ./...` and the frontend checks pass; the operator observes no change in the application.
+
 ## States and corner cases
 
 - Save failure on the details page: as for FR-PURCHASE-GOAL-009, an error is shown and the selection and the field text stay; the stored goal is unchanged.
@@ -53,10 +61,11 @@ Excluded: a separate saved list of goals; renaming or removing goals from the li
 
 ## Open questions
 
-None.
+None. Issue #373 needed no question: it gives the exact comment text and changes no behaviour.
 
 ## Traceability
 
 - [LeBoncoin purchase goal](../leboncoin-purchase-goal/functional.md) FR-PURCHASE-GOAL-001–009.
 - [Multiple users and login](../multi-user-login/functional.md) FR-MODE-001, FR-SHARE-004, FR-SHARE-005.
 - [Responsive layout](../responsive-layout/functional.md) FR-RESPONSIVE-010.
+- Issue #373 (review R3-01 on PR #327, `doc/todo/issue-304-r3-01.md`): the `Store.PurchaseGoals` doc comment said "LeBoncoin items" though Amazon items are included since issue #305 → FR-GOAL-CHOICE-017 to 019. No behaviour change. Change folder: [issue 373](../../changes/2026-11-27-2251-issue-373-fix-stale-doc-comment-on-store-purchaseg/issue.md).
