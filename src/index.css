@@ -463,7 +463,11 @@ input {
     max-inline-size: none;
   }
 
-  .login-form,
+  .login-form {
+    width: 100%;
+  }
+
+  /* Lift Carbon's 20rem button cap so Log in spans the form. */
   .login-form .cds--btn[type="submit"] {
     width: 100%;
     max-width: none;
@@ -508,6 +512,12 @@ input {
 
 .purchase-goal {
   margin-block: var(--cds-spacing-07);
+}
+
+.purchase-goal-choice {
+  display: grid;
+  gap: var(--cds-spacing-05);
+  min-width: 0;
 }
 
 .purchase-goal-actions {

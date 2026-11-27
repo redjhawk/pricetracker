@@ -22,6 +22,17 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-IM-01 — Add a listing](item-management/UC-IM-01-add-listing.md)
 - [UC-IM-02 — Delete a tracked item](item-management/UC-IM-02-delete-tracked-item.md)
 
+## Purchase goal choice
+
+- [UC-GOAL-CHOICE-001 — Add a LeBoncoin item with an existing purchase goal](purchase-goal-choice/UC-GOAL-CHOICE-001-add-leboncoin-item-with-existing-goal.md)
+- [UC-GOAL-CHOICE-002 — Add a LeBoncoin item with a new purchase goal when no existing goal fits](purchase-goal-choice/UC-GOAL-CHOICE-002-add-leboncoin-item-with-new-goal.md)
+- [UC-GOAL-CHOICE-003 — Enter a purchase goal when no existing goal is available](purchase-goal-choice/UC-GOAL-CHOICE-003-enter-first-goal-without-existing-goals.md)
+- [UC-GOAL-CHOICE-004 — Change an item's purchase goal on its details page](purchase-goal-choice/UC-GOAL-CHOICE-004-change-goal-on-details-page.md)
+- [UC-GOAL-CHOICE-005 — Adapt a goal used by several items for one item only](purchase-goal-choice/UC-GOAL-CHOICE-005-adapt-shared-goal-text-for-one-item.md)
+- [UC-GOAL-CHOICE-006 — A goal leaves the list once no item uses it](purchase-goal-choice/UC-GOAL-CHOICE-006-goal-leaves-list-when-no-item-uses-it.md)
+- [UC-GOAL-CHOICE-007 — Add an Amazon item while a goal is chosen](purchase-goal-choice/UC-GOAL-CHOICE-007-add-amazon-item-with-goal-chosen.md)
+- [UC-GOAL-CHOICE-008 — View the goal of an item shared by another user](purchase-goal-choice/UC-GOAL-CHOICE-008-view-goal-of-shared-item.md)
+
 ## Responsive layout
 
 - [UC-RL-01 — Use the full screen width on every page below desktop width](responsive-layout/UC-RL-01-use-full-width-on-every-page-below-desktop.md)
@@ -80,6 +91,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-HCHK-006 — Unavailable listing page the browser does not open sends no used-offer request](amazon-human-checks/UC-AMZ-HCHK-006-unavailable-listing-page-the-browser-does-not-open-sends-no-used-offer-request.md)
 - [UC-AMZ-HCHK-007 — Amazon answer offered as a file download is not saved on the server's disk](amazon-human-checks/UC-AMZ-HCHK-007-amazon-answer-offered-as-download-is-not-saved.md)
 - [UC-AMZ-HCHK-008 — Interrupted Amazon check leaves no downloaded answer on the server's disk](amazon-human-checks/UC-AMZ-HCHK-008-interrupted-amazon-check-leaves-no-downloaded-answer.md)
+- [UC-AMZ-HCHK-009 — Failed browser cache clearing is logged without the reason it was started](amazon-human-checks/UC-AMZ-HCHK-009-failed-cache-clearing-logged-without-its-reason.md)
 
 ## Amazon browser profile recovery
 
@@ -99,3 +111,17 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-THUMB-001 — Add an Amazon item whose page offers an Amazon image over HTTPS](amazon-thumbnail-urls/UC-AMZ-THUMB-001-add-amazon-item-with-amazon-image.md)
 - [UC-AMZ-THUMB-002 — Add an Amazon item whose page offers no accepted Amazon image](amazon-thumbnail-urls/UC-AMZ-THUMB-002-add-amazon-item-without-accepted-image.md)
 - [UC-AMZ-THUMB-003 — Re-check an Amazon item that already has a thumbnail](amazon-thumbnail-urls/UC-AMZ-THUMB-003-recheck-amazon-item-with-stored-thumbnail.md)
+
+## Amazon item AI review and purchase goal
+
+- [UC-AMZ-ITEM-AIR-001 — Add an Amazon item with a purchase goal](amazon-item-ai-review/UC-AMZ-ITEM-AIR-001-add-amazon-item-with-purchase-goal.md)
+- [UC-AMZ-ITEM-AIR-002 — Edit the purchase goal of an Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-002-edit-amazon-item-purchase-goal.md)
+- [UC-AMZ-ITEM-AIR-003 — Request an AI review of an Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-003-request-ai-review-of-amazon-item.md)
+- [UC-AMZ-ITEM-AIR-004 — An AI review of an Amazon item fails](amazon-item-ai-review/UC-AMZ-ITEM-AIR-004-amazon-ai-review-fails.md)
+- [UC-AMZ-ITEM-AIR-005 — Open an Amazon item when no Claude token is saved](amazon-item-ai-review/UC-AMZ-ITEM-AIR-005-amazon-item-without-claude-token.md)
+- [UC-AMZ-ITEM-AIR-006 — See the AI review of a stopped Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-006-ai-review-of-stopped-amazon-item.md)
+- [UC-AMZ-ITEM-AIR-007 — See the AI review of an Amazon item without a current price](amazon-item-ai-review/UC-AMZ-ITEM-AIR-007-ai-review-of-amazon-item-without-current-price.md)
+- [UC-AMZ-ITEM-AIR-008 — An Amazon check records the customer rating](amazon-item-ai-review/UC-AMZ-ITEM-AIR-008-amazon-check-records-customer-rating.md)
+- [UC-AMZ-ITEM-AIR-009 — Get the first AI review of an Amazon item tracked before the upgrade](amazon-item-ai-review/UC-AMZ-ITEM-AIR-009-first-ai-review-of-amazon-item-tracked-before-upgrade.md)
+- [UC-AMZ-ITEM-AIR-010 — Read an Amazon review after the price changed](amazon-item-ai-review/UC-AMZ-ITEM-AIR-010-review-stays-after-price-change.md)
+- [UC-AMZ-ITEM-AIR-011 — Delete a reviewed Amazon item](amazon-item-ai-review/UC-AMZ-ITEM-AIR-011-delete-reviewed-amazon-item.md)

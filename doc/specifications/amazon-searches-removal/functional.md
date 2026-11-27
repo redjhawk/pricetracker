@@ -35,4 +35,5 @@ None.
 ## Traceability
 
 - Supersedes [Amazon searches](../amazon-searches/functional.md), [Amazon human browsing](../amazon-human-browsing/functional.md) (pacing), [Amazon AI review](../amazon-ai-review/functional.md).
+- Issue #305 amends FR-AMZ-SRCH-DEL-005: tracked Amazon items get AI reviews again ([Amazon item AI review](../amazon-item-ai-review/functional.md)); reviews deleted here are not restored.
 - Technical handoff target: `doc/specifications/amazon-searches-removal/technical.md`.

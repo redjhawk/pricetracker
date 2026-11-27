@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "file": "doc/changes/2026-11-25-0515-issue-260-assert-that-the-upgrade-redraw-draws-a-d/no-tests.md",
+    "line": 24,
+    "category": "nit",
+    "body": "The record says the overlay copies under `/tmp/claude/inj260` and the scratch generator 'are listed in `delete.txt`'. `delete.txt` only takes repository-relative paths, the files are outside the repository, and the change folder has no `delete.txt` (the diff adds none). A reader checking that no fault injection remains (TC-006) can't tell where the generator test was or whether it was ever in the repository. The diff shows it is not: outside `doc/`, only `internal/service/amazon_human_checks_issue185_test.go` changes. Suggested fix: say that the overlay files and the generator were temporary files under `$TMPDIR`, outside the repository and never committed, and drop the mention of `delete.txt`."
+  }
+]

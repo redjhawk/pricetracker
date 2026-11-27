@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "reason": "Confirmed: `TestAmazonBrowserCacheLog_TC004_SuccessfulClearThroughTheApplicationLogsNothing` (internal/httpapi/amazon_browser_cache_log_test.go) repeats `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` (amazon_browser_interrupted_test.go:19-79). The only addition is a no-cache-line check after each Refresh price, and the technical specification assigns TC-004 to the existing tests. The test is correct, related to the issue and passes on a correct implementation, so it is redundant real-Chromium coverage that costs CI time, not a bug or an unmet requirement.",
+    "title": "Merge the issue #240 httpapi cache-log test into the existing TC-005 of #233",
+    "todo": "**Problem:** `internal/httpapi/amazon_browser_cache_log_test.go` (`TestAmazonBrowserCacheLog_TC004_SuccessfulClearThroughTheApplicationLogsNothing`) copies `TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile` in `internal/httpapi/amazon_browser_interrupted_test.go` (lines 19-79): same fixture, server-stop sequence, per-owner Refresh price and assertions. Each CI run therefore starts one more real-Chromium scenario. The technical specification (`doc/specifications/amazon-human-checks/technical.md`, issue #240 section, TC-004 row) says the existing test covers TC-004. In `assertNoCacheLine`, the second string `after a page not opened` cannot match on its own, because any old-wording line also contains the prefix `Amazon browser cache could not be cleared`.\n\n**Suggested work:** Add the no-cache-line check after each Refresh price (`linesWith(output(), \"Amazon browser cache could not be cleared\")` with a `captureCheckOutput` per owner) to the existing TC-005 test. Then delete `internal/httpapi/amazon_browser_cache_log_test.go` and update the TC-004 row of the technical specification and `testcases.md` if needed."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "reason": "Confirmed: `TestBrowserCacheLog_TC003_SuccessfulClearLogsNothing` (internal/amazon/browser_cache_log_test.go:170-212) uses the same scripts and assertions (`assertClearConfirmedBeforeClose`, `assertInterruptedFailure`, `assertNoCacheLogLine`) as the existing issue #233 tests, which the technical specification and testcases.md name as TC-003. Also, `assertNoOldCacheWording` cannot fail once `assertNoCacheLogLine` passes. The test is correct and passes, so this is duplicate coverage and extra run time, not a defect.",
+    "title": "Remove the duplicate TC-003 test of issue #240 in internal/amazon",
+    "todo": "**Problem:** `internal/amazon/browser_cache_log_test.go`, `TestBrowserCacheLog_TC003_SuccessfulClearLogsNothing` (around lines 170-212), repeats `TestBrowserInterrupted_TC001_ClearConfirmedBeforeClose`, `TestBrowserInterrupted_TC002_PageStillRequestedIsCleared` and `TestBrowserInterrupted_TC006_UninterruptedCheckIsUnchanged` (subtest `download`) in `browser_interrupted_test.go`. It adds about 4 × 2 s of interrupted fake-browser runs. Its `assertNoOldCacheWording` calls are redundant after `assertNoCacheLogLine`, which matches the kept prefix.\n\n**Suggested work:** Delete the test and keep TC-003 on the existing tests, as the technical specification (issue #240 section, TC-003 row) and `testcases.md` state. If the test is kept, list it in the specification's test tables instead."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "reason": "Confirmed: in the `repeated` subtest of `TestBrowserCacheLog_TC001_PageNotOpened`, `assertNeutralCacheLine` calls t.Fatalf unless each check's output has exactly one cache line, so `total` is always 2 when the final check runs. The check is dead, but the subtest still proves one neutral line per failed clearing.",
+    "title": "Drop the dead `total` counter in TestBrowserCacheLog_TC001 `repeated` subtest",
+    "todo": "**Problem:** `internal/amazon/browser_cache_log_test.go`, `TestBrowserCacheLog_TC001_PageNotOpened`, subtest `repeated` (around lines 112-131): `total += len(cacheLines(logged))` and `if total != 2 { t.Fatalf(...) }` can never fail, because `assertNeutralCacheLine` already requires exactly one cache line per check.\n\n**Suggested work:** Remove the `total` variable, its increment and the final check. The per-check `assertNeutralCacheLine` already proves one neutral line per failed clearing."
+  }
+]

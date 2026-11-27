@@ -56,6 +56,9 @@ func Open(cfg config.Config) (*Store, error) {
 	if err := s.createAmazonRequestSchema(context.Background()); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
+	if err := s.ensureAmazonRatingColumns(context.Background()); err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
 	if err := s.FailInterruptedAIReviews(context.Background(), time.Now()); err != nil {
 		return nil, errors.Join(fmt.Errorf("fail interrupted AI reviews: %w", err), db.Close())
 	}
@@ -827,6 +830,24 @@ func (s *Store) SetPurchaseGoal(ctx context.Context, id, goal string) (bool, err
 	return count > 0, err
 }
 
+// PurchaseGoals returns the distinct non-empty purchase goals of the owner's LeBoncoin items, unordered.
+func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT purchase_goal FROM items WHERE owner_id = ? AND tracked = 1 AND purchase_goal <> ''", ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	goals := []string{}
+	for rows.Next() {
+		var goal string
+		if err := rows.Scan(&goal); err != nil {
+			return nil, err
+		}
+		goals = append(goals, goal)
+	}
+	return goals, rows.Err()
+}
+
 func (s *Store) RecordSuccess(ctx context.Context, id string, result model.CollectionResult, timestamp time.Time) error {
 	return s.RecordCollection(ctx, id, result, timestamp)
 }
@@ -878,6 +899,11 @@ ON CONFLICT(item_id) DO UPDATE SET status = excluded.status, checked_at = exclud
 			if _, err := tx.ExecContext(ctx, `INSERT INTO second_hand_offer_observations
 (item_id, amount_cents, currency, condition, condition_label, observed_at) VALUES (?, ?, 'EUR', ?, ?, ?)`, id,
 				result.SecondHandAmountCents, result.SecondHandCondition, result.SecondHandConditionLabel, stamp); err != nil {
+				return err
+			}
+		}
+		if result.CustomerRating != nil {
+			if err := recordAmazonRating(ctx, tx, id, *result.CustomerRating); err != nil {
 				return err
 			}
 		}

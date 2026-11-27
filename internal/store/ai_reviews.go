@@ -68,10 +68,19 @@ func (s *Store) FinishAIReview(ctx context.Context, id int64, status string, pri
 	return err
 }
 
-// AIReviews returns the latest attempt of any status and up to 50 succeeded reviews, newest first.
+// AIReviews returns the latest attempt of any status and up to 50 succeeded reviews, newest first,
+// decoded in the review shape of the item's platform.
 func (s *Store) AIReviews(ctx context.Context, itemID string) (*model.AIReview, []model.AIReview, error) {
+	var platform string
+	err := s.db.QueryRowContext(ctx, "SELECT platform FROM items WHERE id = ?", itemID).Scan(&platform)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, make([]model.AIReview, 0), nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
 	const columns = "id, status, price_cents, review_json, error_message, created_at, completed_at"
-	latest, err := scanAIReview(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM ai_reviews WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", itemID))
+	latest, err := scanAIReview(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM ai_reviews WHERE item_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", itemID), platform)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, make([]model.AIReview, 0), nil
 	}
@@ -85,7 +94,7 @@ func (s *Store) AIReviews(ctx context.Context, itemID string) (*model.AIReview, 
 	defer rows.Close()
 	succeeded := make([]model.AIReview, 0)
 	for rows.Next() {
-		review, err := scanAIReview(rows)
+		review, err := scanAIReview(rows, platform)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -96,7 +105,7 @@ func (s *Store) AIReviews(ctx context.Context, itemID string) (*model.AIReview, 
 
 type scanner interface{ Scan(dest ...any) error }
 
-func scanAIReview(row scanner) (*model.AIReview, error) {
+func scanAIReview(row scanner, platform string) (*model.AIReview, error) {
 	var review model.AIReview
 	var price sql.NullInt64
 	var reviewJSON, message, completed sql.NullString
@@ -108,7 +117,10 @@ func scanAIReview(row scanner) (*model.AIReview, error) {
 		review.PriceCents = &price.Int64
 	}
 	if reviewJSON.Valid {
-		content := &model.AIReviewContent{}
+		var content any = &model.AIReviewContent{}
+		if platform == "amazon" {
+			content = &model.AmazonAIReviewContent{}
+		}
 		if err := json.Unmarshal([]byte(reviewJSON.String), content); err != nil {
 			return nil, fmt.Errorf("decode stored AI review %d: %w", review.ID, err)
 		}

@@ -78,7 +78,47 @@ func parseProductPage(result model.CollectionResult, page string) (model.Collect
 	}
 	result.Title = productTitle(page)
 	result.ThumbnailURL = productImage(page)
+	rating := customerRating(page)
+	result.CustomerRating = &rating
 	return result, page
+}
+
+var (
+	starsPattern       = regexp.MustCompile(`(?i)(?:^|[^0-9.,])([0-5](?:[.,][0-9])?)\s+(?:out of|sur|von|de|su|van)\s+5\b`)
+	ratingCountPattern = regexp.MustCompile(`[0-9](?:[0-9 \x{00a0}\x{202f}.,]*[0-9])?`)
+	acrPopoverPattern  = regexp.MustCompile(`(?is)<[a-z][\w:-]*\b[^>]*\bid=["']acrPopover["'][^>]*>`)
+)
+
+// customerRating reads the product's own rating block (acrPopover, acrCustomerReviewText); ratings of
+// other products on the page are ignored. An absent or unreadable value is nil.
+func customerRating(page string) model.CustomerRating {
+	var rating model.CustomerRating
+	var stars string
+	if popover := acrPopoverPattern.FindStringIndex(page); popover != nil {
+		stars = attribute(page[popover[0]:popover[1]], "title")
+		if starsPattern.FindStringSubmatch(stars) == nil {
+			// The whole element, nested elements included (elementContentByID stops at the first nested close).
+			stars = textContent(page[popover[0]:elementEnd(page, popover[0])])
+		}
+	}
+	if match := starsPattern.FindStringSubmatch(stars); match != nil {
+		digits := strings.ReplaceAll(strings.ReplaceAll(match[1], ",", ""), ".", "")
+		tenths, _ := strconv.ParseInt(digits, 10, 64)
+		if len(digits) == 1 {
+			tenths *= 10
+		}
+		if tenths <= 50 {
+			rating.StarsTenths = &tenths
+		}
+	}
+	countText := textContent(elementContentByID(page, "acrCustomerReviewText"))
+	if match := ratingCountPattern.FindString(countText); match != "" {
+		digits := strings.NewReplacer(" ", "", " ", "", " ", "", ".", "", ",", "").Replace(match)
+		if count, err := strconv.ParseInt(digits, 10, 64); err == nil {
+			rating.Count = &count
+		}
+	}
+	return rating
 }
 
 // excerpt returns the first 2 KB of a response body with control characters replaced, for logs.

@@ -53,7 +53,7 @@ export interface TrackedItem {
   purchaseGoal: string;
   /** When Amazon checks of the item were stopped after repeated failures; null otherwise. */
   amazonStoppedAt: string | null;
-  aiReview?: AiReviewState | null;
+  aiReview?: AiReviewState<AiReviewContent> | AiReviewState<AmazonAiReviewContent> | null;
 }
 
 export interface AiReviewContent {
@@ -67,20 +67,28 @@ export interface AiReviewContent {
   descriptionVsPhotos: { matches: boolean | null; explanation: string; mismatches: string[] };
 }
 
-export interface AiReview {
+export interface AmazonAiReviewContent {
+  price: { rating: "good_deal" | "fair" | "overpriced"; explanation: string };
+  fairPrice: { minCents: number; maxCents: number };
+  recommendation: { rating: "buy" | "wait" | "avoid"; explanation: string };
+}
+
+export interface AiReview<C = AiReviewContent> {
   id: number;
   status: "pending" | "succeeded" | "failed";
   priceCents: number | null;
   createdAt: string;
   completedAt: string | null;
-  review: AiReviewContent | null;
+  review: C | null;
   errorMessage: string | null;
 }
 
-export interface AiReviewState {
+export interface AiReviewState<C = AiReviewContent> {
   tokenConfigured: boolean;
   running: boolean;
-  lastAttempt: AiReview | null;
-  latest: AiReview | null;
-  history: AiReview[];
+  lastAttempt: AiReview<C> | null;
+  latest: AiReview<C> | null;
+  history: AiReview<C>[];
+  /** Why no Amazon review can be requested now; always null for LeBoncoin. */
+  unavailableReason: "stopped" | "no_current_price" | null;
 }

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 428,
+    "category": "test",
+    "body": "The guard only checks that `go vet ./...` fails somewhere in the module. The subtest is named \"analyzer findings in non-test and test files do not fail the check\", and its test-file half can still go vacuous without anyone noticing. If a later edit fixes `cmd/app/main_test.go` (renames `Testfoo` and corrects its `Printf`) while `main.go` keeps its findings, vet still fails, the guard passes, and nothing proves any more that `buildModule` (`go vet -atomic`) ignores findings in test files. no-tests.md run 2 already shows a partial case: renaming only `Testfoo` leaves the subtest passing. This matches FR-TEST-HYG-082 and TS-TEST-HYG-107 as written (\"any finding\"), so it does not block this PR. A follow-up could make the guard robust to toolchain message changes without matching analyzer texts: use `CombinedOutput()` and require both `cmd/app/main.go:` and `cmd/app/main_test.go:` in the output, which are file positions vet always prints, not message wording. Alternatively, record in the subtest comment that only the module as a whole is guarded."
+  }
+]

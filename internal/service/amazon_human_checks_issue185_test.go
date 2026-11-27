@@ -123,6 +123,14 @@ func TestAmazonUpgradeRedraw_Issue185_TC002_EveryItemRedrawnOnce(t *testing.T) {
 		}
 		drawn[id] = next
 	}
+	// FR-AMZ-HCHK-005: each item's time is drawn on its own, so no two items share one (issue #260).
+	for i, id := range ids {
+		for _, other := range ids[i+1:] {
+			if drawn[id].Equal(drawn[other]) {
+				t.Fatalf("items %s and %s both have the next check %s after the start, want a time drawn for each item", id, other, drawn[id].In(paris))
+			}
+		}
+	}
 	if mark := redrawMark(t, dir); mark != 0 {
 		t.Fatalf("redraw mark %d after the start, want 0", mark)
 	}

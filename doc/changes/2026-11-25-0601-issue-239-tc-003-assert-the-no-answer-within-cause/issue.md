@@ -1,0 +1,10 @@
+# Issue #239 TC-003: assert the 'no answer within' cause and reject 'context deadline exceeded'
+
+**Problem:** In `internal/amazon/browser_interrupted_test.go` (around line 230), `TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged` only rejects `context canceled` in the cache log line. If someone removed the `errors.Is(err, context.DeadlineExceeded)` mapping in `clearCache` (`internal/amazon/browser.go`), the line would read `...: context deadline exceeded` and the test would still pass, although TS-AMZ-HCHK-018 / FR-AMZ-HCHK-015 require the real cause.
+
+**Suggested work:** For the never-answered subtests ('no answer', 'no answer, page still requested'), assert that the line contains `no answer within`. In every subtest, also reject `context deadline exceeded`, for example by calling `assertNoInterruptionGivenForCache(t, logged)`. Update the TC-003 entry in the change's `testcases.md` to match.
+
+From review comment R1-04 on #236 (`doc/todo/issue-233-r1-04.md`).
+
+## Comments by trusted authors
+

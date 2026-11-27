@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R3-01",
+    "file": "internal/store/store.go",
+    "line": 833,
+    "category": "nit",
+    "body": "The doc comment says the function returns the goals of \"the owner's LeBoncoin items\". The query has no platform filter, though, so it also returns Amazon goals. That is what TS-GOAL-CHOICE-001, `API_SPECIFICATION.md` (\"LeBoncoin and Amazon\") and `TestPurchaseGoals_TC001_DistinctAlphabeticalOwnItems` (\"Amazon goal\") require since issue #305. A later maintainer could trust the comment and add `platform = 'leboncoin'`, which would break FR-GOAL-CHOICE-009. Fix: change the comment to \"distinct non-empty purchase goals of the owner's items (LeBoncoin and Amazon), unordered\"."
+  }
+]

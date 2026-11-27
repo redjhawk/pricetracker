@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R2-01",
+    "file": "API_SPECIFICATION.md",
+    "line": 499,
+    "category": "spec",
+    "body": "The contract and the implementation now disagree on the order. After the R1-02 fix, `compareGoals` in `internal/service/purchase_goal.go:28` sorts in three steps: first by base letters (lower case, Latin diacritics mapped to their base letter, `æ`/`œ`/`ß` expanded), then by the lower-case text, then by the exact text. This 'Order' bullet still specifies only two steps: lower case, then byte order. Under the published contract, 'écran' must sort after 'zoom', but the server returns it between 'dessin' and 'zoom'. `technical.md` (API section) says this bullet 'still needs this text' because the developer stage could not edit it. Fix: replace the bullet with the three-step rule from `doc/specifications/purchase-goal-choice/technical.md` line 32, including the écran/ecran/Gaming examples, so `API_SPECIFICATION.md` stays the source of truth for the contract."
+  },
+  {
+    "id": "R2-02",
+    "file": "internal/service/purchase_goal.go",
+    "line": 28,
+    "category": "test",
+    "body": "No test covers the accent-aware order added for blocking comment R1-02. The only order checks are in TC-001 (`TestPurchaseGoals_TC001_*`) and TC-002, and they use ASCII goals only. A regression to the old byte order, or a wrong entry in `baseLetters`, would pass every test. The same applies to the client mirror `compareGoals` in `src/purchaseGoalChoice.ts:53` used by `withGoal`. The tests are locked (`tests.lock`), so add a test case to TC-001 in a follow-up. Suggested inputs: goals 'zoom', 'écran', 'dessin', 'ecran', 'Œuvre', 'ordinateur'. Expected order: 'dessin', 'ecran', 'écran', 'ordinateur', 'Œuvre', 'zoom'."
+  },
+  {
+    "id": "R2-03",
+    "file": "src/components/PurchaseGoalChoice.tsx",
+    "line": 50,
+    "category": "test",
+    "body": "No test covers the R1-01 fix, which maps typing under 'No goal' in free-text mode to 'New goal'. No e2e test makes the drop-down appear while the details page is dirty in free-text mode. The tests would still pass if this line went back to keeping `value.option`, which is the data-loss bug triage marked blocking. Suggested follow-up e2e test: mock an item without a goal and an empty `/api/v1/purchase-goals`. Type 'Office' in 'Purchase goal'. Make the polled item request (GET /api/v1/items/:id) return a goal set elsewhere. Then assert that the drop-down shows 'New goal', that 'Goal text' still reads 'Office', and that Save goal sends purchaseGoal 'Office'."
+  },
+  {
+    "id": "R2-04",
+    "file": "src/purchaseGoalChoice.ts",
+    "line": 56,
+    "category": "simplify",
+    "body": "The 30-entry `baseLetters` table and the three-step comparator are now kept by hand in two languages (`internal/service/purchase_goal.go:16` and here). Any later change to the server order must be repeated here, or a stale goal from `withGoal` lands in a different place than after the next reload. The only client need is that the item's own goal is an option when the list is stale. Simpler: let `withGoal` append the goal unsorted, since the next `reload()` or remount brings the server order. If client order matters, use `localeCompare` with base sensitivity instead of a copied table. This contradicts the current TS-GOAL-CHOICE-006 wording ('mirror of the server comparator'), so the technical spec would need the same small change. Non-blocking."
+  }
+]

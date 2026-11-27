@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R3-01",
+    "file": "doc/changes/2026-11-25-0944-issue-200-align-ts-responsive-017-wording-with-the/no-tests.md",
+    "line": 13,
+    "category": "test",
+    "body": "Blocking comment R2-01 is still not fixed. The round-2 development commit (ee44efa) only deleted `blocking.md` and updated `state.json`. `no-tests.md` line 13 and `testcases.md` lines 59 and 64 are unchanged. On this branch, `git diff --name-status origin/master...HEAD -- 'doc/changes/*issue-140-*' 'doc/changes/*issue-165-*' 'doc/changes/*issue-203-*' doc/todo/` still prints `A\tdoc/todo/issue-200-r1-02.md`, so TC-003 fails on the correct change. Fix, as triage confirmed: check `doc/todo/` with `git diff --name-status --diff-filter=DMRT <base> -- doc/todo/`, or exclude `doc/todo/issue-200-r*.md`. Change both no-tests.md line 13 and testcases.md lines 59 and 64. In line 64, change \"every file under `doc/todo/` ... are unchanged\" to \"every existing file under `doc/todo/`\"."
+  },
+  {
+    "id": "R3-02",
+    "file": "doc/specifications/responsive-layout/technical.md",
+    "line": 231,
+    "category": "spec",
+    "body": "TS-RESPONSIVE-029 says `doc/todo/` is unchanged for issue #200. The branch adds `doc/todo/issue-200-r1-02.md`, the follow-up record from round-1 triage, so the technical specification contradicts the change it describes. This is the same scoping problem as R3-01. Fix: say \"the existing files under `doc/todo/`\", matching FR-RESPONSIVE-030 (\"the files under `doc/todo/` are unchanged\"), so new follow-up records for this issue are allowed."
+  }
+]

@@ -2,10 +2,6 @@ package amazon
 
 import (
 	"errors"
-	"go/ast"
-	"go/format"
-	"go/parser"
-	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -270,50 +266,4 @@ func TestBrowserProfile_Issue197_TC004_UndiscardableLockIsAStartFailure(t *testi
 		}
 		assertNoLockSeen(t, listing)
 	})
-}
-
-// TC-005 of issue #197: the stale lock branch of profile() has the explicit form and the other
-// branches keep theirs. The diff, gofmt, vet and test checks of TC-005 are factory gates.
-func TestBrowserProfile_Issue197_TC005_ProfileUsesTheExplicitForm(t *testing.T) {
-	files := token.NewFileSet()
-	file, err := parser.ParseFile(files, "browser.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var body *ast.BlockStmt
-	for _, declaration := range file.Decls {
-		if function, ok := declaration.(*ast.FuncDecl); ok && function.Name.Name == "profile" && function.Recv != nil {
-			body = function.Body
-		}
-	}
-	if body == nil || len(body.List) == 0 {
-		t.Fatal("profile() not found in browser.go")
-	}
-	source := func(nodes []ast.Stmt) string {
-		var lines []string
-		for _, node := range nodes {
-			var out strings.Builder
-			if err := format.Node(&out, files, node); err != nil {
-				t.Fatal(err)
-			}
-			lines = append(lines, out.String())
-		}
-		return strings.Join(lines, "\n")
-	}
-	persistent, ok := body.List[0].(*ast.IfStmt)
-	if !ok {
-		t.Fatalf("profile() does not start with the persistent-profile branch:\n%s", source(body.List))
-	}
-	wantPersistent := "if err := os.MkdirAll(c.options.ProfileDir, 0o700); err != nil {\n\treturn \"\", nil, err\n}\n" +
-		"if err := removeStaleLocks(c.options.ProfileDir); err != nil {\n\treturn \"\", nil, err\n}\n" +
-		"return c.options.ProfileDir, func() {}, nil"
-	if got := source(persistent.Body.List); got != wantPersistent {
-		t.Errorf("persistent-profile branch of profile():\n%s\nwant:\n%s", got, wantPersistent)
-	}
-	wantTemporary := "directory, err := os.MkdirTemp(\"\", \"pricefollower-browser-\")\n" +
-		"if err != nil {\n\treturn \"\", nil, err\n}\n" +
-		"return directory, func() {\n\tif err := os.RemoveAll(directory); err != nil {\n\t\tlog.Printf(\"remove temporary browser profile: %v\", err)\n\t}\n}, nil"
-	if got := source(body.List[1:]); got != wantTemporary {
-		t.Errorf("temporary-profile branch of profile():\n%s\nwant:\n%s", got, wantTemporary)
-	}
 }

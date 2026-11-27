@@ -211,7 +211,8 @@ func (s *Service) Get(ctx context.Context, id string) (model.Item, error) {
 	return s.withInFlight(item), nil
 }
 
-// Add tracks a listing; the trimmed purchase goal is kept for LeBoncoin items only.
+// Add tracks a listing with its trimmed purchase goal. Only the first collection of a
+// LeBoncoin item starts a review; Amazon items are reviewed on request only.
 func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.Item, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	amazonURL := amazon.ParseURL(rawURL)
@@ -220,7 +221,7 @@ func (s *Service) Add(ctx context.Context, rawURL, purchaseGoal string) (model.I
 	var canonical string
 	switch {
 	case amazonURL.Kind == "valid":
-		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: rawURL}
+		itemListing = model.Listing{Platform: "amazon", ListingID: amazonURL.ASIN, ASIN: amazonURL.ASIN, Marketplace: amazonURL.Marketplace, URL: rawURL, PurchaseGoal: strings.TrimSpace(purchaseGoal)}
 		canonical = amazonURL.Canonical
 	case leboncoinURL.Kind == "valid":
 		itemListing = model.Listing{Platform: "leboncoin", ListingID: leboncoinURL.ListingID, Marketplace: leboncoinURL.Marketplace, URL: leboncoinURL.URL, PurchaseGoal: strings.TrimSpace(purchaseGoal)}
@@ -415,6 +416,7 @@ func (s *Service) collectReserved(ctx context.Context, id string, newItem, manua
 	}
 	// Reserve the review before recording, so a client never sees the new
 	// collection result without the review already shown as running.
+	// Amazon items are never reviewed automatically (issue #305).
 	priceChanged := result.Result == "success" && previousPrice != nil && *previousPrice != result.AmountCents
 	var token model.ClaudeToken
 	reserved := false

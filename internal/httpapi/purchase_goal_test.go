@@ -25,7 +25,11 @@ func TestPurchaseGoalStatuses(t *testing.T) {
 	assertError(t, callPath(server, http.MethodPut, "/api/v1/items/lbc/purchase-goal", `{"purchaseGoal":3}`), 400, "INVALID_JSON", "")
 	assertError(t, callPath(server, http.MethodPut, "/api/v1/items/lbc/purchase-goal", `{}`), 400, "INVALID_JSON", "")
 	assertError(t, callPath(server, http.MethodPut, "/api/v1/items/missing/purchase-goal", `{"purchaseGoal":""}`), 404, "ITEM_NOT_FOUND", "Tracked item was not found.")
-	assertError(t, callPath(server, http.MethodPut, "/api/v1/items/amz/purchase-goal", `{"purchaseGoal":""}`), 422, "PURCHASE_GOAL_UNSUPPORTED", "Purchase goals are available for LeBoncoin items only.")
+	// Issue #305 (TC-006): Amazon goals are saved and start no review.
+	if saved := callPath(server, http.MethodPut, "/api/v1/items/amz/purchase-goal", `{"purchaseGoal":" gift "}`); saved.Code != 200 ||
+		strings.TrimSpace(saved.Body.String()) != `{"changed":true,"purchaseGoal":"gift","reviewStarted":false}` {
+		t.Fatalf("Amazon save %d %s", saved.Code, saved.Body.String())
+	}
 	recorder := callPath(server, http.MethodPost, "/api/v1/items/lbc/purchase-goal", "")
 	assertError(t, recorder, 405, "METHOD_NOT_ALLOWED", "")
 	if recorder.Header().Get("Allow") != "PUT" {

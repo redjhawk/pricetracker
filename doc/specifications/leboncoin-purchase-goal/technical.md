@@ -17,6 +17,7 @@ API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "LeBoncoin p
 | FR-PURCHASE-GOAL-007 | TS-PURCHASE-GOAL-007: no length validation; column `TEXT`. Request bodies for add and goal update are capped at 1 MiB as a transport safeguard (not a goal rule). | `internal/httpapi/server.go`, `internal/httpapi/purchase_goal.go` | Go httpapi test with ~10 kB goal |
 | FR-PURCHASE-GOAL-008 | TS-PURCHASE-GOAL-008: field rendered only when `platform === "leboncoin"`; PUT on Amazon item returns `422 PURCHASE_GOAL_UNSUPPORTED`; review objects unchanged. | `src/components/ItemDetail.tsx`, `internal/service/purchase_goal.go` | Playwright Amazon test; Go httpapi test |
 | FR-PURCHASE-GOAL-009 | TS-PURCHASE-GOAL-009: labelled `TextArea`, native `Button`, `InlineNotification` (success `role=status`, error) ; text kept on error. | `src/components/PurchaseGoal.tsx` | Playwright save success/error |
+| FR-PURCHASE-GOAL-001, -008 (amended, issue #305) | TS-PURCHASE-GOAL-010: the goal is also stored for Amazon items on add and on `PUT` (`reviewStarted: false`, no review); `PURCHASE_GOAL_UNSUPPORTED` removed; the field is rendered on Amazon details and the add-form helper drops "LeBoncoin only.". Supersedes the Amazon parts of TS-PURCHASE-GOAL-001, -002, -008. Details: [Amazon item AI review technical](../amazon-item-ai-review/technical.md) TS-AMZ-ITEM-AIR-003, -013 | see there | TC-005, TC-006, TC-019, TC-020 of issue #305 |
 
 ## Frontend
 

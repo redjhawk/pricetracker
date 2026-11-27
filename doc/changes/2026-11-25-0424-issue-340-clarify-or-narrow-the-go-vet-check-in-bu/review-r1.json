@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/server_dependencies_test.go",
+    "line": 410,
+    "category": "test",
+    "body": "The new subtest only asserts that buildModule returns nil. Nothing in the file checks that its fixture really has analyzer findings, so TC-001's second half (the same subtest fails with master's plain `go vet ./...`) is proved only by the manual run 4 in no-tests.md. The subtest would still pass, silently and vacuously, if a later edit removed the findings (someone 'fixing' the odd-looking Printf or the Testfoo name) or if a toolchain update stopped reporting one of them. Every other negative path in this test has an in-file control for exactly this reason (the DownloadMarker and amazontest.Nope controls). Suggested fix: in the same subtest, after the buildModule check, run `go vet ./...` with all analyzers on the same dir (exec.Command with cmd.Dir = dir and cmd.Env = append(os.Environ(), fixtureEnv...)). Fail with t.Error(\"the fixture has no analyzer finding, so the subtest proves nothing\") if that command succeeds. Optionally, also check that its output holds `wrong type string`, `passes lock by value` and `malformed name`. This keeps the subtest from going vacuous without changing buildModule."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/changes/2026-11-25-0424-issue-340-clarify-or-narrow-the-go-vet-check-in-bu/no-tests.md",
+    "line": 15,
+    "category": "nit",
+    "body": "Run 5 says it used 'the scratch files listed in `delete.txt`', but the change folder in this PR has no delete.txt (it holds issue.md, no-tests.md, no-use-cases.md, state.json and testcases.md). The scratch overlay files were evidently removed already. Rewrite this as a plain statement, for example 'using temporary overlay files, since removed', so that the record does not point to a file that does not exist."
+  }
+]

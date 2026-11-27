@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { AiReviewState, ItemStatus, PriceObservation, SecondHandOffer, SecondHandOfferDetection, TrackedItem } from "../types";
+import type { ItemStatus, PriceObservation, SecondHandOffer, SecondHandOfferDetection, TrackedItem } from "../types";
 
 interface ApiPriceObservation {
   amountCents: number;
@@ -38,7 +38,7 @@ export interface ApiTrackedItem {
   addedAt: string;
   purchaseGoal: string;
   amazonStoppedAt: string | null;
-  aiReview?: AiReviewState | null;
+  aiReview?: TrackedItem["aiReview"];
 }
 
 function mapObservation(observation: ApiPriceObservation | null): PriceObservation | null {
@@ -116,6 +116,11 @@ export function savePurchaseGoal(id: string, purchaseGoal: string): Promise<{ pu
     method: "PUT",
     body: JSON.stringify({ purchaseGoal }),
   });
+}
+
+export async function listPurchaseGoals(): Promise<string[]> {
+  const response = await request<{ purchaseGoals: string[] }>("/api/v1/purchase-goals");
+  return response.purchaseGoals;
 }
 
 export function requestAiReview(id: string): Promise<{ requestedAt: string; alreadyRunning: boolean }> {
