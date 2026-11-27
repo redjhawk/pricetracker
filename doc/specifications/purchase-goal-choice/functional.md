@@ -1,6 +1,6 @@
 # Functional specification: choose an existing purchase goal
 
-Status: ready; FR-GOAL-CHOICE-017–019 specified (issue #373, maintenance)
+Status: ready; FR-GOAL-CHOICE-017–019 implemented (issue #373, maintenance)
 Owner: functional specification agent
 User decision/reference: GitHub issue #304 (2026-11-24) and the user's answers in the issue comments of 2026-11-24 (Q-1 A, Q-2 copy, Q-3 B, Q-4 B, Q-5 no, Q-6 B, Q-7 no, Q-8 alphabetical, Q-9 always offered; Q-10 "just the first 4 words"; Q-11 "select 'new goal' and write a new one, or select an existing one and modify the text; modifying the text of an existing one does not impact other items"). Extends [LeBoncoin purchase goal](../leboncoin-purchase-goal/functional.md).
 

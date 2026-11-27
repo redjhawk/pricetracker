@@ -1,6 +1,6 @@
 # Technical specification: choose an existing purchase goal
 
-Status: ready; TS-GOAL-CHOICE-010–012 specified (issue #373, maintenance: no behaviour change)
+Status: ready; TS-GOAL-CHOICE-010–012 implemented (issue #373, maintenance: no behaviour change)
 Functional specification: [functional.md](functional.md) (ready, FR-GOAL-CHOICE-001–019)
 Test cases: issue #304 [testcases.md](../../changes/2026-11-24-0833-issue-304-ai-purchase-goal-let-the-user-to-choose/testcases.md) (TC-001–TC-014); issue #373 [testcases.md](../../changes/2026-11-27-2251-issue-373-fix-stale-doc-comment-on-store-purchaseg/testcases.md) (TC-001–TC-003)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "LeBoncoin purchase goal (2026-10-04)" → "List the existing purchase goals (issue #304)"

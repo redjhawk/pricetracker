@@ -830,7 +830,7 @@ func (s *Store) SetPurchaseGoal(ctx context.Context, id, goal string) (bool, err
 	return count > 0, err
 }
 
-// PurchaseGoals returns the distinct non-empty purchase goals of the owner's LeBoncoin items, unordered.
+// PurchaseGoals returns the distinct non-empty purchase goals of the owner's tracked items (LeBoncoin and Amazon), unordered.
 func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT purchase_goal FROM items WHERE owner_id = ? AND tracked = 1 AND purchase_goal <> ''", ownerID)
 	if err != nil {
