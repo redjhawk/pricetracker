@@ -1,8 +1,8 @@
 # Technical specification: choose an existing purchase goal
 
-Status: ready
-Functional specification: [functional.md](functional.md) (ready, FR-GOAL-CHOICE-001–016)
-Test cases: [testcases.md](../../changes/2026-11-24-0833-issue-304-ai-purchase-goal-let-the-user-to-choose/testcases.md) (TC-001–TC-014)
+Status: ready; TS-GOAL-CHOICE-010–012 specified (issue #373, maintenance: no behaviour change)
+Functional specification: [functional.md](functional.md) (ready, FR-GOAL-CHOICE-001–019)
+Test cases: issue #304 [testcases.md](../../changes/2026-11-24-0833-issue-304-ai-purchase-goal-let-the-user-to-choose/testcases.md) (TC-001–TC-014); issue #373 [testcases.md](../../changes/2026-11-27-2251-issue-373-fix-stale-doc-comment-on-store-purchaseg/testcases.md) (TC-001–TC-003)
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "LeBoncoin purchase goal (2026-10-04)" → "List the existing purchase goals (issue #304)"
 Extends: [LeBoncoin purchase goal technical specification](../leboncoin-purchase-goal/technical.md)
 
@@ -23,6 +23,9 @@ The list of existing goals is not stored: the server derives it at each request 
 | TS-GOAL-CHOICE-007 | FR-GOAL-CHOICE-007, -015 | No backend change: each item keeps its own `purchase_goal` column value; the existing `SetPurchaseGoal` writes one item and starts a review only for it. Selecting an existing goal copies its text into the request. |
 | TS-GOAL-CHOICE-008 | FR-GOAL-CHOICE-011 | Shared items do not exist yet (FR-SHARE-004 not implemented): every item returned by the API is owned by the requester (`ownedListing`). The goal choice is rendered only in the owner's editable goal entry; when sharing adds its read-only marker to the item response, `ItemDetail` must render the goal as read-only text instead of `PurchaseGoal`. The list itself never contains other users' goals (TS-GOAL-CHOICE-001). |
 | TS-GOAL-CHOICE-009 | FR-GOAL-CHOICE-004, -016 | Accessibility and narrow screens: visible labels (`titleText`, `labelText`), downshift keyboard model of the Carbon `Dropdown`, `autoAlign` floating menu, Carbon's one-line option labels, existing `role="status"` success notification. |
+| TS-GOAL-CHOICE-010 | FR-GOAL-CHOICE-017 | The one-line doc comment directly above `func (s *Store) PurchaseGoals` in `internal/store/store.go` is rewritten to name the owner's tracked items (LeBoncoin and Amazon) (issue #373). |
+| TS-GOAL-CHOICE-011 | FR-GOAL-CHOICE-018 | Signature, SQL query (no platform filter) and body of `Store.PurchaseGoals` unchanged (issue #373). |
+| TS-GOAL-CHOICE-012 | FR-GOAL-CHOICE-019 | No other file outside `doc/` changes; no test file is added (proved by repository checks and the existing suites, issue #373). |
 
 ## API
 
@@ -39,7 +42,7 @@ Defined in `API_SPECIFICATION.md` ("List the existing purchase goals (issue #304
 ### Store (`internal/store/store.go`)
 
 ```go
-// PurchaseGoals returns the distinct non-empty purchase goals of the owner's items, unordered.
+// PurchaseGoals returns the distinct non-empty purchase goals of the owner's tracked items (LeBoncoin and Amazon), unordered.
 func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error)
 ```
 
@@ -168,3 +171,52 @@ The add-form `TextArea` moves into `PurchaseGoalChoice` (free-text mode) so that
 ## Verification
 
 `go vet ./...`, `go test ./...`, `npm run build`, `npx playwright test`.
+
+## Issue #373: fix the stale `Store.PurchaseGoals` doc comment
+
+Maintenance only: one source comment line is rewritten; no behaviour changes.
+
+### Backend (`internal/store/store.go`)
+
+On `master`, the line directly above `func (s *Store) PurchaseGoals` reads `// PurchaseGoals returns the distinct non-empty purchase goals of the owner's LeBoncoin items, unordered.` Since issue #305 the query has no platform filter, so Amazon goals are listed too. Replace that single line, in place, with:
+
+```go
+// PurchaseGoals returns the distinct non-empty purchase goals of the owner's tracked items (LeBoncoin and Amazon), unordered.
+func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error) {
+```
+
+- The comment stays directly above the declaration (no blank line between) and the blank line above it is kept. No code line changes, so `git diff --numstat` is `1 1` and `gofmt -l internal/store` stays empty.
+- Validation, persistence, migrations, concurrency: not affected (no code change).
+- The Store snippet in "Backend" above already shows the new comment text (updated in this stage).
+
+### API
+
+Not affected: no endpoint, request, response or error changes; `API_SPECIFICATION.md` is unchanged.
+
+### Frontend
+
+Not affected: no frontend file changes.
+
+### Files to change
+
+- `internal/store/store.go` (development stage): the comment line above.
+- `doc/specifications/purchase-goal-choice/functional.md`, this file and the `doc/FUNCTIONAL_SPECIFICATIONS.md` row (development stage): FR-GOAL-CHOICE-017–019 and TS-GOAL-CHOICE-010–012 marked implemented.
+- Not changed: `doc/todo/issue-304-r3-01.md` and the issue #304 and #305 change folders (FR-GOAL-CHOICE-019).
+
+### Tests
+
+FR-GOAL-CHOICE-019 allows no change outside `doc/` other than `store.go`, so no test file is added or changed, and the change (a comment) cannot make a test go red. The **tests stage** writes `<change folder>/no-tests.md` giving that reason and where each TC is proved (table below); the red gate is then skipped. The **development stage** rewrites the line, runs the checks below and the gates, and restores any other file outside `doc/` that differs from `master`.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | `go doc ./internal/store Store.PurchaseGoals` shows the new sentence; `grep -c "owner's tracked items (LeBoncoin and Amazon), unordered." internal/store/store.go` is `1`; `grep -n "owner's LeBoncoin items" internal/store/store.go` prints nothing; the line after the comment is `func (s *Store) PurchaseGoals(ctx context.Context, ownerID int64) ([]string, error) {` and the line before it is blank. |
+| TC-002 | `git diff --name-status master -- . ':!doc'` lists only `M internal/store/store.go`; `git diff --numstat master -- internal/store/store.go` is `1 1`, removing the old line and adding the new one; `git diff --name-only master -- doc/todo doc/changes/2026-11-24-0833-issue-304-ai-purchase-goal-let-the-user-to-choose doc/changes/2026-11-24-0836-issue-305-purchase-goal-and-ai-review-is-also-avai` prints nothing; `gofmt -l internal/store` prints nothing. |
+| TC-003 | Existing, unchanged tests `TestPurchaseGoals_*` in `internal/service/purchase_goal_choice_test.go` (including `TestPurchaseGoals_TC003_AmazonAdditionJoinsList`) and `TestPurchaseGoalsEndpoint_*` in `internal/httpapi/purchase_goal_choice_test.go`: `go test -count=1 -run 'TestPurchaseGoals_\|TestPurchaseGoalsEndpoint_' ./internal/service/ ./internal/httpapi/`; then the gates `go vet ./...`, `go test ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (including `tests/leboncoin-purchase-goal.spec.ts`). |
+
+### Refactoring
+
+None (the comment fix is the change itself).
+
+### Manual follow-ups
+
+None.
