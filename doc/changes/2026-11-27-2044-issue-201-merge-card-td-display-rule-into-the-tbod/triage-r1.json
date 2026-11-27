@@ -1,0 +1,10 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "The CSS change (src/index.css:690-693) is a provably equivalent move: every td under .responsive-table is in tbody tr (AdminPage.tsx:136, TrackedItemsPage.tsx:176, no tfoot or stickyHeader), the target selector is more specific in the same media block, and the full Playwright run including the issue #165 cell geometry checks (TC-004) passes. no-tests.md states plainly that the TC-003 measurement was not run, so the record makes no false claim; only the test-case wording needs aligning, which is a documentation follow-up.",
+    "title": "Align TC-003 of issue #201 with how it was verified",
+    "todo": "**Problem:** TC-003 in `doc/changes/2026-11-27-2044-issue-201-merge-card-td-display-rule-into-the-tbod/testcases.md` describes a side-by-side Playwright measurement (bounding box and computed `display` of every `.responsive-table td` at 320, 360, 775, 1055 and 1280 px, base vs branch, no-match `colSpan` row included), but `no-tests.md` (line 14 and section \"TC-003 results\") records that it was not run and that FR-RESPONSIVE-035 was verified by selector/specificity analysis plus the existing e2e suite (TC-004).\n\n**Suggested work:** Either run the measurement once (throwaway Playwright script using the `mockApi` fixtures of `tests/responsive-layout.spec.ts` against `npm run build` output from `master` and from the change) and record per-width results in `no-tests.md`, or reword TC-003 to state it is verified by analysis (TS-RESPONSIVE-034) plus TC-004, so the test case matches the recorded evidence.\n\n**Files:** `doc/changes/2026-11-27-2044-issue-201-merge-card-td-display-rule-into-the-tbod/testcases.md` (TC-003), `.../no-tests.md:14`."
+  }
+]
