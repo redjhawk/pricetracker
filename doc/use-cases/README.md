@@ -97,6 +97,7 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-AMZ-BRET-003 — Install or update the server so that Amazon checks work](amazon-browser-retrieval/UC-AMZ-BRET-003-install-server-for-amazon-checks.md)
 - [UC-AMZ-BRET-004 — Restart an Amazon item stopped by the retrieval errors](amazon-browser-retrieval/UC-AMZ-BRET-004-restart-amazon-item-stopped-by-retrieval-errors.md)
 - [UC-AMZ-BRET-005 — Use Google Chrome when a Chromium snap is installed](amazon-browser-retrieval/UC-AMZ-BRET-005-use-google-chrome-when-chromium-snap-is-installed.md)
+- [UC-AMZ-BRET-006 — Tell the cause from the returned page in a failed Amazon check's log line](amazon-browser-retrieval/UC-AMZ-BRET-006-read-response-field-of-failed-amazon-check.md)
 
 ## Amazon thumbnail URLs
 
