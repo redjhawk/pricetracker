@@ -1,8 +1,8 @@
 # Technical specification: Amazon browser retrieval
 
-Status: ready (issue #204); TS-AMZ-BRET-008 ready (issue #226, see [Issue #226](#issue-226-ubuntu-chromium-snap-pitfall))\
-Functional specification: [functional.md](functional.md), FR-AMZ-BRET-001 – 008\
-Test cases: [#204 testcases.md](../../changes/2026-11-22-2139-issue-204-retrieval-error/testcases.md), TC-001 – TC-013; [#226 testcases.md](../../changes/2026-11-23-1020-issue-226-document-the-ubuntu-chromium-snap-pitfal/testcases.md), TC-001 – TC-004\
+Status: ready (issue #204); TS-AMZ-BRET-008 ready (issue #226, see [Issue #226](#issue-226-ubuntu-chromium-snap-pitfall)); TS-AMZ-BRET-009 ready (issue #210, see [Issue #210](#issue-210-response-field-of-the-failure-log-line))\
+Functional specification: [functional.md](functional.md), FR-AMZ-BRET-001 – 009\
+Test cases: [#204 testcases.md](../../changes/2026-11-22-2139-issue-204-retrieval-error/testcases.md), TC-001 – TC-013; [#226 testcases.md](../../changes/2026-11-23-1020-issue-226-document-the-ubuntu-chromium-snap-pitfal/testcases.md), TC-001 – TC-004; [#210 testcases.md](../../changes/2026-11-27-2140-issue-210-document-the-response-field-of-the-amazo/testcases.md), TC-001 – TC-005\
 Companions: [Amazon human-like checks](../amazon-human-checks/technical.md) (browser collector, TS-AMZ-HCHK-003 classification amended here), [Amazon browser profile recovery](../amazon-browser-profile/technical.md), [Amazon request stop](../amazon-request-stop/technical.md) (count, stop and restart, unchanged)
 
 ## Summary
@@ -31,6 +31,7 @@ Price and second-hand parsing, the failure count, stop and restart rules, the UI
 | TS-AMZ-BRET-006 | BRET-006 | New `Server setup` section in `deploy/README.md`: browser install commands, lookup order (`PRICEFOLLOWER_BROWSER_PATH`, then executable names on `PATH`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX=true` for containers and root, the profile directory and the related log lines. `README.md` links to it. The names are exported from code so a documentation test can compare both ways. The start log line for a missing browser stays as it is. | `deploy/README.md`, `README.md`, `internal/amazon/browser.go`, `internal/service/service.go` | TC-011, TC-012, TC-013 |
 | TS-AMZ-BRET-007 | BRET-007 | No change. A stopped item is still skipped by the scheduler, and **Refresh price** (`manual = true`) still runs it. A non-failure result clears its stop (`ClearAmazonStop`) and resets the count. | none (verified only) | TC-010 |
 | TS-AMZ-BRET-008 | BRET-008, BRET-006 | Issue #226. One new paragraph, the snap sentence, in `### Browser for Amazon checks` of `deploy/README.md`, right after the lookup paragraph. No code change: `FindBrowser`, `BrowserNames` and `BrowserPathVariable` stay as they are. | `deploy/README.md` | #226 TC-001 – TC-004, #204 TC-011 |
+| TS-AMZ-BRET-009 | BRET-009, BRET-005 | Issue #210. In the log list of `### Browser for Amazon checks` of `deploy/README.md`, the failed-check line gets `response=…` after `cause=…`, and the item gets one sentence on `response`. No code change: `amazonGate.do` already logs `… cause=%s response=%s`. | `deploy/README.md` | #210 TC-001 – TC-005 |
 
 ## Frontend
 
@@ -248,3 +249,76 @@ None. The new tests reuse the unexported helpers of the #204 tests in the same p
 ### Verification
 
 `go vet ./...`, `go test ./...` with Chromium available (`CI` set, so browser tests cannot skip), and the Playwright suite (tests unchanged). No manual follow-up outside the developer's paths. No open question.
+
+## Issue #210: response field of the failure log line
+
+FR-AMZ-BRET-009, TS-AMZ-BRET-009. Test case numbers in this section are those of the [#210 test cases](../../changes/2026-11-27-2140-issue-210-document-the-response-field-of-the-amazo/testcases.md).
+
+### Summary
+
+`amazonGate.do` logs `Amazon request failed url=%s at=%s status=%d cause=%s response=%s`, where `response` is `result.ResponseExcerpt`: the first 2 KB of the rendered page with control characters replaced by spaces, so the line stays one line. It is empty when no page was loaded. `deploy/README.md` shows the line without `response=…`. The fix is documentation only: the documented line gets the field, and one sentence says what it holds.
+
+### Frontend
+
+Not affected: no screen, state or message changes. No file in `src/` or `web/` changes. The Playwright tests in `tests/` must keep passing.
+
+### Backend
+
+Not affected: no code change. The failure line format in `internal/service/amazon_gate.go`, the no-price line (`Amazon check found no price url=%s at=%s status=%d cause=%s`, no `response`), `excerpt` in `internal/amazon/collector.go`, and the failure count, stop and restart rules stay as they are. No persistence, migration, validation or concurrency change. The new tests only pin the existing log format against the documentation (TC-004, TC-005).
+
+### API
+
+Not affected: no endpoint, field or error changes. `ResponseExcerpt` and `FailureCause` are never serialized. `API_SPECIFICATION.md` does not change.
+
+### Documentation (TS-AMZ-BRET-009)
+
+`deploy/README.md`, list "What the server log shows:" in `### Browser for Amazon checks` of `## Server setup`. Replace only the failed-check item with:
+
+> - For each failed Amazon check: `Amazon request failed url=… at=… status=… cause=… response=…`. The cause says whether the browser could not start (with the browser's own reason), the page could not be opened or did not finish loading, Amazon returned a non-success HTTP status, or Amazon showed a robot check. `response` is the start of the page Amazon returned; it can be empty, for example when the browser could not start.
+
+Rules for the text, checked by the tests:
+
+- The inline code token is the only one in the browser subsection that starts with `Amazon request failed`. Its fields are `url`, `at`, `status`, `cause`, `response`, in the order of the gate's format, and `…` (U+2026) stands for each value.
+- The `response` sentence counts as one sentence for `sentences`: no `.`, `!` or `?` followed by whitespace before its end, and no `e.g.`. It comes after the token and contains `response`, `start`, `page` and `empty`.
+- The causes sentence, the start item and the no-price item stay word for word, and the list keeps its three items. No setting or browser name is added, so #204 TC-011 and #226 TC-001 – TC-002 still pass.
+- No other part of `deploy/README.md` or `README.md` changes.
+
+### Test implementation
+
+Test names use the prefix `TestAmazonFailureLogDocs_TCnnn_`, all in package `service`. They reuse the #204 and #226 helpers of the same package: `readRepositoryFile`, `serverSetupSection`, `inlineCodePattern`, `prose`, `sentences`, `browserSubsection`, `specifiedSnapSetup`, `assertInstallationDocumentation`, `snapSentenceError`, `lookedUpNamesError`. From the service tests they reuse `openHumanStore`, `startHuman`, `newClock`, `scheduleDay`, `insertPricedAmazonItem`, `captureRetrievalLog`, `refreshPrice`, `checkLogLine`, `storedItem`, `amazonFailures`, `shorten`, `fakeAmazon`, `succeeded`, `newAmazonFixture`, `page`, `retrievalBrowser`, `collectorByItem` and `retrievalSecret`. Each check that has failing fixtures is a function that returns an `error`, so fixtures are checked without `t.Fatal`, as in the #226 tests.
+
+New helpers in `amazon_failure_log_docs_test.go`:
+
+- `failedLinePrefix = "Amazon request failed"`, `noPriceLinePrefix = "Amazon check found no price"`, `formerFailedLine = "Amazon request failed url=… at=… status=… cause=…"`.
+- `logListItems(deployment) ([]string, error)`: in `prose(browserSubsection(serverSetupSection(deployment)))`, it finds the line `What the server log shows:` and skips blank lines. It returns the text after `- ` of each following line that starts with `- `, up to the first line that does not. It returns an error when the subsection or the list is missing.
+- `logItem(items, label)`: the item that starts with `label` (`At start, when no browser is found:`, `For each failed Amazon check:` or `For a page without a detectable price:`).
+- `documentedLine(deployment, prefix) (line, item string, end int, err error)`: requires exactly one inline code token starting with `prefix` in the browser subsection prose. It returns the token, its log list item, and the offset in the item where the token ends. It returns an error when the token is missing, repeated, or not in a log list item.
+- `fieldNames(line)`: the names captured by ``(?:^| )([a-z]+)=``, in reading order.
+- `documentedPattern(line) *regexp.Regexp`: splits the documented line on `…` and quotes each part with `regexp.QuoteMeta`. It joins the parts with `(.*?)`, except that the last `…` becomes `(.*)`, and anchors the result with `^` and `$`.
+- `specifiedLogList`: the list as the README has it after the change (the start item, the failed-check item quoted above and the unchanged no-price item), preceded by `What the server log shows:\n\n` and followed by a blank line. `specifiedFailureLogSetup` is `specifiedSnapSetup` with `specifiedLogList` inserted before `## Administrator account`.
+
+| Test case | File | Notes |
+| --- | --- | --- |
+| TC-001 | `internal/service/amazon_failure_log_docs_test.go` (new) | `failedLineError(deployment)`: the token from `documentedLine(…, failedLinePrefix)` must be in the failed-check item, equal `Amazon request failed url=… at=… status=… cause=… response=…`, and have `fieldNames` equal to `url, at, status, cause, response`. Runs on the real file and on `specifiedFailureLogSetup`, which pass. Fixtures that must fail: the former line; `response=…` before `cause=…`; `formerFailedLine` added as a second token in the same item; the list moved under `## Administrator account`; the list only in a fenced block. |
+| TC-002 | `internal/service/amazon_failure_log_docs_test.go` (new) | `responseSentenceError(deployment)`: needs one sentence of `sentences(<failed-check item>)` that starts at or after the token's end and contains `response`, `start`, `page` and `empty` (case-insensitive). Runs on the real file and on `specifiedFailureLogSetup`, which pass. Fixtures that must fail: no sentence; no "empty"; no "start of the page"; the words split over two sentences; the sentence only in the no-price item; the sentence only under `## Administrator account`. |
+| TC-003 | `internal/service/amazon_failure_log_docs_test.go` (new) | `logListError(deployment)` requires exactly three items. The start item's token is exactly `Amazon browser not found; Amazon checks will fail until Chromium is installed or …`. The failed-check item contains the causes sentence word for word. The token from `documentedLine(…, noPriceLinePrefix)` is exactly `Amazon check found no price url=… at=… status=… cause=…`, and its item contains `It is not counted as a failed request.` after it. Fixtures that must fail: `response=…` added to the no-price line; the causes sentence removed; the no-price item removed. The test also runs `assertInstallationDocumentation`, `snapSentenceError` and `lookedUpNamesError` on `specifiedFailureLogSetup`. The #204 and #226 tests already check the real file. |
+| TC-004 | `internal/service/amazon_failure_log_test.go` (new) | Each case gets its own store and service: `openHumanStore`, `insertPricedAmazonItem`, `startHuman(t, database, dir, now, fakeAmazon(…), 210)`, `captureRetrievalLog`, `refreshPrice`. The `request_error` result has `RequestURL`, `HTTPStatus: 503`, `Message` and `FailureCause` set to `Amazon returned HTTP 503`, and `ResponseExcerpt` set to `<html><body>Service Unavailable fixture</body></html>`. The logged line is the text from `Amazon request failed` to the end of its log line, with the logger prefix dropped, and there must be exactly one. The test checks that `fieldNames` of the logged line equal those of the documented line read from `deploy/README.md`. It also checks that `documentedPattern` matches the logged line, with capture 4 (cause) and capture 5 (response) equal to the fake's cause and excerpt. Subtests: an empty excerpt (the line ends with `response=`, and the captures are the cause and ""); the excerpt `<p>cause=fake status=999</p>` (exact captures; field names are not compared because the excerpt holds `=`); `price_not_found` with `FailureCause` set to `Amazon page showed no detectable euro price` (no failure line; the `Amazon check found no price` line has the `fieldNames` of the documented no-price line, without `response`); `succeeded()` (no failure line). Not parallel, because the logger is global. |
+| TC-005 | `internal/service/amazon_failure_log_test.go` (new) | Uses the harness of #204 TC-007: `amazontest.Browser(t)`, `newAmazonFixture(t, page(amazontest.Fixture(t, "robot-check-en.html")))`, and `collectorByItem` with `B0RESPR210` → `retrievalBrowser(t, browser, server.URL, 30*time.Second)` and `B0RESPA210` → `retrievalBrowser(t, <missing path in t.TempDir()>, server.URL, 30*time.Second)`. Then `insertPricedAmazonItem`, `startHuman(…, 210)` and `captureRetrievalLog`. Refresh price runs for (a), then (b), then (a) again, each at its own `scheduleDay(6, m)`. Each line is found with `checkLogLine`, cut at `Amazon request failed`, and must match `documentedPattern` of the documented line. (a): the cause contains `robot check` (case-insensitive) and none of `<`, `Enter the characters` or `fixture-amzn-204`; the response is non-empty, at most 2,048 bytes, starts with `<html` and contains `<title dir="ltr">Amazon.fr</title>`. (b): the cause contains `browser could not start` and the missing path, and the response is "". After the three checks, `amazonFailures` is 3, both items are `retrieval_error` with a latest price of 1999 cents and are not stopped, and `retrievalSecret` is not in the log. |
+
+No e2e test: the interface does not change. The whole suite must keep passing: `go test ./...` (including #204 TC-007 and TC-011 and #226 TC-001 – TC-004) and the Playwright tests in `tests/`.
+
+### Files to change
+
+| File | Change |
+| --- | --- |
+| `deploy/README.md` | Failed-check item of the log list (TS-AMZ-BRET-009) |
+| `internal/service/amazon_failure_log_docs_test.go` (new) | TC-001, TC-002, TC-003 |
+| `internal/service/amazon_failure_log_test.go` (new) | TC-004, TC-005 |
+
+### Refactoring
+
+None. The new tests reuse the unexported helpers of the #204 and #226 tests in the same package.
+
+### Verification
+
+`go vet ./...`, `gofmt -l .`, `go test ./...` with Chromium available (`CI` set, so browser tests cannot skip), and the Playwright suite (tests unchanged). No manual follow-up outside the developer's paths. No open question.
