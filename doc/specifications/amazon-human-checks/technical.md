@@ -1,8 +1,8 @@
 # Technical specification: Amazon human-like checks
 
-Status: ready (issue #168); TS-AMZ-HCHK-013–014 ready (issue #186); TS-AMZ-HCHK-015 ready (issue #187); TS-AMZ-HCHK-016–017 ready (issue #217); TS-AMZ-HCHK-018–019 ready (issue #233); TS-AMZ-HCHK-020 ready (issue #240); TS-AMZ-HCHK-021 ready (issue #305)
-Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010, FR-AMZ-HCHK-011–012 (issue #186), FR-AMZ-HCHK-013 (issue #187), FR-AMZ-HCHK-014 (issue #217), FR-AMZ-HCHK-015 (issue #233), FR-AMZ-HCHK-016 (issue #240); modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
-Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032; issue #186: [testcases.md](../../changes/2026-11-22-1943-issue-186-treat-a-2xx-navigation-with-errortext-as/testcases.md), TC-001–006 (section [Success response not opened as a page](#success-response-not-opened-as-a-page-issue-186)); issue #187: [testcases.md](../../changes/2026-11-23-1043-issue-187-skip-used-offer-requests-when-the-produc/testcases.md), TC-001–004 (section [Unavailable listing on the browser's error page](#unavailable-listing-on-the-browsers-error-page-issue-187)); issue #217: [testcases.md](../../changes/2026-11-23-1124-issue-217-deny-downloads-in-the-amazon-browser-and/testcases.md), TC-001–004 (section [Downloads refused](#downloads-refused-issue-217)); issue #233: [testcases.md](../../changes/2026-11-23-1234-issue-233-clear-the-amazon-browser-http-cache-even/testcases.md), TC-001–006 (section [Interrupted check](#interrupted-check-issue-233)); issue #240: [testcases.md](../../changes/2026-11-25-1255-issue-240-neutral-wording-for-the-cache-clear-fail/testcases.md), TC-001–004 (section [Neutral cache-clear log line](#neutral-cache-clear-log-line-issue-240))
+Status: ready (issue #168); TS-AMZ-HCHK-013–014 ready (issue #186); TS-AMZ-HCHK-015 ready (issue #187); TS-AMZ-HCHK-016–017 ready (issue #217); TS-AMZ-HCHK-018–019 ready (issue #233); TS-AMZ-HCHK-020 ready (issue #240); TS-AMZ-HCHK-021 ready (issue #305); TS-AMZ-HCHK-022–024 ready (issue #234)
+Functional specification: [functional.md](functional.md), FR-AMZ-HCHK-001–010, FR-AMZ-HCHK-011–012 (issue #186), FR-AMZ-HCHK-013 (issue #187), FR-AMZ-HCHK-014 (issue #217), FR-AMZ-HCHK-015 (issue #233), FR-AMZ-HCHK-016 (issue #240), FR-AMZ-HCHK-017–019 (issue #234); modified lines FR-AMZ-STOP-001/004/008 ([Amazon request stop](../amazon-request-stop/functional.md)) and FR-AMZ-SRCH-DEL-006 ([Amazon searches removal](../amazon-searches-removal/functional.md))
+Test cases: [testcases.md](../../changes/2026-11-20-1634-issue-168-error-amazon-checks-were-stopped-on-20-n/testcases.md), TC-001–032; issue #186: [testcases.md](../../changes/2026-11-22-1943-issue-186-treat-a-2xx-navigation-with-errortext-as/testcases.md), TC-001–006 (section [Success response not opened as a page](#success-response-not-opened-as-a-page-issue-186)); issue #187: [testcases.md](../../changes/2026-11-23-1043-issue-187-skip-used-offer-requests-when-the-produc/testcases.md), TC-001–004 (section [Unavailable listing on the browser's error page](#unavailable-listing-on-the-browsers-error-page-issue-187)); issue #217: [testcases.md](../../changes/2026-11-23-1124-issue-217-deny-downloads-in-the-amazon-browser-and/testcases.md), TC-001–004 (section [Downloads refused](#downloads-refused-issue-217)); issue #233: [testcases.md](../../changes/2026-11-23-1234-issue-233-clear-the-amazon-browser-http-cache-even/testcases.md), TC-001–006 (section [Interrupted check](#interrupted-check-issue-233)); issue #240: [testcases.md](../../changes/2026-11-25-1255-issue-240-neutral-wording-for-the-cache-clear-fail/testcases.md), TC-001–004 (section [Neutral cache-clear log line](#neutral-cache-clear-log-line-issue-240)); issue #234: [testcases.md](../../changes/2026-11-28-1330-issue-234-align-backend-step-4-of-the-amazon-human/testcases.md), TC-001–006 (section [Step 4 wording](#step-4-wording-issue-234))
 API: [API_SPECIFICATION.md](../../../API_SPECIFICATION.md), section "Amazon human-like checks (issue #168)" (no shape change)
 Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) (gate, failure count and stops unchanged)
 
@@ -32,6 +32,9 @@ Companion: [Amazon request stop technical](../amazon-request-stop/technical.md) 
 | TS-AMZ-HCHK-019 | HCHK-015 (with HCHK-014) | `browserTab.load`: when `Page.navigate` fails because `loadContext` ended (check interrupted, or navigation timeout), `clearCache` runs before the error is returned. The result is unchanged (issue #233) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-020 | HCHK-016 (with HCHK-015) | `browserTab.clearCache` logs `Amazon browser cache could not be cleared: <cause>` for both callers, without the reason the clear was started; causes, conditions and bound unchanged (issue #240) | `internal/amazon/browser.go` |
 | TS-AMZ-HCHK-021 | HCHK-002 (amended, issue #305) | A product page read (success or price not found) also gives the customer rating and number of ratings (`CollectionResult.CustomerRating`), recorded on the item; price, second-hand and failure results unchanged. Details: [Amazon item AI review technical](../amazon-item-ai-review/technical.md) TS-AMZ-ITEM-AIR-001, -002 | `internal/amazon/collector.go`, `internal/store/store.go` |
+| TS-AMZ-HCHK-022 | HCHK-017 | Documentation only: step 4 of the Backend `Collect` steps gains `or none (a response may come after the 1 s wait),` right after `with a 2xx response`, so it says the cache is cleared with a 2xx response or none, as the TS-AMZ-HCHK-017 row and `browserTab.load` already do (issue #234) | `doc/specifications/amazon-human-checks/technical.md` |
+| TS-AMZ-HCHK-023 | HCHK-018 | The rest of step 4 is kept character for character (`also when the check is interrupted`, `clears it too (issue #233, TS-AMZ-HCHK-018–019)`); no other text limits the clear to the 2xx case (issue #234) | `doc/specifications/amazon-human-checks/technical.md` |
+| TS-AMZ-HCHK-024 | HCHK-019 | No code, test, API or other document change. The tests stage writes only `no-tests.md`; the development stage makes only the step 4 edit and the status mark (issue #234) | none outside `doc/` |
 | TS-AMZ-HCHK-012 | HCHK-001, HCHK-003 | Environment `PRICEFOLLOWER_BROWSER_PATH` (read by `amazon.FindBrowser`), `PRICEFOLLOWER_BROWSER_NO_SANDBOX` (read where the service builds the default collector); browser profile in the data directory; Chromium documented as a server requirement (README text deferred to a separate PR) | `internal/amazon/browser.go`, `internal/service/service.go` |
 
 ## Backend
@@ -70,7 +73,7 @@ Flags: `--headless=new`, `--remote-debugging-pipe`, `--user-data-dir=<profile>`,
 1. Launch. Error → failure "browser could not start: <reason>" (status 0).
 2. `Browser.getVersion`; user agent = the browser's own, `HeadlessChrome/` replaced by `Chrome/`. The client hints are overridden to match (`userAgentMetadata`: brands Chromium / Google Chrome / Not_A Brand with the engine's version, platform `Linux`, architecture of the server, not mobile), since headless Chromium otherwise announces a `HeadlessChrome` brand. `AMAZON_USER_AGENT` no longer applies to Amazon (still used by LeBoncoin).
 3. `Browser.setDownloadBehavior{behavior: "deny"}` (issue #217, TS-AMZ-HCHK-016), then `Target.createTarget(about:blank)`, `Target.attachToTarget(flatten)`; on the session: `Network.enable`, `Page.enable`, `Emulation.setUserAgentOverride{userAgent, acceptLanguage: locale(marketplace), platform: "Linux x86_64" (or "Linux aarch64"), userAgentMetadata}` (`navigator.platform` keeps the real Linux value).
-4. `Page.navigate(item.URL)` (with `Origin` applied in tests). Record the last `Network.responseReceived` of type `Document` per frame and use the navigated frame's (status, MIME type, final URL after redirects). `errorText` with a recorded response of the navigated frame (waited for up to 1 s) whose status is outside 200–299 (Chromium sets `net::ERR_HTTP_RESPONSE_CODE_FAILURE` for a non-2xx answer with an empty body) → that response is the loaded page, marked `errorPage` (the tab shows `chrome-error://chromewebdata/`), without waiting for the load event, so step 7 classifies its status (FR-AMZ-HCHK-012). `errorText` with a 2xx response (a download such as `Content-Disposition: attachment`, or 204/205 without content: the frame stays on `about:blank` or an error page) or without any response (DNS, refused, reset) → failure "Amazon page could not be opened: <errorText>" (FR-AMZ-HCHK-011, issue #186); with a 2xx response the HTTP cache is cleared first (issue #217, TS-AMZ-HCHK-017), also when the check is interrupted. An interrupted `Page.navigate` clears it too (issue #233, TS-AMZ-HCHK-018–019). Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
+4. `Page.navigate(item.URL)` (with `Origin` applied in tests). Record the last `Network.responseReceived` of type `Document` per frame and use the navigated frame's (status, MIME type, final URL after redirects). `errorText` with a recorded response of the navigated frame (waited for up to 1 s) whose status is outside 200–299 (Chromium sets `net::ERR_HTTP_RESPONSE_CODE_FAILURE` for a non-2xx answer with an empty body) → that response is the loaded page, marked `errorPage` (the tab shows `chrome-error://chromewebdata/`), without waiting for the load event, so step 7 classifies its status (FR-AMZ-HCHK-012). `errorText` with a 2xx response (a download such as `Content-Disposition: attachment`, or 204/205 without content: the frame stays on `about:blank` or an error page) or without any response (DNS, refused, reset) → failure "Amazon page could not be opened: <errorText>" (FR-AMZ-HCHK-011, issue #186); with a 2xx response or none (a response may come after the 1 s wait), the HTTP cache is cleared first (issue #217, TS-AMZ-HCHK-017), also when the check is interrupted. An interrupted `Page.navigate` clears it too (issue #233, TS-AMZ-HCHK-018–019). Wait for `Page.loadEventFired` within `NavigationTimeout`; timeout → failure "Amazon page did not finish loading". Scripts and page resources (stylesheets, images, scripts) load as in a normal browser; cookies are kept in the profile.
 5. Pause (`Pause`).
 6. Final URL host not a supported Amazon host (or `Origin`) → failure "redirected to an unsupported host". Read `document.documentElement.outerHTML` (`Runtime.evaluate`, `returnByValue`, first 5 MB).
 7. Classify with the existing rules, now in `classifyPage(page)` used only here: 404/410 → `unavailable`; other non-2xx → failure "Amazon returned HTTP <n>"; MIME not `text/html`/`application/xhtml+xml` → failure; robot check/captcha pattern → failure "Amazon blocked the product request". Failures keep `RequestURL` (item URL), `HTTPStatus`, `ResponseExcerpt` = first 2 KB of the rendered HTML via the existing `excerpt`; the user message stays "Amazon could not be reached for a price check." and `SecondHandStatus = "check_error"`.
@@ -633,6 +636,64 @@ Both tests fail before the change, because the line then reads `… cleared afte
 
 None. Out of scope: the causes of a failed clear, when the clear runs, the UI, and `doc/todo/issue-233-r2-02.md` (the issue does not ask for it).
 
+## Step 4 wording (issue #234)
+
+Origin: review comment R2-02 on #231 (`doc/todo/issue-217-r2-02.md`). Step 4 of the Backend `Collect` steps named only the 2xx case for clearing the HTTP cache before the failure. The `errorText` branch of `browserTab.load` (`internal/amazon/browser.go`) calls `t.clearCache(ctx)` unless `awaitDocument` found a non-2xx Document response of the navigated frame. So it also clears the cache when no response was recorded within the 1 s wait. The TS-AMZ-HCHK-017 row and its Backend bullet (section [Downloads refused](#downloads-refused-issue-217)) already say so. Only step 4 is wrong.
+
+### Frontend
+
+Not affected: no view, component, state, style, asset or Playwright spec changes, and no accessibility or UI state change.
+
+### Backend (TS-AMZ-HCHK-022, -023)
+
+Not affected at runtime: no Go file changes, and there is no validation, persistence, migration or concurrency change. The change is one insertion in step 4 of this file (TS-AMZ-HCHK-022). Right after `with a 2xx response` and its following space, insert:
+
+```text
+or none (a response may come after the 1 s wait),
+```
+
+followed by a space, so that the clause reads as FR-AMZ-HCHK-017 gives it. Nothing else in step 4 changes (TS-AMZ-HCHK-023). Step 4 stays one numbered line between steps 3 and 5. These parts are unchanged: the non-2xx `errorPage` case, the failure messages, the FR-AMZ-HCHK-011/012 and issue #186 references, `also when the check is interrupted`, the issue #233 sentence with its en dash in `TS-AMZ-HCHK-018–019`, and the `Page.loadEventFired` sentence. The full new clause must appear only in step 4, so this section does not quote it.
+
+The new wording matches the code:
+
+- A non-2xx response recorded within the wait is the loaded page, and the cache is not cleared.
+- The cache is cleared for a 2xx response, for no response (DNS, refused, reset) and for a response that comes after the wait.
+- An interrupted `Page.navigate` clears it too.
+
+Other mentions of the clear were checked, and none changes: the TS-AMZ-HCHK-013 and -017 rows, the TS-AMZ-HCHK-017 bullet and its code block (`Unless the branch found a non-2xx response`), and the issue #233 TC-004 note. None limits the clear to the 2xx case.
+
+### API
+
+Not affected: no endpoint, request, response or error changes. `API_SPECIFICATION.md` is not changed.
+
+### Files to change
+
+| File | Stage | Change |
+| --- | --- | --- |
+| `doc/specifications/amazon-human-checks/technical.md` | technical specification (done) | Status, functional specification and test case references, TS-AMZ-HCHK-022–024 rows, this section, the issue #234 verification bullet |
+| `doc/specifications/amazon-human-checks/technical.md` | development | The step 4 insertion only (TS-AMZ-HCHK-022) |
+| `doc/FUNCTIONAL_SPECIFICATIONS.md` | development | `specified` → `implemented` in the issue #234 entry of the **Amazon human-like checks** row only |
+| `<change folder>/no-tests.md` | tests | Why there is no test code, and how each TC is checked |
+
+`functional.md` keeps its status line: `ready (issue #234)`, like the subject's other entries. No other file changes. There is no Go, test, frontend, `API_SPECIFICATION.md`, `go.mod`, `go.sum`, `package.json` or `playwright.config.ts` change and no `delete.txt`. `doc/todo/issue-217-r2-02.md` and the other change folders stay as they are.
+
+### Test files
+
+No test file is added or changed (TS-AMZ-HCHK-024). No test reads the edited documents, so an automated test could not prove the wording. The tests stage writes `no-tests.md` with that reason and the checks below. Before development, TC-001 and TC-002 fail as expected, because step 4 still has the old clause. TC-004 to TC-006 already hold.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | Repository check: `grep -nF` of the new clause on this file gives one line, step 4 (TS-AMZ-HCHK-022) |
+| TC-002 | Repository check: `grep -cF` of the old clause gives 0. Step 4 contains `also when the check is interrupted` and `clears it too (issue #233, TS-AMZ-HCHK-018–019)` after the new clause. `git diff --word-diff master` of step 4 is only the insertion (TS-AMZ-HCHK-023) |
+| TC-003 | Review check: step 4, the TS-AMZ-HCHK-017 row and bullet, and the `errorText` branch of `browserTab.load` give the same rule (TS-AMZ-HCHK-022, -023) |
+| TC-004 | Repository check: `git diff --name-only master -- doc/` lists only `doc/FUNCTIONAL_SPECIFICATIONS.md` (the one row), the two amazon-human-checks files and this change folder. The FR-AMZ-HCHK-001–016 lines of `functional.md` are unchanged. In this file, the TS-AMZ-HCHK-017 row and bullet are unchanged too (TS-AMZ-HCHK-024) |
+| TC-005 | Repository check: `git diff --name-only master -- . ':!doc'` is empty (TS-AMZ-HCHK-024) |
+| TC-006 | Gates: `gofmt -l .`, `go vet ./...`, `go test ./...` (also with `-count=1`), `npm run build` and `npx playwright test`, with the same test list as `master`. The existing tests named in TC-006 run unchanged (TS-AMZ-HCHK-024) |
+
+### Refactoring
+
+None. Manual follow-up: none, because no CI, `scripts/` or dependency change is needed.
+
 ## Verification and open questions
 
 - `gofmt -l .`, `go vet ./...`, `go test ./...` (browser tests need Chromium; present in the CI image under `/ms-playwright`), `npm run build`, `npx playwright test`; gosec and govulncheck.
@@ -646,3 +707,4 @@ None. Out of scope: the causes of a failed clear, when the clear runs, the UI, a
   - A navigation timeout during `Page.navigate` also clears the cache, since the same path is affected.
   - The HTTP harness runs in open mode, so TC-005 runs each owner's Refresh price through `RefreshItem` with that owner's principal and reads the results with `store.List(owner)`.
 - Issue #240: no open question. TC-001 and TC-002 use the fake browser and need no Chromium; TC-004 needs Chromium (with `CI` set it cannot skip). Technical interpretation: the suffix is dropped rather than passed by the caller, as chosen by FR-AMZ-HCHK-016.
+- Issue #234: no open question. Documentation only, no behaviour change. The tests stage writes `no-tests.md`, so the red gate needs no manual follow-up. The development stage writes no code: it makes the step 4 edit and the status mark of the issue #234 design and runs the checks of TC-001 to TC-006.

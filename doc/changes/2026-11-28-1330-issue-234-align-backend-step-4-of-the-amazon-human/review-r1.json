@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/amazon-human-checks/technical.md",
+    "line": 37,
+    "category": "nit",
+    "body": "The TS-AMZ-HCHK-024 row mixes a lasting technical statement ('No code, test, API or other document change') with one-off pipeline instructions ('The tests stage writes only `no-tests.md`; the development stage makes only the step 4 edit and the status mark'). The traceability table describes the system, and once the change is merged the stage instructions mean nothing there. The section's 'Files to change' table and the issue #234 verification bullet already record the stage split. Suggested fix: shorten the row to 'No code, test, API or other document change (issue #234)'."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/changes/2026-11-28-1330-issue-234-align-backend-step-4-of-the-amazon-human/no-tests.md",
+    "line": 9,
+    "category": "nit",
+    "body": "The TC-001 and TC-002 rows say 'On the current branch it matches none (step 4 is at line 76 and still holds the old clause)' and 'On the current branch the count is 1'. That was true at the TDD-red stage, but on the merged branch the opposite holds: the new clause matches line 76 and the old-clause count is 0, which I checked on head 5c8084b. Read after merge, the record seems to say the change is missing. Suggested fix: say 'Before the development stage (commit 5f7e1bc) …' instead of 'On the current branch …'."
+  }
+]
