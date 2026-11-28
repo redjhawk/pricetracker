@@ -20,6 +20,10 @@ Added `internal/amazon/amazontest/browser_profile.go` with `StaleLock`, `Browser
 - TC-014 (`PRICEFOLLOWER_BROWSER_PATH=/bin/true go test … ./internal/service/`): this stage's sandbox needs approval for a command that sets an environment variable, so it was not run. Fail-fast on an early exit is proved by `TestKillBrowserOnProfile_Issue196_TC006_ExitBeforeHolding`, which passes, and the service calls that helper.
 - TC-013 (temporary `sh -c 'sleep 30; :' <profile>` before `assertNothingLeft`): this needs a temporary edit of a locked test file, which the development stage may not make. It was not run. `assertNothingLeft` keeps its message and now calls `amazontest.BrowserProcesses`, whose entry format is proved by `TestBrowserProcesses_Issue196_TC004_ListsTheProfileProcesses`.
 
+## Round 1 (blocking comment R1-02)
+
+The tests stage widened the window of TC-008 row 2 to `sleep 0.3` in the locked test. The TDD red commit had reset `browser_profile.go` to stubs, so the round 0 implementation is restored unchanged. `go test -count=3 -run TC008 ./internal/amazon/amazontest/` passes each time (row 2 in about 0.5 s).
+
 ## Gates
 
-`gofmt -l .` is empty, `go vet ./...` passes, `go test ./...` passes and `npm run build` passes. `go doc` needed approval in the sandbox and was not run; every new exported helper has a doc comment.
+`gofmt -l .` is empty, `go vet ./...` passes, `go test ./...` passes, `npm run build` passes and `npx playwright test` passes (208 passed, 1 skipped). `go doc` needed approval in the sandbox and was not run; every new exported helper has a doc comment.
