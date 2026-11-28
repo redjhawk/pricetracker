@@ -1,0 +1,10 @@
+[
+  {
+    "id": "R3-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "Confirmed: functional.md:692 and testcases.md:36 say only the status words and the issue #228 entry differ from `master`, but the delivered index row also rewords the issue #241 entry into the implemented and closed parts. That split is what the same criterion and TS-TEST-HYG-181 and the TC-001 mapping in technical.md:1628 require, so the delivered row is correct. Only the closing clause is loosely worded; the requirement is met and no bug follows.",
+    "title": "Mention the issue #241 split in the FR-TEST-HYG-136 'only … differ' clause",
+    "todo": "**Problem:** The FR-TEST-HYG-136 acceptance criterion (`doc/specifications/test-suite-hygiene/functional.md` line 692) ends \"compared with `master`, only those status words and the issue #228 entry differ\". The last Then bullet of TC-001 (`doc/changes/2026-11-28-1024-issue-228-align-test-suite-hygiene-spec-status-wit/testcases.md` line 36) says the same. The delivered index row also rewords the issue #241 entry (`FR-TEST-HYG-018–021 specified` becomes `FR-TEST-HYG-018, 020 and 021 implemented, FR-TEST-HYG-019 closed by the merge of the issue #238 change`). The same criterion requires this, but read literally the closing clause contradicts it. TS-TEST-HYG-181 and the TC-001 mapping in `technical.md` (line 1628) already list the split as a third difference.\n\n**Suggested work:** In both places, write \"only those status words, the issue #241 split wording and the issue #228 entry differ\" so they match `technical.md`. This is a documentation change only."
+  }
+]
