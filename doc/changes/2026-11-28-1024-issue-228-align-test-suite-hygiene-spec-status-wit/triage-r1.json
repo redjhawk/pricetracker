@@ -1,0 +1,18 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "contract": false,
+    "reason": "Verified: `grep '^| Test suite hygiene |' doc/FUNCTIONAL_SPECIFICATIONS.md | grep -c ready` gives 1 (the `already` notes of #238 and #359), while `grep -cwE 'specified|ready'` gives 0. The acceptance criterion at functional.md:694 (plain `grep -c`) and the FR-TEST-HYG-138 text at line 431 therefore state a check that fails on the delivered state and contradicts TC-004 and TS-TEST-HYG-183, which use whole-word matching.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "contract": false,
+    "reason": "Verified: `eb16787` exists only on ai-dev/issue-228 and will not resolve after a squash merge, but it is a provenance note in prose; the design and requirements stay correct without it.",
+    "title": "Drop branch-only commit hash from test-suite-hygiene technical spec",
+    "todo": "**Problem:** `doc/specifications/test-suite-hygiene/technical.md` line 1261 (and TS-TEST-HYG-181 at line 1492) cite commit `eb16787`, which exists only on the `ai-dev/issue-228` branch. After the squash merge of PR #400 the hash no longer resolves (same issue as `068c29d` in `doc/specifications/app-information/technical.md:106`).\n\n**Suggested work:** Replace the hash with \"the functional specification stage of issue #228 made this edit\" or cite PR #400, in both places. Optionally fix the `068c29d` reference in app-information the same way."
+  }
+]
