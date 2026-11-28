@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"pricefollower.local/internal/amazon/amazontest"
 )
 
 // Tests of issue #240: a failed cache clear is logged with a neutral line, "Amazon browser cache could not be
@@ -81,7 +83,7 @@ func TestBrowserCacheLog_TC001_PageNotOpened(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			recordPath := useFakeBrowser(t, fakeBrowserScript{Navigate: "error", Response: http.StatusOK, Clear: test.clear, ClearError: test.clearError})
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, NewBrowserCollector(fakeBrowserOptions(t)), item)
 			logged := output()
 			record := readFakeRecord(t, recordPath)
@@ -98,7 +100,7 @@ func TestBrowserCacheLog_TC001_PageNotOpened(t *testing.T) {
 			Navigate: "error", Clear: "error", ClearError: clearRefusedCause})
 		ctx, cancel := interruptedContext(interruptionServerStop, interruptAt)
 		defer cancel()
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		got := collectInterrupted(t, NewBrowserCollector(fakeBrowserOptions(t)), ctx, item, interruptAt)
 		logged := output()
 		record := readFakeRecord(t, recordPath)
@@ -114,7 +116,7 @@ func TestBrowserCacheLog_TC001_PageNotOpened(t *testing.T) {
 		total := 0
 		for check := 1; check <= 2; check++ {
 			recordPath := useFakeBrowser(t, fakeBrowserScript{Navigate: "error", Response: http.StatusOK, Clear: "error", ClearError: clearRefusedCause})
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, item)
 			logged := output()
 			record := readFakeRecord(t, recordPath)
@@ -148,7 +150,7 @@ func TestBrowserCacheLog_TC002_PageStillRequested(t *testing.T) {
 					Navigate: "hold", Clear: failure.clear, ClearError: failure.clearError})
 				ctx, cancel := interruptedContext(kind, interruptAt)
 				defer cancel()
-				output := captureOutput(t)
+				output := amazontest.CaptureOutput(t)
 				got := collectInterrupted(t, NewBrowserCollector(fakeBrowserOptions(t)), ctx, item, interruptAt)
 				logged := output()
 				record := readFakeRecord(t, recordPath)

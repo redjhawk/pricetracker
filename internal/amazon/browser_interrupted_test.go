@@ -139,7 +139,7 @@ func TestBrowserInterrupted_TC001_ClearConfirmedBeforeClose(t *testing.T) {
 				recordPath := useFakeBrowser(t, fakeBrowserScript{SetUpUntil: interruptAt.Add(-200 * time.Millisecond).UnixNano(),
 					Navigate: "error", Clear: "answer", ClearDelay: 300 * time.Millisecond})
 				ctx, cancel := interruptedContext(kind, interruptAt)
-				output := captureOutput(t)
+				output := amazontest.CaptureOutput(t)
 				got := collectInterrupted(t, collector, ctx, item, interruptAt)
 				logged := output()
 				cancel()
@@ -177,7 +177,7 @@ func TestBrowserInterrupted_TC002_PageStillRequestedIsCleared(t *testing.T) {
 				Navigate: test.navigate, NavigateAt: interruptAt.Add(300 * time.Millisecond).UnixNano(), Clear: "answer", ClearDelay: 300 * time.Millisecond})
 			ctx, cancel := interruptedContext(test.kind, interruptAt)
 			defer cancel()
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := collectInterrupted(t, NewBrowserCollector(fakeBrowserOptions(t)), ctx, item, interruptAt)
 			logged := output()
 			record := readFakeRecord(t, recordPath)
@@ -211,7 +211,7 @@ func TestBrowserInterrupted_TC003_UnconfirmedClearIsBoundedAndLogged(t *testing.
 				Navigate: test.navigate, Clear: test.clear, ClearError: test.cause})
 			ctx, cancel := interruptedContext(interruptionServerStop, interruptAt)
 			defer cancel()
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := collectInterrupted(t, NewBrowserCollector(fakeBrowserOptions(t)), ctx, item, interruptAt)
 			logged := output()
 			record := readFakeRecord(t, recordPath)
@@ -334,7 +334,7 @@ func TestBrowserInterrupted_TC004_RealCheckInterruptedAroundADownloadWritesNoFil
 			at := time.Now().Add(5 * time.Second)
 			interruptAt.Store(at.UnixNano())
 			ctx, cancel := interruptedContext(test.kind, at)
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := collectInterrupted(t, collector, ctx, item, at)
 			returned := time.Now()
 			logged := output()
@@ -373,7 +373,7 @@ func TestBrowserInterrupted_TC006_UninterruptedCheckIsUnchanged(t *testing.T) {
 
 	t.Run("download", func(t *testing.T) {
 		recordPath := useFakeBrowser(t, fakeBrowserScript{Navigate: "error", Response: http.StatusOK, Clear: "answer"})
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		got := browserCheck(t, NewBrowserCollector(fakeBrowserOptions(t)), item)
 		logged := output()
 		record := readFakeRecord(t, recordPath)
@@ -384,7 +384,7 @@ func TestBrowserInterrupted_TC006_UninterruptedCheckIsUnchanged(t *testing.T) {
 
 	t.Run("error page", func(t *testing.T) {
 		recordPath := useFakeBrowser(t, fakeBrowserScript{Navigate: "error", Response: http.StatusServiceUnavailable, Clear: "answer"})
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		got := browserCheck(t, NewBrowserCollector(fakeBrowserOptions(t)), item)
 		logged := output()
 		record := readFakeRecord(t, recordPath)

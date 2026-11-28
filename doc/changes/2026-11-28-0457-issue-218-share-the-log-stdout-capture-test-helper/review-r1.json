@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/changes/2026-11-28-0457-issue-218-share-the-log-stdout-capture-test-helper/implementation.md",
+    "line": 7,
+    "category": "test",
+    "body": "FR-TEST-HYG-127 says concurrent writes are captured without a data race. TC-008 says it passes only when `go test -race -count=1 -run '^TestCaptureOutput_Issue218_' ./internal/amazon/amazontest/` reports no race, and technical.md run 1 requires that run. TestCaptureOutput_Issue218_TC008_ConcurrentWritesNoRace checks only that each line appears once and in order. It can pass without the race detector even if the shared buffers race. Nothing in .github or scripts runs `-race`, so no gate covers this either. Even so, functional.md line 3 marks FR-TEST-HYG-127 as implemented. Fix: run the `-race` command on a machine that has a C compiler (or add a CI step with CGO_ENABLED=1 and gcc) and record the result in implementation.md. Until then, do not mark FR-TEST-HYG-127 / TS-TEST-HYG-167–171 as implemented."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/changes/2026-11-28-0457-issue-218-share-the-log-stdout-capture-test-helper/implementation.md",
+    "line": 10,
+    "category": "test",
+    "body": "TC-011 and technical.md run 4 require comparing the sorted `=== RUN` lists of `go test -count=1 -v ./internal/amazon/ ./internal/service/ ./internal/httpapi/` with a copy of master. Run 2 (`go doc ... CaptureOutput`, TC-001) is also required. Neither ran, and a manual `git diff -U0` review replaces the first. The diff review is reasonable evidence, but it is not the proof the specification asks for. It also does not show that subtests created dynamically (table-driven `t.Run` names) are unchanged. Fix: run both commands where the sandbox allows it (for example `git worktree add $TMPDIR/master origin/master`) and record their output, or update technical.md so the diff review is the accepted proof."
+  },
+  {
+    "id": "R1-03",
+    "file": "internal/amazon/amazontest/capture_test.go",
+    "line": 468,
+    "category": "test",
+    "body": "technical.md (lines 1163 and 1209) names one deliberate behaviour change: StartCapture creates the pipe before `log.SetOutput`, so a failed setup leaves both destinations unchanged. On master the logger stayed redirected. TC-009 checks only that the child test fails with `too many open files`. If someone moves `os.Pipe()` back after `log.SetOutput(&c.logs)`, every test still passes. Fix: in the child branch, before `CaptureOutput(t)`, save `log.Writer()` and `os.Stdout`. Register a `t.Cleanup` that prints a marker such as `destinations unchanged` when both are still the saved values. Then have the parent require that marker."
+  }
+]

@@ -1,10 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -70,54 +67,12 @@ func leaveLockDirectory(t *testing.T, profile string) string {
 	return lock
 }
 
-type profileOutput struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (o *profileOutput) Write(data []byte) (int, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.buffer.Write(data)
-}
-
-func (o *profileOutput) String() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.buffer.String()
-}
-
-// captureProfileOutput collects the log and the standard output (where the Amazon collector prints
-// its failures) until the end of the test.
-func captureProfileOutput(t *testing.T) *profileOutput {
-	t.Helper()
-	output := &profileOutput{}
-	previousLog := log.Writer()
-	log.SetOutput(output)
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	previousStdout := os.Stdout
-	os.Stdout = writer
-	copied := make(chan struct{})
-	go func() { io.Copy(output, reader); close(copied) }()
-	t.Cleanup(func() {
-		os.Stdout = previousStdout
-		writer.Close()
-		<-copied
-		reader.Close()
-		log.SetOutput(previousLog)
-	})
-	return output
-}
-
 // waitStartFailures waits until want browser start failures are printed and checks there are no more.
 // It counts the collector's line only: other log lines (the request gate) may repeat the cause.
-func waitStartFailures(t *testing.T, output *profileOutput, want int) {
+func waitStartFailures(t *testing.T, output *amazontest.Capture, want int) {
 	t.Helper()
 	count := func() int {
-		return countLines(output.String(), func(line string) bool {
+		return countLines(output.Live(), func(line string) bool {
 			return strings.HasPrefix(line, "Amazon collection failed for ") && strings.Contains(line, "browser could not start")
 		})
 	}
@@ -125,7 +80,7 @@ func waitStartFailures(t *testing.T, output *profileOutput, want int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if got := count(); got != want {
-		t.Fatalf("%d browser start failures logged, want %d:\n%s", got, want, output.String())
+		t.Fatalf("%d browser start failures logged, want %d:\n%s", got, want, output.Live())
 	}
 }
 
@@ -188,7 +143,7 @@ func TestAmazonBrowserProfile_TC007_FailureIsLoggedCountedAndStopsItems(t *testi
 		insertAt(t, database, other, "amazon", scheduleDay(20, 0))
 		now := newClock(scheduleDay(7, 30))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 7)
-		output := captureProfileOutput(t)
+		output := amazontest.StartCapture(t)
 		ctx := context.Background()
 
 		added, err := service.Add(ctx, "https://www.amazon.fr/dp/B0PROF0071", "")
@@ -267,7 +222,7 @@ func TestAmazonBrowserProfile_TC007_FailureIsLoggedCountedAndStopsItems(t *testi
 		insertAt(t, database, id, "amazon", scheduleDay(20, 0))
 		now := newClock(scheduleDay(14, 0))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 73)
-		output := captureProfileOutput(t)
+		output := amazontest.StartCapture(t)
 		ctx := context.Background()
 		for failure := 1; failure <= 4; failure++ {
 			now.Set(scheduleDay(14, failure))
@@ -308,7 +263,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 		amazontest.KillBrowserOnProfile(t, profile)
 		now := newClock(scheduleDay(7, 5))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 9)
-		output := captureProfileOutput(t)
+		output := amazontest.StartCapture(t)
 		ctx := context.Background()
 
 		service.collectDue(ctx)
@@ -334,7 +289,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 		if got := nextCheck(t, database, id); !got.Equal(next) {
 			t.Fatalf("Refresh price moved the next check from %s to %s", next.In(paris), got.In(paris))
 		}
-		if logged := output.String(); strings.Contains(logged, "browser could not start") {
+		if logged := output.Live(); strings.Contains(logged, "browser could not start") {
 			t.Fatalf("a browser start failure was logged:\n%s", logged)
 		}
 	})

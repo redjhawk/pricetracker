@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"pricefollower.local/internal/amazon/amazontest"
 	"pricefollower.local/internal/model"
 )
 
@@ -47,7 +48,7 @@ func TestAmazonBrowserErrorPage_TC003_ScheduledCheckSendsNoUsedOfferRequest(t *t
 				t.Fatal(err)
 			}
 			api.fixture.Reset()
-			output := captureCheckOutput(t)
+			output := amazontest.CaptureOutput(t)
 			at := humanTime(14, 10)
 			api.check(ids[0], at, unavailable.answer)
 			logged := output()
@@ -125,7 +126,7 @@ func TestAmazonBrowserErrorPage_TC004_RefreshSendsNoUsedOfferRequest(t *testing.
 	t.Run("Refresh price, Refresh all prices, Refresh price again", func(t *testing.T) {
 		api := openNavigationAPI(t, ids)
 		api.fixture.answer.Store(answerEmpty404)
-		output := captureCheckOutput(t)
+		output := amazontest.CaptureOutput(t)
 
 		refresh(t, api.server, ids[0])
 		assertUnavailableOfferKept(t, waitBrowserCheck(t, api.server, ids[0], humanTime(14, 0)), humanTime(14, 0))

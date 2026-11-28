@@ -24,7 +24,7 @@ func TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile(t *t
 	before := dataFiles(t, api.dir)
 
 	api.fixture.answer.Store(answerAttachmentHeld)
-	output := captureCheckOutput(t)
+	output := amazontest.CaptureOutput(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stopped := make(chan struct{})
@@ -58,7 +58,7 @@ func TestAmazonBrowserInterrupted_TC005_ServerStopDuringRefreshWritesNoFile(t *t
 	for index, owner := range owners {
 		id, at := ids[index], humanTime(14, 10+index)
 		api.clock.Set(at)
-		refreshOutput := captureCheckOutput(t)
+		refreshOutput := amazontest.CaptureOutput(t)
 		principal := service.WithPrincipal(context.Background(), service.Principal{UserID: owner, Role: "user"})
 		if _, err := api.items.RefreshItem(principal, id); err != nil {
 			t.Fatalf("Refresh price of %s by owner %d: %v", id, owner, err)
