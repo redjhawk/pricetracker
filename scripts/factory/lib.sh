@@ -98,6 +98,20 @@ refresh_issue_context() {
 
 # ---- agents ----
 
+# stage_effort <prompt name>: the reasoning effort of a stage. FACTORY_EFFORT_<STAGE> (for example
+# FACTORY_EFFORT_IMPLEMENT) wins, then FACTORY_EFFORT for every stage, then the stage's default: high for
+# the specification stages, medium for the implementation and the stages that judge or fix code, low for
+# the test cases, the tests and the triage.
+stage_effort() {
+  local var="FACTORY_EFFORT_${1^^}" default
+  case "$1" in
+    spec|usecases|techspec) default=high ;;
+    testcases|tests|triage) default=low ;;
+    *) default=medium ;; # implement, review, merge, repair
+  esac
+  echo "${!var:-${FACTORY_EFFORT:-$default}}"
+}
+
 # run_agent <prompt name> <tool profile> [extra context]
 # Every stage is a fresh, independent Claude process: no shared context between roles.
 run_agent() {
@@ -130,7 +144,7 @@ $extra"
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
     CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 \
   claude -p "$prompt" \
-    --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
+    --model "$MODEL" --effort "$(stage_effort "$name")" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
     --output-format json >"$LOG_DIR/$name.json" 2>"$LOG_DIR/$name.err" \
     || { agent_log "$name"; agent_failed "$name"; }

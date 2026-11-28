@@ -44,7 +44,6 @@ if [ "$(uname -s)" = Linux ]; then
 fi
 
 MODEL=${FACTORY_MODEL:-claude-opus-5-5}
-EFFORT=${FACTORY_EFFORT:-high}
 MAX_TURNS=${FACTORY_MAX_TURNS:-150}
 MAX_ROUNDS=${FACTORY_MAX_ROUNDS:-3}     # review → fix rounds before asking the user
 MAX_ATTEMPTS=${FACTORY_MAX_ATTEMPTS:-3} # implementation attempts against the green gate per round
