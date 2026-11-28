@@ -1,6 +1,6 @@
 # Functional specification: Amazon browser retrieval
 
-Status: ready (issue #204); FR-AMZ-BRET-008 specified (issue #226); FR-AMZ-BRET-009 specified (issue #210)
+Status: ready (issue #204); FR-AMZ-BRET-008 specified (issue #226); FR-AMZ-BRET-009 implemented (issue #210)
 Owner: functional specification agent
 User decision/reference: GitHub issue #204 ("Retrieval error": since Amazon prices are read through a web browser, every product returns a retrieval error); GitHub issue #226 (document the Ubuntu Chromium snap pitfall, from review comment R4-01 on PR #206); GitHub issue #210 (document the `response` field of the failure log line, from review comment R2-03 on #206).
 
