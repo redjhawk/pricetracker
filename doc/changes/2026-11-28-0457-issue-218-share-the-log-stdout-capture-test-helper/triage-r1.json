@@ -1,0 +1,26 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "The code is race-free by inspection: in capture.go:73-89 every outputBuffer Write and String takes the mutex, log.Logger serialises its writes, Live reads only the locked buffers, and os.Stdout is assigned only in StartCapture and End, which TC-008 calls outside its goroutines. TC-008 already proves race freedom once it runs under -race, so the gap is that the run never happened: this environment has no C compiler. The technical specification (technical.md:2050) calls that run a development check, not a gate, so a CI step that runs it is a follow-up.",
+    "title": "Run the amazontest capture tests under the race detector in CI",
+    "todo": "**Problem:** TC-008 (`TestCaptureOutput_Issue218_TC008_ConcurrentWritesNoRace`, `internal/amazon/amazontest/capture_test.go:376`) proves FR-TEST-HYG-127's \"no data race\" only under `go test -race`. The factory sandbox has no C compiler (`-race requires cgo`, `gcc not found`), and nothing in `.github/` or `scripts/` runs `-race`. The run is therefore recorded as not done in `doc/changes/2026-11-28-0457-issue-218-share-the-log-stdout-capture-test-helper/implementation.md:7`.\n\n**Suggested work:** Add a CI step with `CGO_ENABLED=1` and gcc that runs `go test -race -count=1 -run '^TestCaptureOutput_Issue218_' ./internal/amazon/amazontest/`. Consider widening it to the other `-race` runs that the test-suite-hygiene design asks for. Until then, record the result of one manual run on a machine that has gcc."
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "contract": false,
+    "reason": "In `git diff -U0 master` of the thirteen caller files, the only changes are capture calls (`captureOutput`/`captureCheckOutput`/`captureProfileOutput` → `amazontest.CaptureOutput`/`StartCapture`), the `*amazontest.Capture` type with its `Live()` reads, the removed copies and imports. No test function, `t.Run` line or table row changes, so the `=== RUN` lists, dynamic subtest names included, cannot differ. The full `go test ./...` passed with Chromium. TC001 and the compiling callers check the signature that `go doc` would show. The missing runs are a gap in the evidence, not a defect.",
+    "title": "Record the issue #218 `=== RUN` comparison and `go doc` runs, or accept the diff review",
+    "todo": "**Problem:** Runs 2 (`go doc pricefollower.local/internal/amazon/amazontest CaptureOutput`, TC-001) and 4 (sorted `=== RUN` lists of `go test -count=1 -v ./internal/amazon/ ./internal/service/ ./internal/httpapi/` compared with a copy of `master`, TC-011) of the issue #218 design (`doc/specifications/test-suite-hygiene/technical.md:1203,1205`) were not executed. The sandbox refused them. `implementation.md:8,10` records a diff review instead.\n\n**Suggested work:** Where the environment allows it, run both commands (for example with `git worktree add \"$TMPDIR/master\" origin/master`) and record the output. Alternatively, change the factory's technical design template so that, for pure test refactorings, a diff showing no `func Test`/`t.Run`/table change is accepted proof."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "contract": false,
+    "reason": "TC-009 (testcases.md:109-117) and FR-TEST-HYG-127 require only that a failed setup fails the test and names the error, and the test checks exactly that. The code creates the pipe before `log.SetOutput` (capture.go:28-34), as technical.md describes. A check that the destinations stay unchanged would add a regression guard for a design detail that no requirement or test case states, so it is a nice-to-have test.",
+    "title": "Assert that a failed capture setup leaves log and stdout unchanged",
+    "todo": "**Problem:** `StartCapture` (`internal/amazon/amazontest/capture.go:28`) creates the pipe before redirecting the logger, so a failed setup leaves both destinations unchanged. That is one of the deliberate differences from `master` (`doc/specifications/test-suite-hygiene/technical.md`, issue #218 design). `TestCaptureOutput_Issue218_TC009_SetupFailureFailsTheTest` (`internal/amazon/amazontest/capture_test.go:446`) checks only the failure and the `too many open files` text. It would still pass if `os.Pipe()` moved back after `log.SetOutput`.\n\n**Suggested work:** In the child branch, save `log.Writer()` and `os.Stdout` before `CaptureOutput(t)`. Register a `t.Cleanup` that prints a marker such as `destinations unchanged` when both still equal the saved values. Have the parent require that marker. Add the corner case to TC-009 in the test-suite-hygiene specifications."
+  }
+]
