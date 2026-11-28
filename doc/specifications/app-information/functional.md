@@ -1,6 +1,6 @@
 # Functional specification: application information
 
-Status: ready\
+Status: implemented (issue #115); FR-APP-INFO-014 implemented (issue #215); FR-APP-INFO-015–017 implemented (issue #223, maintenance: no behaviour change)\
 Owner: functional specification agent\
 User decision/reference: issue #115 and the user decisions recorded in the [change index](../../changes/2026-11-10-0541-issue-115-app-information/index.md) (no email; open mode shows only the version; administrator gets the entry; version is the build-time release tag, or latest tag + `-dev` in development; English texts).
 
@@ -30,6 +30,9 @@ Excluded: email or any other account data, changelogs, release notes, update che
 | FR-APP-INFO-012 | Keyboard or assistive technology use. | The entry is reachable and selectable with the keyboard; the modal follows Carbon modal accessibility (focus moved into the modal, focus kept inside while open, accessible title, labelled values). | The entry can be reached with arrow keys/Tab and selected with Enter/Space; on opening, focus is inside the modal; Tab does not leave the modal while open. |
 | FR-APP-INFO-013 | Viewport about 400 px wide. | The entry and modal remain usable. | At about 400 px, the modal fits on screen without horizontal scrolling; long usernames and the version wrap or stay readable without overlap. |
 | FR-APP-INFO-014 | The modal is open and the operator presses Tab or Shift+Tab, at any speed. | Focus never leaves the modal, not even momentarily: right after each key press focus is on a control inside the modal, wrapping from the last control to the first (Tab) and from the first to the last (Shift+Tab) (issue #215). | Checked right after each of several consecutive Tab presses, and right after Shift+Tab from the first control, with no wait between presses, the focused element is inside the modal every time. |
+| FR-APP-INFO-015 | The operator reads the subject index, section 15 of `doc/FUNCTIONAL_SPECIFICATIONS.md` (issue #223, maintenance). | The Status cell of the **Application information** row is exactly `implemented`: the stale “specified (issue #115)” and “FR-APP-INFO-014 specified (issue #215)” are gone, since the Information entry and modal (issue #115) and FR-APP-INFO-014 (issue #215) are implemented. | The row's Status cell is `implemented` and nothing else; `grep -n "specified (issue #115)" doc/FUNCTIONAL_SPECIFICATIONS.md` and `grep -n "FR-APP-INFO-014 specified" doc/FUNCTIONAL_SPECIFICATIONS.md` print nothing. |
+| FR-APP-INFO-016 | The operator reads this file's Status line (issue #223, maintenance). | The Status line says the subject is implemented instead of `ready`, and records FR-APP-INFO-014 (issue #215) and FR-APP-INFO-015 to 017 (issue #223) as implemented. | Line 3 of this file starts with `Status: implemented (issue #115); FR-APP-INFO-014 implemented (issue #215); FR-APP-INFO-015–017 implemented (issue #223` and does not contain `ready`. |
+| FR-APP-INFO-017 | Issue #223 is applied (maintenance). | Nothing else changes: only documentation under `doc/` changes. The application, its tests, the text of FR-APP-INFO-001 to 014 and FR-APP-MENU-001 to 007, the other rows of the subject index, the change records of earlier issues under `doc/changes/` and the files under `doc/todo/` are unchanged. | `git diff --name-only origin/master` lists only files under `doc/`; the rows of FR-APP-INFO-001 to 014 and FR-APP-MENU-001 to 007 are identical to master; the other section 15 rows are unchanged; the repository test suite passes; the operator observes no change in the application. |
 
 ## States and corner cases
 
@@ -48,4 +51,5 @@ None. All functional choices are recorded user decisions.
 - [Header menu](../app-header-menu/functional.md) FR-APP-MENU-003, FR-APP-MENU-004, FR-APP-MENU-006.
 - [Multiple users and login](../multi-user-login/functional.md) FR-AUTH-003, open and protected modes.
 - [GitHub release](../github-release/functional.md) for release tags.
+- Issue #223 (review R1-03 on PR #221, `doc/todo/issue-215-r1-03.md`): the subject index and this file's Status line still said “specified” and “ready” though the subject is implemented → FR-APP-INFO-015 to 017. No behaviour change. Change folder: [issue 223](../../changes/2026-11-28-0613-issue-223-mark-the-header-menu-and-application-inf/issue.md).
 - Technical handoff target: `doc/specifications/app-information/technical.md`.
