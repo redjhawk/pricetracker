@@ -1,0 +1,10 @@
+# Issue #219 Fold the redundant Amazon-answer check into assertNavigationFailure
+
+**Problem:** In `internal/amazon/browser_navigation_test.go`, lines 83 (TC-001) and 117 (TC-002) check `got.Result` against `price_not_found`/`success`/`unavailable` before calling `assertNavigationFailure`, which already requires `Result == "request_error"`.
+
+**Suggested work:** Remove the two checks and make the message in `assertNavigationFailure` (line 32) name the result that was wrongly given, for example `t.Fatalf("gave %q instead of a failure: %+v", got.Result, got)`.
+
+From review comment R1-03 on #216 (`doc/todo/issue-186-r1-03.md`).
+
+## Comments by trusted authors
+
