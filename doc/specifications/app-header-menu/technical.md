@@ -166,6 +166,8 @@ None.
 
 The behaviour shipped with issue #215, so the new tests are expected to pass on the base branch, and the TDD red gate (`gate_red`: "the tests pass before implementing") will stop the run. This is the situation described in the [issue #215 pipeline note](#pipeline-note). The owner decides how to proceed, for example by accepting the tests past the red gate by hand. Tests must not be weakened, and must not be made to fail on purpose, to satisfy the gate. No test depends on this follow-up.
 
+Implemented: TS-APP-MENU-007 (no source change; checks and gates pass). Fails-without-the-fix result: with `handleTriggerKeyDown` reduced to its Escape line, TC-001 – TC-005 (#225) all still pass, as the tests stage also found (change folder `tests-note.md`). Playwright's `page.keyboard.press` returns only after the renderer has handled the key, so Carbon has already focused **Information** when the arrow key arrives, even at CPU rate 6. The tests check FR-APP-MENU-009 but do not catch a regression in the trigger's arrow-key branch; the rate and round count were kept as specified.
+
 ## Revision note
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
