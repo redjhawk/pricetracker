@@ -1,0 +1,34 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "contract": false,
+    "reason": "Confirmed: line 3 of technical.md still reads `TS-TEST-HYG-145–149 specified (issue #219)`, while the design (line 1048) and the file table (line 1332) require the development stage to set them to implemented, and functional.md and FUNCTIONAL_SPECIFICATIONS.md already say FR-TEST-HYG-111–114 are implemented. A required delivery step is missing and the documents disagree.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "contract": false,
+    "reason": "Confirmed: `grep -rn '\"not a failure: ' internal/amazon/` prints six lines (browser_test.go:364/383, browser_profile_test.go:136, browser_interrupted_test.go:59, browser_retrieval_test.go:417/568), so the acceptance criterion at functional.md:579, TC-002 (testcases.md:42) and run 3 (technical.md:1042) cannot hold while FR-TEST-HYG-114 forbids touching those files. The specification marked implemented states a proof that fails; the grep must be limited to `internal/amazon/browser_navigation_test.go` in all three places.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "contract": false,
+    "reason": "Confirmed that the glossary at functional.md:100 still gives the old message `not a failure: %+v`, but it is descriptive text only; the requirement FR-TEST-HYG-112 and the code state the new message, so nothing is unmet.",
+    "title": "Update the navigation failure helper glossary entry to the new message",
+    "todo": "**Problem:** The glossary entry 'Navigation failure helper (issue #219)' in `doc/specifications/test-suite-hygiene/functional.md` line 100 says `assertNavigationFailure` fails with `not a failure: %+v`, which is no longer the code after issue #219.\n\n**Suggested work:** Replace the message in the entry with `gave %q instead of a failure: %+v` (the result, then the whole result).\n\n**File:** `doc/specifications/test-suite-hygiene/functional.md:100`"
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "contract": false,
+    "reason": "Confirmed: the condition at browser_navigation_test.go:34 also checks Message and SecondHandStatus, so a `request_error` with a wrong message prints `gave \"request_error\" instead of a failure`. The `%+v` dump still shows the wrong field and FR-TEST-HYG-112 mandates this exact text, so it is readability only.",
+    "title": "Make assertNavigationFailure's first message accurate when only the message or second-hand status is wrong",
+    "todo": "**Problem:** In `internal/amazon/browser_navigation_test.go` line 35, the first check of `assertNavigationFailure` fails also when `Result` is `request_error` but `Message` is not `amazonCheckFailed` or `SecondHandStatus` is not `check_error`. The message then reads `gave \"request_error\" instead of a failure: {…}`, which contradicts itself.\n\n**Suggested work:** Split the check (result first with the current message, then message and second-hand status with their own message), or word the message neutrally, for example `gave %q, not the expected failure: %+v`. Update FR-TEST-HYG-112 / TS-TEST-HYG-146 accordingly.\n\n**File:** `internal/amazon/browser_navigation_test.go:34-36`"
+  }
+]
