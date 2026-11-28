@@ -95,7 +95,7 @@ scripts/factory/factory.sh 151 --until techspec   # stop after a stage
 scripts/factory/factory.sh 151 --no-push          # local commits only; stops before the PR
 ```
 
-Settings (environment): `FACTORY_MODEL` (`claude-opus-5-5`), `FACTORY_EFFORT` (`high`), `FACTORY_MAX_TURNS` (150), `FACTORY_MAX_ROUNDS` (3), `FACTORY_MAX_ATTEMPTS` (3), `FACTORY_STAGE_ATTEMPTS` (2), `FACTORY_SECURITY` (1), `FACTORY_LOG_DIR` (agent transcripts; a temporary directory by default, uploaded as an artifact in CI).
+Settings (environment): `FACTORY_MODEL` (`claude-opus-5-5`), `FACTORY_EFFORT` (unset: each stage has its own effort, `high` for `spec`, `usecases` and `techspec`, `medium` for `implement`, `review`, `merge` and `repair`, `low` for `testcases`, `tests` and `triage`; when set, it applies to every stage), `FACTORY_EFFORT_<STAGE>` (one stage, for example `FACTORY_EFFORT_IMPLEMENT=high`; wins over `FACTORY_EFFORT`), `FACTORY_MAX_TURNS` (150), `FACTORY_MAX_ROUNDS` (3), `FACTORY_MAX_ATTEMPTS` (3), `FACTORY_STAGE_ATTEMPTS` (2), `FACTORY_SECURITY` (1), `FACTORY_LOG_DIR` (agent transcripts; a temporary directory by default, uploaded as an artifact in CI).
 
 To move a change back by hand, edit `stage` in its `state.json`, commit and push it, and run the factory again.
 

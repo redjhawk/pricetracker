@@ -25,7 +25,6 @@ ISSUE=${1:-}
 for cmd in claude gh git jq go npm node; do command -v "$cmd" >/dev/null || die "$cmd is required"; done
 
 MODEL=${FACTORY_MODEL:-claude-opus-5-5}
-EFFORT=${FACTORY_EFFORT:-high}
 MAX_TURNS=${FACTORY_REPAIR_MAX_TURNS:-200}
 ATTEMPTS=${FACTORY_REPAIR_ATTEMPTS:-2}
 BASE_BRANCH=${FACTORY_BASE_BRANCH:-master}
@@ -125,7 +124,7 @@ $2"
   log "repair agent, attempt $1"
   env -u GH_TOKEN -u GITHUB_TOKEN -u FACTORY_GH_TOKEN CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 \
   claude -p "$prompt" \
-    --model "$MODEL" --effort "$EFFORT" --max-turns "$MAX_TURNS" \
+    --model "$MODEL" --effort "$(stage_effort repair)" --max-turns "$MAX_TURNS" \
     --allowedTools "$tools" \
     --output-format json >"$LOG_DIR/repair.json" 2>"$LOG_DIR/repair.err" \
     || { agent_log repair; agent_failed repair; }
