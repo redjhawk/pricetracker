@@ -480,7 +480,7 @@ func TestKillBrowserOnProfile_Issue196_TC008_LeftoverAndMissingLock(t *testing.T
 
 	t.Run("lock removed before the kill", func(t *testing.T) {
 		const prefix = "precondition: the killed browser left no SingletonLock: "
-		stub, _ := writeStub(t, "ln -s \"stub-$$\" \"$profile/SingletonLock\"\nsleep 0.1\nrm -f \"$profile/SingletonLock\"\nwhile :; do sleep 0.1; done")
+		stub, _ := writeStub(t, "ln -s \"stub-$$\" \"$profile/SingletonLock\"\nsleep 0.3\nrm -f \"$profile/SingletonLock\"\nwhile :; do sleep 0.1; done")
 		t.Setenv("PRICEFOLLOWER_BROWSER_PATH", stub)
 		profile := filepath.Join(t.TempDir(), "profile")
 		if err := os.MkdirAll(profile, 0o700); err != nil {

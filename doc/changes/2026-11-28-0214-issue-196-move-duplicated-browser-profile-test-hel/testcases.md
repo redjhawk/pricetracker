@@ -120,7 +120,7 @@ Conventions:
 - Level: unit (Go, helper package; recording TB; stub browsers)
 - Given, one at a time:
   1. a stub browser that creates `SingletonLock` in its profile, then starts with `setsid` a process outside its group whose arguments hold the profile (for example `sleep 60 <profile>`), and keeps running;
-  2. a stub browser that creates `SingletonLock`, removes it about 100 ms later (within the 500 ms wait), and keeps running
+  2. a stub browser that creates `SingletonLock`, removes it about 300 ms later (within the 500 ms wait), and keeps running
 - When `KillBrowserOnProfile` is called with the recording TB
 - Then:
   1. after the kill and the 5 s wait, it records a failure whose message starts with `browser processes left after the kill: ` and holds the escaped process's entry (`<pid>: ` followed by its command line);
