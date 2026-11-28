@@ -338,8 +338,8 @@ Detailed, current requirements for features added after the initial v1 text. Whe
 | Item refresh | [item-refresh](specifications/item-refresh/functional.md) | implemented |
 | Platform tabs | [platform-tabs](specifications/platform-tabs/functional.md) | implemented |
 | Tracked item identity | [tracked-items-identity](specifications/tracked-items-identity/functional.md) | implemented |
-| Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented; FR-APP-MENU-007 specified (issue #215) |
-| Application information | [app-information](specifications/app-information/functional.md) | specified (issue #115); FR-APP-INFO-014 specified (issue #215) |
+| Header menu | [app-header-menu](specifications/app-header-menu/functional.md) | implemented |
+| Application information | [app-information](specifications/app-information/functional.md) | implemented |
 | LeBoncoin session settings | [leboncoin-session-settings](specifications/leboncoin-session-settings/functional.md) | implemented; amended by FR-SECRET-* (issue #265) |
 | LeBoncoin session collection | [leboncoin-session-collection](specifications/leboncoin-session-collection/functional.md) | implemented |
 | LeBoncoin session capture | [leboncoin-session-capture](specifications/leboncoin-session-capture/functional.md) | implemented |

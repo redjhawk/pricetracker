@@ -1,6 +1,6 @@
 # Functional specification: application header menu
 
-Status: ready\
+Status: ready; FR-APP-MENU-007 implemented (issue #215); FR-APP-MENU-008 implemented (issue #223, maintenance: no behaviour change)\
 Owner: functional specification agent\
 User decision/reference: user request of 2026-10-03 (quoted in the [change index](../../changes/2026-10-03-1741-leboncoin-session-settings/index.md)): “on the top right part of the screen, you should show something similar to a profile icon that will open a menu. on this menu, you should show a settings link. when clicking on it, a modal will appear.”
 
@@ -23,6 +23,7 @@ Excluded: user accounts, login/logout, user names or avatars, per-user preferenc
 | FR-APP-MENU-005 | The viewport is narrow (about 400 px wide). | Keep the control visible and usable. | At about 400 px width, the control remains visible in the header, does not overlap the brand or **Add item** control, and opens a menu that fits on screen. |
 | FR-APP-MENU-006 | The settings modal or another modal (add item, delete) is open. | Do not open a second modal on top of an open modal through the menu. | While a modal is open the header control is not reachable behind the modal; the menu cannot be used to stack the settings modal over another modal. |
 | FR-APP-MENU-007 | The menu has just been opened with the keyboard (Enter or Space on the focused control) and Escape is pressed at once, with no wait. | Escape closes the menu however short the delay since it opened, including before focus has moved into the menu (issue #215). | When Escape is pressed immediately after Enter opens the menu, the menu is closed, focus is on the control and the control reports the collapsed state; a following Enter or Space on the control opens the menu again. |
+| FR-APP-MENU-008 | The operator reads the subject index, section 15 of `doc/FUNCTIONAL_SPECIFICATIONS.md` (issue #223, maintenance). | The Status cell of the **Header menu** row is exactly `implemented`: the stale “FR-APP-MENU-007 specified (issue #215)” is gone, since FR-APP-MENU-007 is implemented. Nothing else changes (FR-APP-INFO-017). | The row's Status cell is `implemented` and nothing else; `grep -n "FR-APP-MENU-007 specified" doc/FUNCTIONAL_SPECIFICATIONS.md` prints nothing. |
 
 ## States and corner cases
 
@@ -41,4 +42,5 @@ None affecting this handoff. Menu contents are exactly what the user requested (
 
 - [Existing functional specifications](../../FUNCTIONAL_SPECIFICATIONS.md), section 7 (pages and interface areas) and section 10 (no accounts or login).
 - [LeBoncoin session settings](../leboncoin-session-settings/functional.md), FR-LBC-SET-001.
+- Issue #223 (review R1-03 on PR #221, `doc/todo/issue-215-r1-03.md`): the subject index still said “FR-APP-MENU-007 specified” though it is implemented → FR-APP-MENU-008. No behaviour change. Change folder: [issue 223](../../changes/2026-11-28-0613-issue-223-mark-the-header-menu-and-application-inf/issue.md).
 - Technical handoff target: `doc/specifications/app-header-menu/technical.md`.

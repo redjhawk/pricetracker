@@ -1,7 +1,7 @@
 # Technical specification: application information
 
 Status: ready
-Functional specification: [functional.md](functional.md) (FR-APP-INFO-001..013, issue #115; FR-APP-INFO-014, issue #215, see [Issue #215](#issue-215-focus-kept-inside-at-any-speed-fr-app-info-014))
+Functional specification: [functional.md](functional.md) (FR-APP-INFO-001..013, issue #115; FR-APP-INFO-014, issue #215, see [Issue #215](#issue-215-focus-kept-inside-at-any-speed-fr-app-info-014); FR-APP-INFO-015..017, issue #223, see [Issue #223](#issue-223-subject-index-and-status-line-fr-app-info-015-to-017))
 
 ## Requirement mapping
 
@@ -91,6 +91,56 @@ Shared helpers inside the spec: CPU throttling through `context.newCDPSession(pa
 
 Pipeline note: as for the header menu ([technical.md](../app-header-menu/technical.md#pipeline-note)), the fix was already on master, so the TDD red gate may report that the tests pass before implementation. That is for the owner to decide; tests must not be made to fail on purpose.
 
+## Issue #223: subject index and status line (FR-APP-INFO-015 to 017)
+
+Documentation maintenance (review R1-03 on PR #221): the subject index and this subject's functional Status line still called shipped work "specified" or "ready". This section also covers FR-APP-MENU-008 of the [header menu](../app-header-menu/technical.md#issue-223-subject-index-status-fr-app-menu-008) (TS-APP-MENU-006).
+
+| Technical ID | Functional IDs | Technical solution | Files | Verification |
+| --- | --- | --- | --- | --- |
+| TS-APP-INFO-003 | FR-APP-INFO-015 | The Status cell of the **Application information** row in section 15 of `doc/FUNCTIONAL_SPECIFICATIONS.md` is `implemented`; the row's link and its place directly below **Header menu** are unchanged. | `doc/FUNCTIONAL_SPECIFICATIONS.md` (one row) | TC-002, TC-003 |
+| TS-APP-INFO-004 | FR-APP-INFO-016 | Line 3 of `functional.md` reads `Status: implemented (issue #115); FR-APP-INFO-014 implemented (issue #215); FR-APP-INFO-015–017 implemented (issue #223, maintenance: no behaviour change)\`, with an en dash and the trailing hard line break. | `doc/specifications/app-information/functional.md` (line 3) | TC-004 |
+| TS-APP-INFO-005 | FR-APP-INFO-017 | Only files under `doc/` change; nothing outside the rows, lines and sections listed here is edited. | none outside `doc/` | TC-005, TC-006 |
+
+### State of the change
+
+The functional specification stage already made every edit the requirements call for (commit `068c29d`): both index rows, the two Status lines of the subject files, the new requirement rows and the Traceability bullets. This stage adds only the sections in the two `technical.md` files. No edit is left for the development stage.
+
+Implemented: TS-APP-INFO-003 to 005 and TS-APP-MENU-006. The development stage ran the TC-001 to TC-005 checks and the gates of TC-006, which pass; no file outside `doc/` differs from `master`.
+
+### Frontend, backend and API
+
+Not affected: no source, test, dependency, database, migration or configuration change. `src/components/AppMenu.tsx`, `src/components/InformationModal.tsx` and `API_SPECIFICATION.md` stay as they are, and the operator sees no change in the application.
+
+### Files to change
+
+- Already changed in this change: `doc/FUNCTIONAL_SPECIFICATIONS.md` (the **Header menu** and **Application information** rows only), `doc/specifications/app-information/functional.md` and `doc/specifications/app-header-menu/functional.md` (Status line, new requirement rows, Traceability bullet).
+- This stage: `doc/specifications/app-information/technical.md` and `doc/specifications/app-header-menu/technical.md` (issue #223 sections, header references, revision notes).
+- Development stage: in the two `technical.md` files, mark TS-APP-INFO-003 to 005 and TS-APP-MENU-006 as implemented once the checks pass; nothing else.
+- Not changed: other section 15 rows, FR-APP-INFO-001 to 014, FR-APP-MENU-001 to 007, the use cases UC-APP-MENU-001 and UC-APP-INFO-001, earlier change folders under `doc/changes/` and every file under `doc/todo/` (including `issue-215-r1-03.md`).
+
+### Tests
+
+FR-APP-INFO-017 allows no change outside `doc/`, so no test file is added or changed, and a documentation edit cannot make a test go red. The **tests stage** writes `<change folder>/no-tests.md` giving that reason and where each TC is proved (table below), so the red gate is skipped. The **development stage** runs the checks and the gates, and restores any file outside `doc/` that differs from `master`.
+
+| Test case | Proved by |
+| --- | --- |
+| TC-001 | `grep -n '^\| Header menu \|' doc/FUNCTIONAL_SPECIFICATIONS.md` prints one line inside section 15, equal to `\| Header menu \| [app-header-menu](specifications/app-header-menu/functional.md) \| implemented \|`. No test file. |
+| TC-002 | `grep -n '^\| Application information \|' doc/FUNCTIONAL_SPECIFICATIONS.md` prints one line, equal to `\| Application information \| [app-information](specifications/app-information/functional.md) \| implemented \|`, directly after the TC-001 line. No test file. |
+| TC-003 | `grep -n` of `FR-APP-MENU-007 specified`, `specified (issue #115)` and `FR-APP-INFO-014 specified` on `doc/FUNCTIONAL_SPECIFICATIONS.md` each print nothing. No test file. |
+| TC-004 | `sed -n 3p doc/specifications/app-information/functional.md` has the prefix of TS-APP-INFO-004 and no `ready`; `grep -c '^Status:'` on the file prints `1`. No test file. |
+| TC-005 | `git diff --name-status master -- . ':!doc'` prints nothing; `git diff --numstat master -- doc/FUNCTIONAL_SPECIFICATIONS.md` is `2 2`; `git diff master` of the two `functional.md` files shows only the Status lines, the new rows and the issue #223 bullets; `git diff --name-status master -- doc/changes ':!doc/changes/2026-11-28-0613-issue-223-*' doc/todo/` prints nothing. No test file. |
+| TC-006 | Existing, unchanged suites through the gates: `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build`, `npx playwright test` (including `tests/app-information.spec.ts`, `tests/leboncoin-session-settings.spec.ts` and `tests/responsive-layout.spec.ts`). |
+
+### Refactoring
+
+None.
+
+### Manual follow-ups
+
+None.
+
 ## Revision note
 
 2026-11-23, issue #215: TS-APP-INFO-001 added for FR-APP-INFO-014. The code was already on master (PR #214). TS-APP-INFO-002 added during implementation: TC-007 showed that Escape on the close icon only hid its tooltip.
+
+2026-11-28, issue #223: TS-APP-INFO-003 to 005 added for FR-APP-INFO-015 to 017 (subject index and Status line, documentation only).
