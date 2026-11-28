@@ -32,7 +32,7 @@ func navigationServer(t *testing.T, product http.HandlerFunc) *amazontest.Server
 func assertNavigationFailure(t *testing.T, got model.CollectionResult, item model.Listing, logged string) {
 	t.Helper()
 	if got.Result != "request_error" || got.Message != amazonCheckFailed || got.SecondHandStatus != "check_error" {
-		t.Fatalf("not a failure: %+v", got)
+		t.Fatalf("gave %q instead of a failure: %+v", got.Result, got)
 	}
 	if !strings.HasSuffix(got.RequestURL, "/dp/"+item.ASIN) || got.HTTPStatus != 0 {
 		t.Fatalf("diagnostics of a page not opened: url=%q status=%d", got.RequestURL, got.HTTPStatus)
@@ -97,9 +97,6 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 		if server.Count("/dp/B0PRICE001") == 0 {
 			t.Fatalf("the browser did not request the product page: %+v", server.Requests())
 		}
-		if got.Result == "price_not_found" || got.Result == "success" || got.Result == "unavailable" {
-			t.Fatalf("an attachment gave the Amazon answer %q: %+v", got.Result, got)
-		}
 		assertNavigationFailure(t, got, item, logged)
 		assertNoFileWritten()
 
@@ -142,9 +139,6 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 			output := captureOutput(t)
 			got := browserCheck(t, NewBrowserCollector(options), item)
 			logged := output()
-			if got.Result == "price_not_found" || got.Result == "success" || got.Result == "unavailable" {
-				t.Fatalf("%s gave the Amazon answer %q: %+v", answer.name, got.Result, got)
-			}
 			assertNavigationFailure(t, got, item, logged)
 			amazontest.AssertDownloadsFolder(t, home, true)
 			amazontest.AssertNoDownload(t, []string{"page.html", "B0PRICE001", "B0PRICE001.bin"}, options.ProfileDir, home)
@@ -175,9 +169,6 @@ func TestBrowserNavigation_TC002_NoContentIsAFailure(t *testing.T) {
 			output := captureOutput(t)
 			got := browserCheck(t, collector, item)
 			logged := output()
-			if got.Result == "price_not_found" || got.Result == "unavailable" || got.Result == "success" {
-				t.Fatalf("HTTP %d gave the Amazon answer %q: %+v", status, got.Result, got)
-			}
 			assertNavigationFailure(t, got, item, logged)
 		})
 	}
