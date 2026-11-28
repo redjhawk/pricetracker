@@ -1,0 +1,18 @@
+# No automated tests for issue #228
+
+This change is documentation maintenance: it aligns the status of the test-suite-hygiene subject in line 3 of `doc/specifications/test-suite-hygiene/functional.md`, line 3 of `doc/specifications/test-suite-hygiene/technical.md` and the **Test suite hygiene** row of `doc/FUNCTIONAL_SPECIFICATIONS.md`. No production code, test code, API, database, user interface or runtime behaviour changes.
+
+FR-TEST-HYG-139 (checked by TC-005) allows no file change outside those three documents and this change folder, which rules out any new or changed `_test.go` or `tests/*.spec.ts` file. The technical specification ([technical.md](../../specifications/test-suite-hygiene/technical.md), section "One status for the subject (issue #228)" and TS-TEST-HYG-185) says the tests stage writes only this file and that there is no red phase.
+
+The test cases are run as repository checks and with the existing suites:
+
+| Test case | Check |
+| --- | --- |
+| TC-001 | `grep -n '^\| Test suite hygiene \|' doc/FUNCTIONAL_SPECIFICATIONS.md` matches one line. Its Status cell, split on `; `, is compared entry by entry with the same cell of `git show master:doc/FUNCTIONAL_SPECIFICATIONS.md`: same order, ranges (en dash, leading zeros), issue numbers and notes. It starts `FR-TEST-HYG-001–003 implemented (issue #208, `, holds `FR-TEST-HYG-018, 020 and 021 implemented, FR-TEST-HYG-019 closed by the merge of the issue #238 change (issue #241, `, gives `implemented` for issues #232 to #358, keeps the entries of issues #222, #219, #196, #387, #218 and #384 character for character, and ends with the issue #228 entry. The other cells are unchanged. |
+| TC-002 | For each issue from #208 to #228, the range and status before ` (issue #<n>` in the index Status cell equal those of `sed -n 3p doc/specifications/test-suite-hygiene/functional.md`. The two issue #241 items of line 3 equal the combined index entry, in that order, joined by `, `. No issue is missing from either place or appears twice. |
+| TC-003 | `sed -n 3p doc/specifications/test-suite-hygiene/technical.md` starts `Status: TS-TEST-HYG-001–003 implemented (issue #208); TS-TEST-HYG-004–009 implemented (issue #232); TS-TEST-HYG-010–015 implemented (issue #244);`. `git diff master -- doc/specifications/test-suite-hygiene/technical.md` changes, in line 3, only the two `ready` → `implemented` and the appended issue #228 entry; lines 1, 2 and 4 are unchanged. |
+| TC-004 | `grep -cwE 'specified\|ready'` gives 0 on each of the index row, functional line 3 and technical line 3, and every status in them is `implemented`, `updated` or the FR-TEST-HYG-019 closing note. The issue #228 index note quotes neither word. |
+| TC-005 | `git diff --name-only origin/master` lists only the three documents and files under this change folder. `git diff origin/master -- doc/FUNCTIONAL_SPECIFICATIONS.md` is one removed and one added line, both the **Test suite hygiene** row. No file is deleted. |
+| TC-006 | `go vet ./...`, `go test -count=1 ./...`, `node --test scripts/*.test.mjs`, `npm run build` and `npx playwright test` pass with the same test list as on `master`. |
+
+When this stage ran, the earlier stages had already made the index and technical edits: TC-001, TC-003 and TC-005 held, and the diff against `origin/master` listed only the three documents and this change folder. TC-004 failed as expected: each of the three lines holds exactly one whole-word `specified`, in its issue #228 entry, which the development stage changes to `implemented`.
