@@ -1,0 +1,3 @@
+# No use cases for issue #230
+
+This change only edits the test file `internal/httpapi/amazon_browser_error_page_test.go`. In the TC-004 refresh test of `TestAmazonBrowserErrorPage_TC004_RefreshSendsNoUsedOfferRequest`, it adds a used-offer count check after the first Refresh price and after Refresh all prices, keeps the check of each repeated Refresh price, and removes the redundant check after the repeated Refresh price loop (FR-TEST-HYG-140 to FR-TEST-HYG-143). The only observable outputs are test results and test failure messages. Application behaviour and the user interface do not change, so no use cases are needed.
