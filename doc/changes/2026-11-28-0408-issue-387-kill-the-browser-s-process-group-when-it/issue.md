@@ -1,0 +1,10 @@
+# Issue #387 Kill the browser's process group when it exits before holding the profile
+
+**Problem:** In `internal/amazon/amazontest/browser_profile.go:94-95`, `KillBrowserOnProfile` fails with `the browser exited before holding the profile` without signalling the process group. Children the browser leader already forked (a Chromium zygote or crashpad handler, or a stub's background child) can outlive the failed test. The former `internal/service` `killBrowser` always sent SIGKILL to `-pid`.
+
+**Suggested work:** Call `kill()` before `t.Fatal` in the `case <-exited:` branch. `exited` is already closed, and an empty group only gives ESRCH, which is ignored. The message is unchanged. Optionally, extend `TestKillBrowserOnProfile_Issue196_TC006_ExitBeforeHolding` with a stub that forks a background child holding the profile path and then exits, and check that `BrowserProcesses(profile)` is empty afterwards.
+
+From review comment R1-01 on #386 (`doc/todo/issue-196-r1-01.md`).
+
+## Comments by trusted authors
+
