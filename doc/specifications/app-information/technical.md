@@ -105,6 +105,8 @@ Documentation maintenance (review R1-03 on PR #221): the subject index and this 
 
 The functional specification stage already made every edit the requirements call for (commit `068c29d`): both index rows, the two Status lines of the subject files, the new requirement rows and the Traceability bullets. This stage adds only the sections in the two `technical.md` files. No edit is left for the development stage.
 
+Implemented: TS-APP-INFO-003 to 005 and TS-APP-MENU-006. The development stage ran the TC-001 to TC-005 checks and the gates of TC-006, which pass; no file outside `doc/` differs from `master`.
+
 ### Frontend, backend and API
 
 Not affected: no source, test, dependency, database, migration or configuration change. `src/components/AppMenu.tsx`, `src/components/InformationModal.tsx` and `API_SPECIFICATION.md` stay as they are, and the operator sees no change in the application.

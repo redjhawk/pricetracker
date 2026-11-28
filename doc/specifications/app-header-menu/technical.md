@@ -110,6 +110,8 @@ Documentation maintenance, planned together with the application-information sub
 
 Frontend, backend and API: not affected. `src/components/AppMenu.tsx`, its tests and `API_SPECIFICATION.md` are unchanged.
 
+Implemented: TS-APP-MENU-006 (checks and gates pass, see the application-information section).
+
 ## Revision note
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
