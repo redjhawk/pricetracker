@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 360,
+    "category": "nit",
+    "body": "FR-TEST-HYG-112 still says `The message \\`not a failure: %+v\\` no longer exists.` with no scope. The round-1 fix (R1-02) limited the acceptance grep (line 579), TC-002 and run 3 to `browser_navigation_test.go`, but the requirement itself was not limited: `grep -rn '\"not a failure: ' internal/amazon/` still prints six lines in other files (`browser_test.go:364/383`, `browser_retrieval_test.go:417/568`, `browser_profile_test.go:136`, `browser_interrupted_test.go:59`), which FR-TEST-HYG-114 forbids touching. Read literally, the requirement marked implemented is not met. Fix: `The helper no longer uses the message \\`not a failure: %+v\\`` (or `... no longer exists in internal/amazon/browser_navigation_test.go`). The note in `no-tests.md` (line 42 onwards), which says the specification's grep must be read as limited to the file, is stale for the same reason and could be dropped or shortened."
+  }
+]
