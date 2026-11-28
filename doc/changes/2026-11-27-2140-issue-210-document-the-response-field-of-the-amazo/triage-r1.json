@@ -1,0 +1,26 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "contract": false,
+    "reason": "Verified: responseSentenceError (internal/service/amazon_failure_log_docs_test.go:174) accepts any sentence holding the separate words response, start, page and empty, so \"`response` can be empty, for example when the browser could not start or the page did not load.\" passes. TC-002's corner case \"sentence does not say it is the start of the page Amazon returned: fails\" is therefore not proven; the existing \"no start of page\" fixture passes only because it drops both words.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "contract": false,
+    "reason": "Correct: the excerpt `<p>cause=fake status=999</p>` has no space-separated ` cause=` or ` response=`, so greedy captures would give the same result. But the subtest does meet the TC-004 corner case as written (an excerpt holding `cause=` and `status=`), and the only thing it cannot catch is a change to the test's own documentedPattern helper. Production field order is already covered by the \"excerpt\" and \"empty excerpt\" subtests and by TC-001, so this is a weaker test, not a missed requirement.",
+    "title": "Make the TC-004 field-text excerpt subtest catch a greedy documented pattern",
+    "todo": "**Problem:** In `internal/service/amazon_failure_log_test.go:111`, the subtest \"excerpt holding field texts\" uses the excerpt `<p>cause=fake status=999</p>`. It has no ` cause=` or ` response=` with a space before it, so a greedy `(.*)` in place of the lazy `(.*?)` in `documentedPattern` (`internal/service/amazon_failure_log_docs_test.go:121`) gives the same captures. The subtest cannot fail for a pattern that would misread a real page.\n\n**Suggested work:** Use an excerpt that holds the space-separated field texts the pattern splits on, for example `<p> cause=fake response=x status=999</p>`, so that a greedy or misordered pattern captures a wrong cause or response. Optionally note this in the TC-004 corner case of the issue #210 test cases."
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "contract": false,
+    "reason": "Verified: the FR-39 row (doc/FUNCTIONAL_SPECIFICATIONS.md:241) reads as if the `response` field were one of the server's browser needs. This is a wording nit. Section 5.6 of the same file and FR-AMZ-BRET-009 state the requirement correctly, so nothing functional is wrong.",
+    "title": "Reword FR-39 so the response field is not listed as a browser need",
+    "todo": "**Problem:** The FR-39 row in `doc/FUNCTIONAL_SPECIFICATIONS.md:241` says the documentation \"lists the server's browser needs, including setting `PRICEFOLLOWER_BROWSER_PATH` … (issue #226) and the `response` field of the failure log line (issue #210)\", which makes the `response` field one of the browser needs.\n\n**Suggested work:** Reword it to \"…lists the server's browser needs, including setting `PRICEFOLLOWER_BROWSER_PATH` to Google Chrome when a Chromium snap is installed (issue #226), and shows the `response` field of the failure log line (issue #210)\"."
+  }
+]
