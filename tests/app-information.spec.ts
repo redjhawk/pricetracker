@@ -286,13 +286,23 @@ async function userMenuReady(page: Page, context: BrowserContext) {
   return { menu, requests };
 }
 
+// Carbon focuses the first entry before the next Playwright key arrives, so the arrow key is sent to
+// the trigger as it loses focus to Carbon's move into the open, placed menu.
+async function arrowKeyBeforeFocusMoves(menu: Locator, key: "ArrowDown" | "ArrowUp") {
+  await menu.evaluate((trigger, key) => {
+    trigger.addEventListener("blur", () => {
+      trigger.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }, { once: true });
+  }, key);
+}
+
 test("TC-002 (#225) slow machine, regular user: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds", async ({ page, context }) => {
   test.setTimeout(90_000);
   const { menu, requests } = await userMenuReady(page, context);
   const settings = page.getByRole("dialog", { name: "Settings" });
   for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(menu, "ArrowDown");
     await page.keyboard.press("Enter");
-    await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expect(settings, `Settings opened in round ${round}`).toBeVisible();
     await expect(page.locator("[role=dialog]:visible")).toHaveCount(1);
@@ -319,8 +329,8 @@ test("TC-004 (#225) slow machine, regular user: Enter, ArrowUp at once focuses L
   test.setTimeout(90_000);
   const { menu, requests } = await userMenuReady(page, context);
   for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(menu, "ArrowUp");
     await page.keyboard.press("Enter");
-    await page.keyboard.press("ArrowUp");
     await expect(page.getByRole("menuitem")).toHaveText(["Information", "Settings", "Log out"]);
     await expect(menu).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("menuitem", { name: "Log out", exact: true }), `Log out focused in round ${round}`).toBeFocused();

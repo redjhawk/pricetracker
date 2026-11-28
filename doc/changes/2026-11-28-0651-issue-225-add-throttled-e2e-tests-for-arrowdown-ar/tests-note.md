@@ -1,11 +1,26 @@
 # Tests stage note (issue #225)
 
-Tests added: TC-001, TC-003, TC-005 in `tests/leboncoin-session-settings.spec.ts`; TC-002, TC-004 and the two Settings mock routes in `tests/app-information.spec.ts`. All pass on the base branch, as the technical specification expects (no production change). Both spec files pass in full (73 tests).
+Tests: TC-001, TC-003, TC-005 in `tests/leboncoin-session-settings.spec.ts`; TC-002, TC-004 and the two Settings mock routes in `tests/app-information.spec.ts`. All pass on the base branch (no production change, as the technical specification expects). Both spec files pass in full (73 tests), and the #225 tests passed 3 repeated runs.
 
-## "Fails without the fix" check: not met
+## Round 1 (test-problem.md, R1-01, R1-02)
 
-With the arrow-key branch of `handleTriggerKeyDown` disabled (Escape only), TC-001 – TC-004 still pass. The source was restored afterwards.
+A probe showed that the review's suggested technique cannot work: after `trigger.click()`, the menu is not yet rendered when code runs synchronously. After one microtask, React has already committed the open menu and Carbon has already focused **Information**. React commits the menu, places it and runs Carbon's focus effect in a single microtask. No microtask, timeout or animation frame falls between "menu open" and "focus moved".
 
-Cause: a temporary counter in `handleTriggerKeyDown` showed that across the 5 throttled rounds of TC-003, no ArrowUp reached the trigger. Playwright's `page.keyboard.press` returns only after the renderer has handled the key. React handles the Enter keydown as a discrete event and runs Carbon's placement and focus effects at once, so focus is already on **Information** when the arrow key arrives, even at CPU rate 6. Through Playwright's keyboard, the `focusEntryFromTrigger` path cannot be reached in Chromium.
+The only moment when the menu is open and placed but focus is still on the trigger is when the trigger loses focus to Carbon's `focus()` call. In the throttled tests (TC-001 – TC-004), each round now arms a one-shot `blur` listener on the trigger (`arrowKeyBeforeFocusMoves`). The listener dispatches the arrow `keydown` on the trigger at that moment. Chromium then cancels Carbon's outer focus change because a blur handler moved focus. The opening Enter and the closing Enter (TC-001, TC-002) are still `page.keyboard.press` calls with no wait between them. CPU rate 6 and the 5 rounds are kept, and assertions come after the last key of each round.
 
-As the technical specification requires, the rate (6) and the round count (5) were kept. The tests still check the required behaviour (FR-APP-MENU-009), but they do not catch a regression in the trigger's arrow-key branch. The owner decides whether a different technique is wanted, for example dispatching the arrow keydown on the trigger in the same task as the opening.
+## "Fails without the fix" check: met
+
+With `handleTriggerKeyDown` reduced to its Escape line (not committed, source restored, `git diff -- src` empty), the results were:
+
+- TC-001 and TC-002 fail: in round 1, the Settings dialog is not visible because Information is focused and opens instead.
+- TC-003 fails: Settings is not focused in round 1.
+- TC-004 fails: Log out is not focused in round 1. The arrow key now reaches the trigger, not the focused entry, so Carbon's own wrap-around no longer hides the missing branch.
+- TC-005 passes, as expected.
+
+Checked again in attempt 2: with the Escape-only handler, `npx playwright test tests/leboncoin-session-settings.spec.ts tests/app-information.spec.ts` gives 4 failed (TC-001 – TC-004 (#225), each on its round 1 assertion), 69 passed. With the real handler, the whole suite passes (the attempt 1 gate run: 213 passed, 1 skipped). `git diff -- src` is empty.
+
+## Red gate: needs the owner
+
+`gate_red` cannot pass here: the arrow-key branch has been on `master` since issue #215, so the whole suite passes before any implementation. The technical specification ("Manual follow-up (pipeline)", and the issue #215 pipeline note) says that the owner decides. It also says that tests must not be weakened or made to fail on purpose to satisfy the gate. So no stub removes the branch, and the tests are left as they are. The owner can accept these tests past the red gate by hand. The check above stands in for the red phase.
+
+For the development stage: technical.md "Open" (TS-APP-MENU-007) is out of date. The regression check is now met.
