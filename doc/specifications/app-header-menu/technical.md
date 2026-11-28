@@ -1,7 +1,7 @@
 # Technical specification: application header menu
 
 Status: ready (frontend-only subject; implemented together with the settings subject; API approved by the user 2026-10-03 (proposal revision 1 unchanged; see the change index and api-step.md); implementation authorized)\
-Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 007 (FR-APP-MENU-007 added by issue #215; see [Issue #215](#issue-215-escape-right-after-opening-fr-app-menu-007))\
+Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 008 (FR-APP-MENU-007 added by issue #215; see [Issue #215](#issue-215-escape-right-after-opening-fr-app-menu-007); FR-APP-MENU-008 added by issue #223; see [Issue #223](#issue-223-subject-index-status-fr-app-menu-008))\
 Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.md) (the modal this menu opens)
 
 ## Requirement mapping
@@ -100,8 +100,20 @@ Test names start with the TC ID and `(#215)`, for example `TC-001 (#215) Escape 
 
 The source fix reached master before this change. The new tests are therefore expected to pass on the base branch, and the TDD red gate ("the tests pass before implementing") may stop the run. The owner decides how to proceed, for example by merging the regression tests by hand. Tests must not be weakened or made to fail on purpose to satisfy the gate.
 
+## Issue #223: subject index status (FR-APP-MENU-008)
+
+Documentation maintenance, planned together with the application-information subject: the design, files, tests and stage duties are in [Issue #223](../app-information/technical.md#issue-223-subject-index-and-status-line-fr-app-info-015-to-017) of the application-information technical specification. No behaviour change.
+
+| Technical ID | Functional IDs | Technical solution | Files | Verification |
+| --- | --- | --- | --- | --- |
+| TS-APP-MENU-006 | FR-APP-MENU-008, FR-APP-INFO-017 | The Status cell of the **Header menu** row in section 15 of `doc/FUNCTIONAL_SPECIFICATIONS.md` is `implemented`; the row's link, the row order and every other line stay as on `master`. | `doc/FUNCTIONAL_SPECIFICATIONS.md` (one row, already edited by the functional specification stage) | TC-001, TC-003, TC-005, TC-006 |
+
+Frontend, backend and API: not affected. `src/components/AppMenu.tsx`, its tests and `API_SPECIFICATION.md` are unchanged.
+
 ## Revision note
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
 
 2026-11-23, issue #215: TS-APP-MENU-005 added for FR-APP-MENU-007 (Escape right after opening). The Escape code was already on master (PR #214); review R1-01 added ArrowDown/ArrowUp on the trigger.
+
+2026-11-28, issue #223: TS-APP-MENU-006 added for FR-APP-MENU-008 (subject index status, documentation only).
