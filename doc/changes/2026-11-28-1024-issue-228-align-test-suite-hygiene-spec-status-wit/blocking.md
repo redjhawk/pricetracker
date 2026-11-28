@@ -1,8 +1,0 @@
-# Blocking review comments (round 2)
-
-## R2-01 `doc/specifications/test-suite-hygiene/functional.md:432`
-
-FR-TEST-HYG-139 (and its acceptance criterion at line 695) limits the diff to this file, the technical specification, the index row and the issue #228 change folder. TC-005, TS-TEST-HYG-184 (technical.md:1495), the TC-005 mapping (technical.md:1632) and no-tests.md:15 say the same: `git diff --name-only origin/master` lists only the three documents and the change folder. That no longer holds on the PR head. Round-1 triage added `doc/todo/issue-228-r1-02.md`, which `git diff --name-only origin/master...HEAD` now lists, so the delivered change fails its own TC-005 and FR-TEST-HYG-139 as written. Any later non-blocking review comment will add more `doc/todo/` records. Earlier subjects avoid this by checking only outside `doc/` (for example the issue #290 and #312 TC-005 checks use `git diff --name-only master -- . ':!doc'`). Fix: allow follow-up records the review triage creates under `doc/todo/issue-228-*.md` in FR-TEST-HYG-139, its acceptance criterion, TC-005, TS-TEST-HYG-184, the TC-005 mapping and no-tests.md, or check only paths outside `doc/` plus the index-row diff.
-
-Triage: Verified: `git diff master --stat` lists `doc/todo/issue-228-r1-02.md`, but FR-TEST-HYG-139 (functional.md:432), its acceptance criterion (functional.md:695), TC-005 (testcases.md:93) and no-tests.md:15 allow only the three documents and the issue #228 change folder, so the delivered change fails its own requirement and test case. The fix is to the subject's specification and test cases, not to `API_SPECIFICATION.md`.
-

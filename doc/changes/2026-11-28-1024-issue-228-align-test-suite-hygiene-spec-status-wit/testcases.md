@@ -83,14 +83,14 @@ Conventions:
   - no other status word (for example `done`, `delivered`, `todo`) appears in any of the three lines;
   - before the development stage, the only `specified` in the functional status line and the index row is in the issue #228 entry. No `ready` appears outside the issue #208 and #232 entries of the technical status line, and none appears after TC-003 is met.
 
-### TC-005: The change touches only the subject's documents and its change folder
+### TC-005: The change touches only the subject's documents, its change folder and its triage records
 
 - Covers: FR-TEST-HYG-139
 - Level: repository check (`git diff` against `origin/master`)
 - Given the change applied on top of `origin/master`
 - When `git diff --name-only origin/master` and `git diff origin/master -- doc/FUNCTIONAL_SPECIFICATIONS.md` are listed
 - Then:
-  - the names are only `doc/FUNCTIONAL_SPECIFICATIONS.md`, `doc/specifications/test-suite-hygiene/functional.md`, `doc/specifications/test-suite-hygiene/technical.md` and files under `doc/changes/2026-11-28-1024-issue-228-align-test-suite-hygiene-spec-status-wit/`;
+  - the names are only `doc/FUNCTIONAL_SPECIFICATIONS.md`, `doc/specifications/test-suite-hygiene/functional.md`, `doc/specifications/test-suite-hygiene/technical.md`, files under `doc/changes/2026-11-28-1024-issue-228-align-test-suite-hygiene-spec-status-wit/` and follow-up records `doc/todo/issue-228-*.md` that the review triage creates;
   - the diff of `doc/FUNCTIONAL_SPECIFICATIONS.md` is one removed and one added line, both the **Test suite hygiene** row.
 - Corner cases:
   - other subjects' rows and their status lines (for example the specs that say `Status: ready (issue #204)`) are unchanged, as the issue is about this subject only;
