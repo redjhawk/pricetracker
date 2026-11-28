@@ -1,0 +1,10 @@
+# Issue #392 Run the amazontest capture tests under the race detector in CI
+
+**Problem:** TC-008 (`TestCaptureOutput_Issue218_TC008_ConcurrentWritesNoRace`, `internal/amazon/amazontest/capture_test.go:376`) proves FR-TEST-HYG-127's "no data race" only under `go test -race`. The factory sandbox has no C compiler (`-race requires cgo`, `gcc not found`), and nothing in `.github/` or `scripts/` runs `-race`. The run is therefore recorded as not done in `doc/changes/2026-11-28-0457-issue-218-share-the-log-stdout-capture-test-helper/implementation.md:7`.
+
+**Suggested work:** Add a CI step with `CGO_ENABLED=1` and gcc that runs `go test -race -count=1 -run '^TestCaptureOutput_Issue218_' ./internal/amazon/amazontest/`. Consider widening it to the other `-race` runs that the test-suite-hygiene design asks for. Until then, record the result of one manual run on a machine that has gcc.
+
+From review comment R1-01 on #391 (`doc/todo/issue-218-r1-01.md`).
+
+## Comments by trusted authors
+
