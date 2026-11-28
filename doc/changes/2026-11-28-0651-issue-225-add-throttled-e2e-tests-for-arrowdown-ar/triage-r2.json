@@ -1,0 +1,10 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "The comment is accurate: in TC-001 – TC-004 (#225) the arrow key is a synthetic `keydown` sent by `arrowKeyBeforeFocusMoves` (tests/leboncoin-session-settings.spec.ts:1124, tests/app-information.spec.ts:290), so no real arrow key is pressed under CPU rate 6. But the issue's acceptance check is met: each throttled test fails with the Escape-only handler (no-tests.md). A real key always reaches the focused first entry (tests-note.md, round 1), and TC-005 already covers that path without throttling. The only gap is extra end-to-end coverage, and the trusted author marks it non-blocking.",
+    "title": "Add real-key throttled rounds to the #225 arrow-key e2e tests",
+    "todo": "**Problem:** TC-001 – TC-004 (#225) never press a real ArrowDown/ArrowUp under CPU throttling. Each round sends a real Enter, then a synthetic, untrusted `keydown` from the trigger's `blur` handler (`arrowKeyBeforeFocusMoves`). TC-001/TC-002 then send a real Enter. So nothing tests the user-visible path that FR-APP-MENU-009 (a)/(b) describes: real keys pressed at once on a slow device, handled by Carbon, plus any interaction between the trigger branch and Carbon when the real key lands on the first entry. The older Enter, ArrowDown, Enter steps (tests/leboncoin-session-settings.spec.ts lines 164, 432, 623) are unthrottled.\n\n**Suggested work:** In each throttled test, keep the 5 synthetic rounds as the regression check for `focusEntryFromTrigger`. Add 5 more rounds that use only `page.keyboard.press` (no `arrowKeyBeforeFocusMoves`) and make the same assertions. Then state in `doc/specifications/app-header-menu/technical.md` (Issue #225, Tests) which rounds prove the regression check and which prove the corner case \"keys pressed in quick succession give the same result as pressed slowly\".\n\n**Files:** `tests/leboncoin-session-settings.spec.ts` TC-001 (line 1132) and TC-003 (line 1156); `tests/app-information.spec.ts` TC-002 (line 299) and TC-004 (line 328); `doc/specifications/app-header-menu/technical.md` (TS-APP-MENU-007 Tests)."
+  }
+]
