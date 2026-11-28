@@ -1,0 +1,12 @@
+# Issue #384 Make assertNavigationFailure's first message accurate when only the message or second-hand status is wrong
+
+**Problem:** In `internal/amazon/browser_navigation_test.go` line 35, the first check of `assertNavigationFailure` fails also when `Result` is `request_error` but `Message` is not `amazonCheckFailed` or `SecondHandStatus` is not `check_error`. The message then reads `gave "request_error" instead of a failure: {…}`, which contradicts itself.
+
+**Suggested work:** Split the check (result first with the current message, then message and second-hand status with their own message), or word the message neutrally, for example `gave %q, not the expected failure: %+v`. Update FR-TEST-HYG-112 / TS-TEST-HYG-146 accordingly.
+
+**File:** `internal/amazon/browser_navigation_test.go:34-36`
+
+From review comment R1-04 on #382 (`doc/todo/issue-219-r1-04.md`).
+
+## Comments by trusted authors
+
