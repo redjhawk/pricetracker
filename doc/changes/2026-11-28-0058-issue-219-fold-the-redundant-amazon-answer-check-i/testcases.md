@@ -39,7 +39,7 @@ Conventions:
 - Covers: FR-TEST-HYG-112
 - Level: code check of the test file (`grep`, reading)
 - Given the change applied
-- When `grep -rn 'gave %q instead of a failure: %+v' internal/amazon/` and `grep -rn '"not a failure: ' internal/amazon/` are run, and the helper is read
+- When `grep -rn 'gave %q instead of a failure: %+v' internal/amazon/` and `grep -n '"not a failure: ' internal/amazon/browser_navigation_test.go` are run, and the helper is read
 - Then the first grep prints exactly one line, the `t.Fatalf` of the helper's first check, called with `got.Result` then `got`
 - And the second grep prints nothing
 - And the first check's condition, the URL and status check with its message `diagnostics of a page not opened: url=%q status=%d`, and the log line loop with its message `no log line with the request URL %s and the browser's error:\n%s` are unchanged
