@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/service/amazon_failure_log_docs_test.go",
+    "line": 174,
+    "category": "test",
+    "body": "responseSentenceError does not really check that the sentence says `response` is the start of the page. It only looks for the separate words \"start\" and \"page\". In this log item both words also come from the cause vocabulary (\"could not start\", \"the page could not be opened\"). So a sentence like \"`response` can be empty, for example when the browser could not start or the page did not load.\" passes, even though it never says what the field holds. The \"no start of page\" fixture passes only because it drops both words. Suggested fix: require the phrase \"start of the page\" (case-insensitive) next to \"response\" and \"empty\". Also add a rejecting fixture whose sentence has \"could not start\" and \"page\" but not \"start of the page\"."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/service/amazon_failure_log_test.go",
+    "line": 111,
+    "category": "test",
+    "body": "The \"excerpt holding field texts\" subtest is meant to show that the documented form keeps the cause apart from page text that looks like fields. Its excerpt `<p>cause=fake status=999</p>` has no ` cause=` with a space before it and no ` response=` at all. With that excerpt, greedy captures (`(.*)` instead of `(.*?)` in documentedPattern) give exactly the same cause and response, so the subtest cannot catch a pattern that would misread a real page. Suggested fix: use an excerpt that holds the space-separated field texts the pattern splits on, for example `<p> cause=fake response=x status=999</p>`. Then a greedy or misordered pattern would capture a wrong cause or response and fail."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/FUNCTIONAL_SPECIFICATIONS.md",
+    "line": 241,
+    "category": "nit",
+    "body": "FR-39 now says the documentation \"lists the server's browser needs, including setting `PRICEFOLLOWER_BROWSER_PATH` … (issue #226) and the `response` field of the failure log line (issue #210)\". That makes the `response` field one of the server's browser needs, which it is not. Suggested wording: \"…lists the server's browser needs, including setting `PRICEFOLLOWER_BROWSER_PATH` to Google Chrome when a Chromium snap is installed (issue #226), and shows the `response` field of the failure log line (issue #210)\"."
+  }
+]
