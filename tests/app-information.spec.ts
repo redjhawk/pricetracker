@@ -21,6 +21,13 @@ async function mockApi(context: BrowserContext, replies: SessionReply[]) {
     if (url.pathname === "/api/v1/items") return route.fulfill({ json: { items: [] } });
     if (url.pathname === "/api/v1/amazon-searches") return route.fulfill({ json: { searches: [], amazonRequests: [] } });
     if (url.pathname === "/api/v1/admin/users") return route.fulfill({ json: { users: [] } });
+    // Issue #225: the Settings modal loads both secrets' state.
+    if (url.pathname === "/api/v1/settings/leboncoin-session") {
+      return route.fulfill({ json: { session: { saved: false, hint: null, revision: 0, updatedAt: null, status: "none", expiresAt: null, revokedAt: null, lastAttempt: null } } });
+    }
+    if (url.pathname === "/api/v1/settings/claude-token") {
+      return route.fulfill({ json: { claudeToken: { saved: false, hint: null, updatedAt: null, lastRejectedAt: null } } });
+    }
     return route.fulfill({ status: 500, json: { error: { code: "UNEXPECTED", message: url.pathname } } });
   });
   return state;
@@ -259,6 +266,81 @@ test("TC-001 (#215) regular user: Escape at once after Enter or Space closes the
   await expect(menu).toHaveAttribute("aria-expanded", "false");
   await expect(page).toHaveURL("/");
   expect(requests).toEqual([]);
+});
+
+// Issue #225 (FR-APP-MENU-009): a regular user's page is ready, then every API request is recorded,
+// the CPU throttled and the menu control focused.
+async function userMenuReady(page: Page, context: BrowserContext) {
+  await mockApi(context, [userSession]);
+  await page.goto("/");
+  const menu = page.getByRole("button", { name: "Application menu", exact: true });
+  await expect(menu).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) requests.push(`${request.method()} ${url.pathname}`);
+  });
+  await throttleCpu(page, context);
+  await menu.focus();
+  return { menu, requests };
+}
+
+// Carbon focuses the first entry before the next Playwright key arrives, so the arrow key is sent to
+// the trigger as it loses focus to Carbon's move into the open, placed menu.
+async function arrowKeyBeforeFocusMoves(menu: Locator, key: "ArrowDown" | "ArrowUp") {
+  await menu.evaluate((trigger, key) => {
+    trigger.addEventListener("blur", () => {
+      trigger.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }, { once: true });
+  }, key);
+}
+
+test("TC-002 (#225) slow machine, regular user: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const { menu, requests } = await userMenuReady(page, context);
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(menu, "ArrowDown");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await expect(settings, `Settings opened in round ${round}`).toBeVisible();
+    await expect(page.locator("[role=dialog]:visible")).toHaveCount(1);
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
+    await expect(settings.getByRole("textbox", { name: "LeBonCoin session" })).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await expect(settings).toBeHidden();
+    await expect(menu).toBeFocused();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+  }
+  expect([...requests].sort()).toEqual([
+    ...Array(5).fill("GET /api/v1/settings/claude-token"),
+    ...Array(5).fill("GET /api/v1/settings/leboncoin-session"),
+  ]);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem")).toHaveText(["Information", "Settings", "Log out"]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+  await expect(menu).toBeFocused();
+  await expect(page).toHaveURL("/");
+});
+
+test("TC-004 (#225) slow machine, regular user: Enter, ArrowUp at once focuses Log out in each of 5 rounds", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const { menu, requests } = await userMenuReady(page, context);
+  for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(menu, "ArrowUp");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("menuitem")).toHaveText(["Information", "Settings", "Log out"]);
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("menuitem", { name: "Log out", exact: true }), `Log out focused in round ${round}`).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
+    await expect(menu).toBeFocused();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+  }
+  expect(requests).toEqual([]);
+  await expect(page).toHaveURL("/");
 });
 
 const tabCases = [

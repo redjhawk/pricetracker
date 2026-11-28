@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R2-01",
+    "file": "tests/leboncoin-session-settings.spec.ts",
+    "line": 1140,
+    "category": "test",
+    "body": "Non-blocking. The blur-listener technique fixes R1-01/R1-02: with the Escape-only handler, TC-001 – TC-004 now fail (no-tests.md, tests-note.md). But in TC-001 – TC-004 no real arrow key is pressed any more. Each round is a real Enter, then a synthetic, untrusted `keydown` dispatched from the trigger's `blur` handler (`arrowKeyBeforeFocusMoves`), then a real Enter in TC-001/TC-002. TC-001 – TC-004 and the issue describe the operator pressing Enter, ArrowDown, Enter (or Enter, ArrowUp) with no wait on a slow device, and FR-APP-MENU-009 (a)/(b) states its acceptance in those terms. Since round 1 (commit 151b50c), the end-to-end path for a real arrow key pressed at once under CPU rate 6 is no longer tested anywhere: Carbon's own handling, and any interaction between the trigger branch and Carbon when the real key lands on the first entry. The older Enter, ArrowDown, Enter tests (lines 164, 432, 623) are unthrottled. Suggested fix: in each throttled test, keep the 5 synthetic rounds (the regression check for `focusEntryFromTrigger`). Then add 5 rounds that press the same sequence with `page.keyboard.press` only (no `arrowKeyBeforeFocusMoves`), with the same assertions. Those rounds prove the user-visible corner case 'keys pressed in quick succession give the same result as pressed slowly'. Also state in technical.md (TS-APP-MENU-007 Tests) which rounds prove which part. Apply the same change to TC-003 (line 1163) and to TC-002/TC-004 in tests/app-information.spec.ts (lines 304, 332)."
+  }
+]

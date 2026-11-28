@@ -1,7 +1,7 @@
 # Technical specification: application header menu
 
 Status: ready (frontend-only subject; implemented together with the settings subject; API approved by the user 2026-10-03 (proposal revision 1 unchanged; see the change index and api-step.md); implementation authorized)\
-Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 008 (FR-APP-MENU-007 added by issue #215; see [Issue #215](#issue-215-escape-right-after-opening-fr-app-menu-007); FR-APP-MENU-008 added by issue #223; see [Issue #223](#issue-223-subject-index-status-fr-app-menu-008))\
+Functional specification: [functional.md](functional.md), FR-APP-MENU-001 – 009 (FR-APP-MENU-007 added by issue #215; see [Issue #215](#issue-215-escape-right-after-opening-fr-app-menu-007); FR-APP-MENU-008 added by issue #223; see [Issue #223](#issue-223-subject-index-status-fr-app-menu-008); FR-APP-MENU-009 added by issue #225; see [Issue #225](#issue-225-arrow-keys-right-after-opening-fr-app-menu-009))\
 Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.md) (the modal this menu opens)
 
 ## Requirement mapping
@@ -15,6 +15,7 @@ Companion: [LeBoncoin session settings](../leboncoin-session-settings/technical.
 | TS-APP-MENU-003 | MENU-004 | Focus return to the trigger via a ref passed to the modal's `launcherButtonRef` | `src/App.tsx`, `src/components/SettingsModal.tsx` | Playwright: focus on trigger after Escape and after modal close |
 | TS-APP-MENU-004 | MENU-006 | Carbon modals are focus-trapped and cover the header; no extra code | — | Playwright: with Add item modal open, the trigger is not focusable/clickable |
 | TS-APP-MENU-005 | MENU-007, MENU-004 | `AppMenu` controls the `OverflowMenu` `open` prop with its own state; an `onKeyDown` handler on the trigger closes the menu on Escape and moves focus on ArrowDown/ArrowUp when these keys are pressed before focus has moved into the menu | `src/components/AppMenu.tsx` (Escape already on master, PR #214; arrow keys added by issue #215) | Playwright TC-001, TC-002, TC-003 (issue #215) |
+| TS-APP-MENU-007 | MENU-009, MENU-004, MENU-003 | No code change: the arrow-key branch of `handleTriggerKeyDown` (TS-APP-MENU-005) already gives the behaviour; throttled e2e tests now cover it | `tests/leboncoin-session-settings.spec.ts`, `tests/app-information.spec.ts` | Playwright TC-001 – TC-005 (issue #225) |
 
 ## Frontend
 
@@ -112,6 +113,61 @@ Frontend, backend and API: not affected. `src/components/AppMenu.tsx`, its tests
 
 Implemented: TS-APP-MENU-006 (checks and gates pass, see the application-information section).
 
+## Issue #225: arrow keys right after opening (FR-APP-MENU-009)
+
+Review R2-01 on PR #221: the arrow-key branch of `handleTriggerKeyDown` (`focusEntryFromTrigger`, TS-APP-MENU-005) is not exercised by any test. The existing Enter, ArrowDown, Enter sequences run without throttling and pass even without the fix when Carbon has already focused the first entry. No test presses ArrowUp.
+
+| Technical ID | Functional IDs | Technical solution | Files | Verification |
+| --- | --- | --- | --- | --- |
+| TS-APP-MENU-007 | FR-APP-MENU-009, FR-APP-MENU-004, FR-APP-MENU-003 | Throttled e2e tests (CPU rate 6, 5 rounds, keys pressed with no wait) for Enter, ArrowDown, Enter and for Enter, ArrowUp, in open mode and for a regular user, plus an unthrottled reference test with a pause before the arrow key. No production code change. | `tests/leboncoin-session-settings.spec.ts`, `tests/app-information.spec.ts` | TC-001 – TC-005 (issue #225) |
+
+### Frontend
+
+Not affected: `src/components/AppMenu.tsx` already does what FR-APP-MENU-009 requires (ArrowDown on the trigger focuses the second entry, ArrowUp the last, with wrap-around and disabled entries skipped). No component, state, accessibility attribute or style changes. If a new test fails on the base branch, the developer fixes `AppMenu.tsx` within TS-APP-MENU-005 (no Carbon change, no new dependency) and records the cause here.
+
+### Backend and API
+
+Not affected: the menu calls no endpoint. `API_SPECIFICATION.md` is unchanged. The Settings modal's own loads (`GET /api/v1/settings/leboncoin-session`, `GET /api/v1/settings/claude-token`, FR-LBC-SET-002) are mocked as they already are.
+
+### Tests
+
+Names start with the TC ID and `(#225)`, for example `TC-001 (#225) slow machine: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds`. "No wait" means consecutive `page.keyboard.press` calls; assertions come after the last key of a round. `page.keyboard.press` returns only after the renderer has handled the key, and React commits the open menu, places it and runs Carbon's focus effect in one task, so a pressed arrow key always arrives after focus has reached **Information**. In TC-001 – TC-004 the arrow key is therefore dispatched by a one-shot `blur` listener on the trigger (helper `arrowKeyBeforeFocusMoves`, armed before each round's Enter): it sends the arrow `keydown` to the trigger when Carbon moves focus into the open, placed menu, the only moment the key still reaches the trigger. Between rounds, assertions and waits are allowed (they bring the page back to "menu closed, focus on the control"). Throttled tests call `test.setTimeout(90_000)`, as the slow TC-001 (#215) does.
+
+| Test case | Test file | Design |
+| --- | --- | --- |
+| TC-001 | `tests/leboncoin-session-settings.spec.ts` | `mockApi(context)`, `listReady`, `throttleCpu`, focus `menuTrigger`. Each round: Enter, ArrowDown, Enter; the dialog "Settings" is visible and no `menuitem` is shown; wait until the dialog has loaded (`sessionField(page)` enabled), press Escape; the dialog is hidden and `expectMenuClosed`. After 5 rounds: URL `/`, `api.gets` is 5, and the recorded requests, sorted, are 5 × `GET /api/v1/settings/claude-token` and 5 × `GET /api/v1/settings/leboncoin-session` (the `afterEach` unexpected-request check also applies). |
+| TC-002 | `tests/app-information.spec.ts` | `mockApi(context, [userSession])`, page loaded and `networkidle`, then record `${method} ${pathname}` of every `/api/` request, `throttleCpu`, focus the control. Each round as in TC-001: the dialog "Settings" is visible, it is the only visible `[role=dialog]` (not Information), no `menuitem`; once its "LeBonCoin session" textbox is enabled, Escape; dialog hidden, control focused, `aria-expanded="false"`. After 5 rounds: no `POST /api/v1/auth/logout` and only the Settings loads were requested; Enter reopens the menu with `["Information", "Settings", "Log out"]`, Escape closes it; URL `/`. |
+| TC-003 | `tests/leboncoin-session-settings.spec.ts` | Setup as TC-001. Each round: Enter, ArrowUp; `expectMenuOpen` and the `menuitem` "Settings" is focused; Escape; `expectMenuClosed`; no visible `[role=dialog]`. After 5 rounds: URL `/`, recorded requests `[]`, `api.gets` 0. |
+| TC-004 | `tests/app-information.spec.ts` | Setup as TC-002. Each round: Enter, ArrowUp; the entries are `["Information", "Settings", "Log out"]`, `aria-expanded="true"` and "Log out" is focused; Escape; no `menuitem`, control focused, `aria-expanded="false"`. After 5 rounds: recorded requests `[]` (no logout), URL `/`. |
+| TC-005 | `tests/leboncoin-session-settings.spec.ts` | No throttling. Enter; wait until "Information" is focused; ArrowDown; "Settings" is focused; Enter opens the dialog "Settings"; once loaded, Escape and `expectMenuClosed`. Then Enter; wait until "Information" is focused; ArrowUp; "Settings" is focused; Escape; `expectMenuClosed`. With two entries, one step lands on Settings and a second step would wrap back to Information, so the focus check proves the key was handled once. `api.gets` 1, URL `/`. |
+
+Test helper changes:
+
+- `tests/app-information.spec.ts`: its `mockApi` answers 500 to unknown paths. Add two routes so the Settings modal loads normally: `GET /api/v1/settings/leboncoin-session` → `{ session: { saved: false, hint: null, revision: 0, updatedAt: null, status: "none", expiresAt: null, revokedAt: null, lastAttempt: null } }` and `GET /api/v1/settings/claude-token` → `{ claudeToken: { saved: false, hint: null, updatedAt: null, lastRejectedAt: null } }`. No existing test in the file opens Settings, so none is affected. A local helper for the shared setup of TC-002 and TC-004 is allowed; reuse the file's `throttleCpu`.
+- `tests/leboncoin-session-settings.spec.ts`: reuse `throttleCpu`, `listReady`, `expectMenuOpen`, `expectMenuClosed`, `menuTrigger` and `sessionField`; place the new tests after the issue #215 tests. No helper change.
+
+Waiting for the loaded modal before Escape keeps the close step independent of the loading state; it is not part of the key sequence under test.
+
+Fails without the fix (not committed): reduce `handleTriggerKeyDown` in `src/components/AppMenu.tsx` to its Escape line, run `npx playwright test -g "\(#225\)"`, and check that TC-001 – TC-004 fail (TC-005 passes: it presses the arrow key once focus is in the menu). Restore the file (`git diff -- src` empty). The test author does this to validate the tests; the developer repeats it and reports the result in the pull request. If a throttled test still passes with the reduced handler, report it; do not change the rate or the round count set by the test cases.
+
+The existing header-menu tests (TC-001 – TC-003 (#215), "header menu: …", the Enter, ArrowDown, Enter steps in other tests) stay unchanged and must pass.
+
+### Files to change
+
+- Tests stage: `tests/leboncoin-session-settings.spec.ts` (TC-001, TC-003, TC-005), `tests/app-information.spec.ts` (two mock routes, TC-002, TC-004).
+- Development stage: no source change expected. Mark FR-APP-MENU-009 implemented in the Status line of `functional.md` and TS-APP-MENU-007 implemented in this file once the gates pass. `doc/FUNCTIONAL_SPECIFICATIONS.md` is already updated (FR-23, by the functional specification stage); its section 15 **Header menu** row stays `implemented`.
+- Not changed: `src/`, `API_SPECIFICATION.md`, `playwright.config.ts` (both specs are already in `testMatch`), dependencies.
+
+### Refactoring
+
+None.
+
+### Manual follow-up (pipeline)
+
+The behaviour shipped with issue #215, so the new tests pass on the base branch and the TDD red phase cannot fail. The tests stage recorded this in the change folder's `no-tests.md`, with a fault injection per test case. No owner action is left.
+
+Implemented: TS-APP-MENU-007. With `handleTriggerKeyDown` reduced to its Escape line (not committed, `git diff master -- src` empty afterwards), `npx playwright test -g "\(#225\)"` gives 4 failed, 1 passed: TC-001 and TC-002 fail on "Settings opened in round 1", TC-003 on "Settings focused in round 1", TC-004 on "Log out focused in round 1"; TC-005 passes, as expected. With the real handler all five pass and the gates pass.
+
 ## Revision note
 
 2026-10-03, review amendment REV-SET-001: status updated to record the API approval of 2026-10-03.
@@ -119,3 +175,5 @@ Implemented: TS-APP-MENU-006 (checks and gates pass, see the application-informa
 2026-11-23, issue #215: TS-APP-MENU-005 added for FR-APP-MENU-007 (Escape right after opening). The Escape code was already on master (PR #214); review R1-01 added ArrowDown/ArrowUp on the trigger.
 
 2026-11-28, issue #223: TS-APP-MENU-006 added for FR-APP-MENU-008 (subject index status, documentation only).
+
+2026-11-28, issue #225: TS-APP-MENU-007 added for FR-APP-MENU-009 (throttled e2e tests for ArrowDown/ArrowUp right after opening; no production code change).

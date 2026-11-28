@@ -1116,3 +1116,91 @@ test("TC-003 (#215) Escape after a pause, click then Escape, Escape while closed
   await expect(heading).toBeAttached();
   await expect(page).toHaveURL(`/items/${item.id}`);
 });
+
+// Issue #225 (FR-APP-MENU-009): ArrowDown and ArrowUp pressed at once after opening the menu.
+// The renderer handles each Playwright key in full, so Carbon has already focused the first entry
+// when the next key arrives. The arrow key is therefore sent to the trigger as it loses focus to
+// Carbon's move into the menu: the menu is open and placed, and focus is still on the trigger.
+async function arrowKeyBeforeFocusMoves(page: Page, key: "ArrowDown" | "ArrowUp") {
+  await menuTrigger(page).evaluate((trigger, key) => {
+    trigger.addEventListener("blur", () => {
+      trigger.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }, { once: true });
+  }, key);
+}
+
+test("TC-001 (#225) slow machine: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  await throttleCpu(page, context);
+  await menuTrigger(page).focus();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(page, "ArrowDown");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await expect(dialog, `Settings opened in round ${round}`).toBeVisible();
+    await expect(page.locator("[role=dialog]:visible")).toHaveCount(1);
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
+    await expect(sessionField(page)).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expectMenuClosed(page);
+  }
+  await expect(page).toHaveURL("/");
+  expect(api.gets).toBe(5);
+  expect([...requests].sort()).toEqual([...Array(5).fill(`GET ${claudeTokenPath}`), ...Array(5).fill(`GET ${settingsPath}`)]);
+});
+
+test("TC-003 (#225) slow machine: Enter, ArrowUp at once focuses the last entry, Settings, in each of 5 rounds", async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const api = await mockApi(context);
+  const requests = await listReady(page);
+  await throttleCpu(page, context);
+  await menuTrigger(page).focus();
+  for (let round = 1; round <= 5; round += 1) {
+    await arrowKeyBeforeFocusMoves(page, "ArrowUp");
+    await page.keyboard.press("Enter");
+    await expectMenuOpen(page);
+    await expect(page.getByRole("menuitem", { name: "Settings", exact: true }), `Settings focused in round ${round}`).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expectMenuClosed(page);
+    await expect(page.locator("[role=dialog]:visible")).toHaveCount(0);
+  }
+  await expect(page).toHaveURL("/");
+  expect(requests).toEqual([]);
+  expect(api.gets).toBe(0);
+});
+
+test("TC-005 (#225) ArrowDown and ArrowUp pressed once focus is on the first entry move focus by one step", async ({ page, context }) => {
+  const api = await mockApi(context);
+  await listReady(page);
+  await menuTrigger(page).focus();
+  const information = page.getByRole("menuitem", { name: "Information", exact: true });
+  const settings = page.getByRole("menuitem", { name: "Settings", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+
+  await page.keyboard.press("Enter");
+  await expect(information).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+  await expect(sessionField(page)).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expectMenuClosed(page);
+
+  // With two entries a second step would wrap back to Information.
+  await page.keyboard.press("Enter");
+  await expect(information).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expectMenuClosed(page);
+  await expect(page.locator("[role=dialog]:visible")).toHaveCount(0);
+  await expect(page).toHaveURL("/");
+  expect(api.gets).toBe(1);
+});
