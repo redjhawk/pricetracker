@@ -1,17 +1,13 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -132,36 +128,6 @@ func (api navigationAPI) check(id string, at time.Time, answer int32) {
 	api.items.Collect(context.Background(), id)
 }
 
-// captureCheckOutput collects what the code under test logs or prints until the returned function is called.
-func captureCheckOutput(t *testing.T) func() string {
-	t.Helper()
-	var logs syncBuffer
-	previousLog := log.Writer()
-	log.SetOutput(&logs)
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	previousStdout := os.Stdout
-	os.Stdout = writer
-	var printed bytes.Buffer
-	copied := make(chan struct{})
-	go func() { io.Copy(&printed, reader); close(copied) }()
-	var once sync.Once
-	stop := func() string {
-		once.Do(func() {
-			os.Stdout = previousStdout
-			writer.Close()
-			<-copied
-			reader.Close()
-			log.SetOutput(previousLog)
-		})
-		return logs.String() + printed.String()
-	}
-	t.Cleanup(func() { stop() })
-	return stop
-}
-
 // linesWith returns the lines of output containing text.
 func linesWith(output, text string) []string {
 	var found []string
@@ -250,7 +216,7 @@ func TestAmazonBrowserNavigation_TC004_DownloadIsACountedFailure(t *testing.T) {
 
 	t.Run("download in the middle of five failures", func(t *testing.T) {
 		api := openNavigationAPI(t, ids)
-		output := captureCheckOutput(t)
+		output := amazontest.CaptureOutput(t)
 		answers := []int32{answerPage503, answerPage503, answerAttachment, answerPage503, answerPage503}
 		for index, answer := range answers {
 			id, at := ids[index%2], humanTime(14, index+1)
@@ -399,7 +365,7 @@ func TestAmazonBrowserNavigation_TC006_EmptyNonSuccessKeepsItsEffect(t *testing.
 	}{{"HTTP 404", answerEmpty404}, {"HTTP 410", answerEmpty410}} {
 		t.Run(reset.name, func(t *testing.T) {
 			api := openNavigationAPI(t, ids)
-			output := captureCheckOutput(t)
+			output := amazontest.CaptureOutput(t)
 			for index := range 4 {
 				api.check(ids[index%2], humanTime(14, index+1), answerPage503)
 			}

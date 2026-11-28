@@ -74,7 +74,7 @@ func TestBrowserErrorPage_TC001_EmptyUnavailablePageSendsNoUsedOfferRequest(t *t
 			collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
 			item := fixtureItem("B0PRICE001")
 
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, item)
 			logged := output()
 			if server.Count("/dp/B0PRICE001") == 0 {
@@ -139,7 +139,7 @@ func TestBrowserErrorPage_TC002_UnavailablePageWithContentSendsUsedOfferRequests
 				w.WriteHeader(http.StatusServiceUnavailable)
 				io.WriteString(w, "<html><body><h1>Service Unavailable fixture</h1></body></html>")
 			})
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, NewBrowserCollector(testBrowserOptions(t, server.URL)), fixtureItem("B0PRICE001"))
 			logged := output()
 			if got.Result != "unavailable" || got.SecondHandStatus != "check_error" {

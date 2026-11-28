@@ -91,7 +91,7 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 			amazontest.AssertDownloadsFolder(t, home, false)
 		}
 
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		got := browserCheck(t, collector, item)
 		logged := output()
 		if server.Count("/dp/B0PRICE001") == 0 {
@@ -101,7 +101,7 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 		assertNoFileWritten()
 
 		// TC-001 (issue #217): the same check answered again with a download adds no file.
-		output = captureOutput(t)
+		output = amazontest.CaptureOutput(t)
 		again := browserCheck(t, collector, item)
 		logged = output()
 		if count := server.Count("/dp/B0PRICE001"); count != 2 {
@@ -136,7 +136,7 @@ func TestBrowserNavigation_TC001_AttachmentIsAFailure(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(home, "Downloads"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, NewBrowserCollector(options), item)
 			logged := output()
 			assertNavigationFailure(t, got, item, logged)
@@ -166,7 +166,7 @@ func TestBrowserNavigation_TC002_NoContentIsAFailure(t *testing.T) {
 			})
 			collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
 			item := fixtureItem("B0PRICE001")
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, item)
 			logged := output()
 			assertNavigationFailure(t, got, item, logged)

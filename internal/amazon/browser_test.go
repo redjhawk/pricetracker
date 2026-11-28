@@ -1,18 +1,15 @@
 package amazon
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -127,53 +124,6 @@ func assertNothingLeft(t *testing.T, profile string, goroutines int) {
 	if current := runtime.NumGoroutine(); current > goroutines {
 		t.Errorf("goroutines left after the check: %d before, %d after", goroutines, current)
 	}
-}
-
-// captureOutput collects what the code under test logs or prints until the returned function is called.
-func captureOutput(t *testing.T) func() string {
-	t.Helper()
-	var logs lockedBuffer
-	previousLog := log.Writer()
-	log.SetOutput(&logs)
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	previousStdout := os.Stdout
-	os.Stdout = writer
-	var printed bytes.Buffer
-	copied := make(chan struct{})
-	go func() { io.Copy(&printed, reader); close(copied) }()
-	var once sync.Once
-	stop := func() string {
-		once.Do(func() {
-			os.Stdout = previousStdout
-			writer.Close()
-			<-copied
-			reader.Close()
-			log.SetOutput(previousLog)
-		})
-		return logs.String() + printed.String()
-	}
-	t.Cleanup(func() { stop() })
-	return stop
-}
-
-type lockedBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(data []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.Write(data)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.String()
 }
 
 // The browser runs the page's scripts and loads its resources; a plain download finds no price.
@@ -337,7 +287,7 @@ func TestBrowserCollector_TC006_NonSuccessAndRobotCheckAreFailures(t *testing.T)
 				io.WriteString(w, test.body)
 			}))
 			collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			item := fixtureItem("B0PRICE001")
 			got := browserCheck(t, collector, item)
 			logged := output()

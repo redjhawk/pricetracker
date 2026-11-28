@@ -374,7 +374,7 @@ func TestBrowserRetrieval_TC002_MentioningPageGivesItsPrice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, fixtureItem(test.asin))
 			logged := output()
 			assertMentionPageRead(t, got)
@@ -383,7 +383,7 @@ func TestBrowserRetrieval_TC002_MentioningPageGivesItsPrice(t *testing.T) {
 	}
 
 	t.Run("two checks in a row on the same profile", func(t *testing.T) {
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		first := browserCheck(t, collector, fixtureItem("B0MENTION1"))
 		second := browserCheck(t, collector, fixtureItem("B0MENTION1"))
 		logged := output()
@@ -410,7 +410,7 @@ func TestBrowserRetrieval_TC003_RobotChecksStayFailures(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, fixtureItem(test.asin))
 			logged := output()
 			if got.Result != "request_error" || got.Message != amazonCheckFailed || got.SecondHandStatus != "check_error" {
@@ -548,7 +548,7 @@ func TestBrowserRetrieval_TC006_BrowserStartFailureLogsItsReason(t *testing.T) {
 	check := func(t *testing.T, executable string) (model.CollectionResult, string) {
 		t.Helper()
 		profile := filepath.Join(t.TempDir(), "profile")
-		output := captureOutput(t)
+		output := amazontest.CaptureOutput(t)
 		goroutines := runtime.NumGoroutine()
 		collector := NewBrowserCollector(BrowserOptions{ExecPath: executable, ProfileDir: profile, NoSandbox: true,
 			NavigationTimeout: 5 * time.Second, Pause: func() time.Duration { return 0 }, Origin: "http://127.0.0.1:9"})

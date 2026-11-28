@@ -244,7 +244,7 @@ func TestBrowserProfile_Issue197_TC004_UndiscardableLockIsAStartFailure(t *testi
 	executable, seen := stubBrowser(t)
 	profile := filepath.Join(t.TempDir(), "profile")
 	writeUndiscardableLock(t, profile, "SingletonLock")
-	output := captureOutput(t)
+	output := amazontest.CaptureOutput(t)
 	got := stubCheck(t, executable, profile)
 	logged := output()
 	assertCheckFailed(t, got)

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"pricefollower.local/internal/amazon/amazontest"
 )
 
 // Browser test of issue #185: a product page answered with an HTTP error status and an empty body
@@ -32,7 +34,7 @@ func TestBrowserEmptyErrorStatus_Issue185_TC003_ClassifiedByStatus(t *testing.T)
 			}, amazonUsedOffer(t))
 			collector := NewBrowserCollector(testBrowserOptions(t, server.URL))
 
-			output := captureOutput(t)
+			output := amazontest.CaptureOutput(t)
 			got := browserCheck(t, collector, fixtureItem("B0PRICE001"))
 			logged := output()
 			if server.Count("/dp/B0PRICE001") == 0 {

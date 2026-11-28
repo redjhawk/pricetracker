@@ -542,7 +542,7 @@ func TestBrowserProfile_TC002_LockOfAnotherHostDoesNotPreventTheCheck(t *testing
 	amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 
 	server.Reset()
-	output := captureOutput(t)
+	output := amazontest.CaptureOutput(t)
 	goroutines := runtime.NumGoroutine()
 	collector := NewBrowserCollector(options)
 	got := browserCheck(t, collector, item)
@@ -570,7 +570,7 @@ func TestBrowserProfile_TC003_BrowserKilledOnThisMachineDoesNotPreventTheCheck(t
 
 	amazontest.KillBrowserOnProfile(t, options.ProfileDir)
 	server.Reset()
-	output := captureOutput(t)
+	output := amazontest.CaptureOutput(t)
 	goroutines := runtime.NumGoroutine()
 	got := browserCheck(t, collector, item)
 	assertNothingLeft(t, options.ProfileDir, goroutines)
@@ -653,7 +653,7 @@ func TestBrowserProfile_TC006_LockThatCannotBeDiscardedIsAFailure(t *testing.T) 
 	writeProfileFile(t, filepath.Join(lock, "keep"), "directory content")
 	collector := NewBrowserCollector(options)
 
-	output := captureOutput(t)
+	output := amazontest.CaptureOutput(t)
 	goroutines := runtime.NumGoroutine()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	started := time.Now()
