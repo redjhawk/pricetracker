@@ -1,0 +1,9 @@
+[
+  {
+    "id": "R3-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 692,
+    "category": "nit",
+    "body": "The FR-TEST-HYG-136 acceptance criterion ends \"compared with `master`, only those status words and the issue #228 entry differ\". TC-001's last Then bullet says the same (\"only the status words and the issue #228 entry differ from `master`\"). On the delivered row, the issue #241 entry also changes its range: `FR-TEST-HYG-018–021 specified` becomes `FR-TEST-HYG-018, 020 and 021 implemented, FR-TEST-HYG-019 closed by the merge of the issue #238 change`. That is more than a status word. The same criterion and the TC-001 corner cases require this split, so the delivered state is correct, but the closing clause contradicts it if read literally. TS-TEST-HYG-181 and the TC-001 mapping in technical.md already list the split as a third difference. Suggested fix: write \"only those status words, the issue #241 wording and the issue #228 entry differ\" in both places."
+  }
+]
