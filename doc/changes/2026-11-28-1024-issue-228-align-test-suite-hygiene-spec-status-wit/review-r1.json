@@ -1,0 +1,16 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 694,
+    "category": "spec",
+    "body": "The issue #228 acceptance criterion for FR-TEST-HYG-138 says the index line and the two status lines contain neither `specified` nor `ready` with \"`grep -c` on each gives 0\". Without `-w` this check fails on the delivered state: the index row still holds the word `already` twice, in the unchanged #238 and #359 notes. Running `grep '^| Test suite hygiene |' doc/FUNCTIONAL_SPECIFICATIONS.md | grep -c ready` gives 1, not 0. testcases.md (TC-004), no-tests.md and the technical mapping all match whole words (`grep -cwE 'specified|ready'`), so the functional acceptance criterion contradicts the test case that proves it. Fix: write `grep -cwE 'specified|ready'` on each gives 0 (whole words), and say \"whole word\" in the FR-TEST-HYG-138 text at line 431 too."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 1261,
+    "category": "readability",
+    "body": "The design cites commit `eb16787` (\"The functional specification stage already made this edit in commit `eb16787`\"), and TS-TEST-HYG-181 at line 1492 cites it again. That commit exists only on the ai-dev/issue-228 branch. master squash-merges factory PRs (see `ai-dev #384: ... (#399)`), so the hash will not resolve after merge. There is a precedent: the hash `068c29d` cited in app-information/technical.md:106 is already a malformed object name in this clone. Fix: drop the hash and say \"the functional specification stage of issue #228 made this edit\", or cite PR #400 instead."
+  }
+]
