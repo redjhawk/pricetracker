@@ -1,0 +1,18 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "Confirmed: the TS-AMZ-HCHK-024 row at technical.md:37 includes one-off pipeline stage instructions. This is wording only. The row is still correct, and it neither hides nor breaks any requirement or behaviour.",
+    "title": "Remove pipeline stage instructions from the TS-AMZ-HCHK-024 traceability row",
+    "todo": "**Problem:** In `doc/specifications/amazon-human-checks/technical.md` line 37, the TS-AMZ-HCHK-024 traceability row mixes a lasting statement with one-off pipeline instructions (\"The tests stage writes only `no-tests.md`; the development stage makes only the step 4 edit and the status mark\"). These mean nothing once the change is merged.\n\n**Suggested work:** Shorten the row's description to \"No code, test, API or other document change (issue #234)\". The section's \"Files to change\" table already records the stage split.\n\n**File:** `doc/specifications/amazon-human-checks/technical.md:37`"
+  },
+  {
+    "id": "R1-02",
+    "blocking": false,
+    "contract": false,
+    "reason": "Confirmed: no-tests.md lines 9-10 say 'On the current branch', which described the TDD-red state and is now out of date. The defined checks (TC-001/TC-002 greps) are still correct and pass on the head. Only the historical note is wrong, so this is wording only.",
+    "title": "Put a time on the TDD-red notes in the issue #234 no-tests.md record",
+    "todo": "**Problem:** In `doc/changes/2026-11-28-1330-issue-234-align-backend-step-4-of-the-amazon-human/no-tests.md`, the TC-001 and TC-002 rows (lines 9-10) say \"On the current branch it matches none…\" and \"On the current branch the count is 1\". That was only true before the development stage. Read after merge, it suggests the change is missing.\n\n**Suggested work:** Replace \"On the current branch\" with \"Before the development stage (commit 5f7e1bc)\" in both rows.\n\n**File:** `doc/changes/2026-11-28-1330-issue-234-align-backend-step-4-of-the-amazon-human/no-tests.md:9-10`"
+  }
+]
