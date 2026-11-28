@@ -60,6 +60,13 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 - [UC-COOKIE-002 — Log in over plain HTTP in development](session-cookie-security/UC-COOKIE-002-log-in-over-plain-http-in-development.md)
 - [UC-COOKIE-003 — Log out behind the HTTPS proxy or over plain HTTP](session-cookie-security/UC-COOKIE-003-log-out-behind-proxy-or-over-plain-http.md)
 
+## API request checks
+
+- [UC-API-REQ-001 — A page of another site tries to change data through the visitor's browser](api-request-checks/UC-API-REQ-001-another-site-tries-to-change-data.md)
+- [UC-API-REQ-002 — Use the application's own pages behind the proxy and in development](api-request-checks/UC-API-REQ-002-use-own-pages-behind-proxy-and-in-development.md)
+- [UC-API-REQ-003 — Call the API from a script or tool](api-request-checks/UC-API-REQ-003-call-the-api-from-a-script.md)
+- [UC-API-REQ-004 — A page of another site submits the login](api-request-checks/UC-API-REQ-004-another-site-submits-the-login.md)
+
 ## Masked secrets in Settings
 
 - [UC-SECRET-001 — See which secrets are saved in Settings](settings-secret-masking/UC-SECRET-001-see-which-secrets-are-saved.md)
