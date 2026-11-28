@@ -131,7 +131,7 @@ Not affected: the menu calls no endpoint. `API_SPECIFICATION.md` is unchanged. T
 
 ### Tests
 
-Names start with the TC ID and `(#225)`, for example `TC-001 (#225) slow machine: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds`. "No wait" means consecutive `page.keyboard.press` calls; assertions come after the last key of a round. Between rounds, assertions and waits are allowed (they bring the page back to "menu closed, focus on the control"). Throttled tests call `test.setTimeout(90_000)`, as the slow TC-001 (#215) does.
+Names start with the TC ID and `(#225)`, for example `TC-001 (#225) slow machine: Enter, ArrowDown, Enter at once opens Settings in each of 5 rounds`. "No wait" means consecutive `page.keyboard.press` calls; assertions come after the last key of a round. `page.keyboard.press` returns only after the renderer has handled the key, and React commits the open menu, places it and runs Carbon's focus effect in one task, so a pressed arrow key always arrives after focus has reached **Information**. In TC-001 – TC-004 the arrow key is therefore dispatched by a one-shot `blur` listener on the trigger (helper `arrowKeyBeforeFocusMoves`, armed before each round's Enter): it sends the arrow `keydown` to the trigger when Carbon moves focus into the open, placed menu, the only moment the key still reaches the trigger. Between rounds, assertions and waits are allowed (they bring the page back to "menu closed, focus on the control"). Throttled tests call `test.setTimeout(90_000)`, as the slow TC-001 (#215) does.
 
 | Test case | Test file | Design |
 | --- | --- | --- |
@@ -164,9 +164,9 @@ None.
 
 ### Manual follow-up (pipeline)
 
-The behaviour shipped with issue #215, so the new tests are expected to pass on the base branch, and the TDD red gate (`gate_red`: "the tests pass before implementing") will stop the run. This is the situation described in the [issue #215 pipeline note](#pipeline-note). The owner decides how to proceed, for example by accepting the tests past the red gate by hand. Tests must not be weakened, and must not be made to fail on purpose, to satisfy the gate. No test depends on this follow-up.
+The behaviour shipped with issue #215, so the new tests pass on the base branch and the TDD red phase cannot fail. The tests stage recorded this in the change folder's `no-tests.md`, with a fault injection per test case. No owner action is left.
 
-Open: TS-APP-MENU-007 stays specified; the regression check is not met. With `handleTriggerKeyDown` reduced to its Escape line, TC-001 – TC-005 (#225) all still pass, as the tests stage also found (change folder `tests-note.md`). Playwright's `page.keyboard.press` returns only after the renderer has handled the key, so Carbon has already focused **Information** when the arrow key arrives, even at CPU rate 6, and the trigger's arrow-key branch never runs. The tests check FR-APP-MENU-009 but do not catch a regression in that branch. Returned to the tests stage (change folder `test-problem.md`).
+Implemented: TS-APP-MENU-007. With `handleTriggerKeyDown` reduced to its Escape line (not committed, `git diff master -- src` empty afterwards), `npx playwright test -g "\(#225\)"` gives 4 failed, 1 passed: TC-001 and TC-002 fail on "Settings opened in round 1", TC-003 on "Settings focused in round 1", TC-004 on "Log out focused in round 1"; TC-005 passes, as expected. With the real handler all five pass and the gates pass.
 
 ## Revision note
 
