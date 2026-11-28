@@ -31,8 +31,11 @@ func navigationServer(t *testing.T, product http.HandlerFunc) *amazontest.Server
 // open, logged with the request URL and the browser's error on one line.
 func assertNavigationFailure(t *testing.T, got model.CollectionResult, item model.Listing, logged string) {
 	t.Helper()
-	if got.Result != "request_error" || got.Message != amazonCheckFailed || got.SecondHandStatus != "check_error" {
+	if got.Result != "request_error" {
 		t.Fatalf("gave %q instead of a failure: %+v", got.Result, got)
+	}
+	if got.Message != amazonCheckFailed || got.SecondHandStatus != "check_error" {
+		t.Fatalf("gave a failure with message %q and second-hand status %q, not %q and %q: %+v", got.Message, got.SecondHandStatus, amazonCheckFailed, "check_error", got)
 	}
 	if !strings.HasSuffix(got.RequestURL, "/dp/"+item.ASIN) || got.HTTPStatus != 0 {
 		t.Fatalf("diagnostics of a page not opened: url=%q status=%d", got.RequestURL, got.HTTPStatus)
