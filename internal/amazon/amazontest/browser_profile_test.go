@@ -22,7 +22,9 @@ import (
 // KillBrowserOnProfile and ProfileHandler). TC-001 to TC-009 are proved here; TC-010, TC-011 and
 // TC-015 are repository and code checks, and TC-012, TC-013 and TC-014 run the existing tests of
 // internal/amazon, internal/service and internal/httpapi, which call these helpers (TC-013: the
-// TestBrowserCollector_ and TestBrowserRetrieval_ tests, through assertNothingLeft).
+// TestBrowserCollector_ and TestBrowserRetrieval_ tests, through assertNothingLeft). Issue #387:
+// TC-001 is proved by the Issue387 test, TC-002 by the issue #196 TC-006 test and TC-004 by its
+// TC-005, TC-007 and TC-008 tests; TC-003 and TC-005 to TC-007 are runs and checks.
 
 // staleLockLinks are the names and targets of the lock marks StaleLock leaves for host.
 func staleLockLinks(host string) [][2]string {
@@ -491,6 +493,52 @@ func TestKillBrowserOnProfile_Issue196_TC008_LeftoverAndMissingLock(t *testing.T
 			t.Errorf("failed %v with %q, want %q followed by the Lstat error", failed, message, prefix)
 		}
 	})
+}
+
+// Issue #387, TC-001
+func TestKillBrowserOnProfile_Issue387_TC001_ExitBeforeHoldingKillsTheGroup(t *testing.T) {
+	const want = "the browser exited before holding the profile"
+	for _, row := range []struct {
+		name  string
+		stale bool
+	}{
+		{"stale lock", true},
+		{"no SingletonLock", false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			profile := filepath.Join(t.TempDir(), "profile")
+			if err := os.MkdirAll(profile, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			lock := filepath.Join(profile, "SingletonLock")
+			if row.stale {
+				if err := os.Symlink("otherhost-12345", lock); err != nil {
+					t.Fatal(err)
+				}
+			}
+			child := filepath.Join(t.TempDir(), "child.pid")
+			t.Cleanup(func() { killPidFile(child, profile, false) })
+			stub, _ := writeStub(t, fmt.Sprintf("sh -c 'sleep 60; :' \"$profile\" &\necho $! > '%s'\nexit 0", child))
+			t.Setenv("PRICEFOLLOWER_BROWSER_PATH", stub)
+			failed, message, took := record(t, func(tb testing.TB) { KillBrowserOnProfile(tb, profile) })
+			if !failed || message != want {
+				t.Errorf("failed %v with %q, want %q", failed, message, want)
+			}
+			if took >= 5*time.Second {
+				t.Errorf("the failure took %s, want less than 5s", took)
+			}
+			pid := strings.TrimSpace(readFile(t, child))
+			if n, err := strconv.Atoi(pid); err != nil || n <= 1 {
+				t.Fatalf("the stub recorded no background child: %q (%v)", pid, err)
+			}
+			if left := waitNoProcesses(profile); len(left) != 0 {
+				t.Errorf("processes left after the early exit (child %s): %q", pid, left)
+			}
+			if _, err := os.Lstat(lock); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("SingletonLock is still there: %v", err)
+			}
+		})
+	}
 }
 
 // TC-009
