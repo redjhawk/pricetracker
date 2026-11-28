@@ -53,7 +53,7 @@ In a container or for a service running as root, the browser cannot use its sand
 What the server log shows:
 
 - At start, when no browser is found: `Amazon browser not found; Amazon checks will fail until Chromium is installed or …`.
-- For each failed Amazon check: `Amazon request failed url=… at=… status=… cause=… response=…`. The cause says whether the browser could not start (with the browser's own reason), the page could not be opened or did not finish loading, Amazon returned a non-success HTTP status, or Amazon showed a robot check. `response` is the start of the page Amazon returned; it can be empty, for example when the browser could not start.
+- For each failed Amazon check: `Amazon request failed url=… at=… status=… cause=…`. The cause says whether the browser could not start (with the browser's own reason), the page could not be opened or did not finish loading, Amazon returned a non-success HTTP status, or Amazon showed a robot check.
 - For a page without a detectable price: `Amazon check found no price url=… at=… status=… cause=…`. It is not counted as a failed request.
 
 ### Service user without a home directory

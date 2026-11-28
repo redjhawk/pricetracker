@@ -171,7 +171,7 @@ func responseSentenceError(deployment string) error {
 			continue
 		}
 		lower := strings.ToLower(candidate.text)
-		if strings.Contains(lower, "response") && strings.Contains(lower, "start") && strings.Contains(lower, "page") && strings.Contains(lower, "empty") {
+		if strings.Contains(lower, "response") && strings.Contains(lower, "start of the page") && strings.Contains(lower, "empty") {
 			return nil
 		}
 	}
@@ -274,9 +274,11 @@ func TestAmazonFailureLogDocs_TC002_ChecksRejectAMissingOrIncompleteSentence(t *
 	}
 	withoutSentence := withSentence("")
 	fixtures := map[string]string{
-		"no sentence":       withoutSentence,
-		"no empty":          withSentence(" `response` is the start of the page Amazon returned."),
-		"no start of page":  withSentence(" `response` is what Amazon returned; it can be empty."),
+		"no sentence":      withoutSentence,
+		"no empty":         withSentence(" `response` is the start of the page Amazon returned."),
+		"no start of page": withSentence(" `response` is what Amazon returned; it can be empty."),
+		"start and page only from the causes": withSentence(" `response` can be empty, for example when the browser could not start " +
+			"or the page did not load."),
 		"words split apart": withSentence(" `response` is the start of the page Amazon returned. It can be empty, for example when the browser could not start."),
 		"sentence only in the no-price item": strings.Replace(withoutSentence, notCountedText,
 			notCountedText+" "+responseSentence, 1),

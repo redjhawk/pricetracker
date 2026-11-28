@@ -7,7 +7,7 @@ Conventions:
 - **Log list** is the "What the server log shows:" list in the `### Browser for Amazon checks` subsection of the `## Server setup` section of `deploy/README.md`, as read by the documentation tests of issues #204 and #226 (`internal/service/amazon_browser_retrieval_docs_test.go`).
 - **Documented failure line** is the inline code token of the log list item "For each failed Amazon check:" that starts with `Amazon request failed`. **Documented no-price line** is the inline code token of the item "For a page without a detectable price:" that starts with `Amazon check found no price`.
 - **Field names** of a line are its `name=` tokens, in reading order. **Documented pattern** of a line is the regular expression built from the documented line by quoting its text and replacing each `…` with a lazy capture, except the last one, which captures to the end of the line.
-- **Response sentence** is the sentence required by FR-AMZ-BRET-009: one sentence (text between two sentence ends, outside fenced code) in the log list item of the failed check, after the documented failure line, that contains `response`, says it is the start of the page Amazon returned ("start" and "page") and that it can be empty ("empty").
+- **Response sentence** is the sentence required by FR-AMZ-BRET-009: one sentence (text between two sentence ends, outside fenced code) in the log list item of the failed check, after the documented failure line, that contains `response`, says it is the start of the page Amazon returned ("start of the page") and that it can be empty ("empty").
 - New Go test names use the prefix `TestAmazonFailureLogDocs_TCnnn_` so they do not clash with the `TCnnn` names of issues #168, #180, #204 and #226.
 - Documentation only: no interface change, no e2e case. The existing documentation tests (#204 TC-011, #226 TC-001–TC-002) and the whole repository test suite (`go test ./...`, Playwright tests in `tests/`) must keep passing; that is part of FR-AMZ-BRET-009's acceptance criteria.
 
@@ -48,6 +48,7 @@ Conventions:
   - fixture without the sentence: fails;
   - fixture whose sentence does not say it can be empty: fails;
   - fixture whose sentence does not say it is the start of the page Amazon returned: fails;
+  - fixture whose sentence has "start" and "page" only from the causes ("could not start", "the page did not load"): fails;
   - fixture with the words split over two sentences (`response` in one, "empty" in another): fails;
   - fixture with the sentence only in the no-price item or in another section: fails;
   - fixture of the log list as the technical specification describes it, with the sentence: passes.
