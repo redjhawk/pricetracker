@@ -1,0 +1,20 @@
+# Blocking review comments (round 1)
+
+## R1-01 `tests/leboncoin-session-settings.spec.ts:1121`
+
+Blocking. The issue sets one acceptance check for these tests: "Check that each new test fails when `handleTriggerKeyDown` handles only Escape". testcases.md repeats it for TC-001, TC-003 and TC-004 ("fails without the fix"), and so does functional.md ("the change adds the tests, which must fail when only Escape is handled"). tests-note.md and technical.md:169 both report that TC-001 – TC-005 (#225) still pass with the arrow-key branch removed. A temporary counter showed that no ArrowUp ever reached the trigger, because `page.keyboard.press` resolves only after the renderer has handled the key, and by then Carbon has already focused Information. So TC-001 and TC-003 here (and TC-002 and TC-004 in app-information.spec.ts) never run `focusEntryFromTrigger`. They are the same unthrottled sequences that the issue says prove nothing, now under CPU throttling. The issue's whole goal, a regression test for that branch, is not met. Suggested fix: make the arrow key reach the trigger before Carbon moves focus. For example, in one `page.evaluate`, call `trigger.click()` (or dispatch the opening keydown), wait one microtask so React commits the open menu, then `trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))` before Carbon's focus effect runs. Assert on `document.activeElement` afterwards, keep rate 6 and 5 rounds, and check by hand that every #225 throttled test now fails with the Escape-only handler. If no technique can be found, escalate to the owner rather than merging tests that cannot fail.
+
+Triage: The issue's only acceptance check is that each new test fails when `handleTriggerKeyDown` handles only Escape (also testcases.md lines 12, 40, 65). tests-note.md and technical.md both record that TC-001 and TC-003 (#225) in tests/leboncoin-session-settings.spec.ts still pass with the arrow-key branch removed, so the tests never reach `focusEntryFromTrigger` and do not prove their cases.
+
+## R1-02 `tests/app-information.spec.ts:289`
+
+Same defect as R1-01 for the regular-user cases TC-002 and TC-004 (line 318). With `handleTriggerKeyDown` reduced to Escape they still pass (tests-note.md), so they do not prove FR-APP-MENU-009's corner case "fails without the fix". In TC-004, Carbon's own ArrowUp handling on the focused Information entry wraps to Log out, which gives the same final state as the trigger branch. Apply the same technique as in R1-01, so that the arrow keydown is handled by the trigger while the menu is open but before focus has moved into it.
+
+Triage: Same defect as R1-01 for TC-002 and TC-004 (#225) in tests/app-information.spec.ts (lines 289 and 318). tests-note.md reports that they pass with an Escape-only handler, and testcases.md line 76 requires TC-004 to fail without the fix. In TC-004, Carbon's own ArrowUp handling from Information wraps to Log out, so the test passes either way.
+
+## R1-03 `doc/specifications/app-header-menu/functional.md:3`
+
+The Status line marks FR-APP-MENU-009 "implemented (… now covered by tests)", and technical.md:169 says "Implemented: TS-APP-MENU-007 (… checks and gates pass)". The same technical.md paragraph, the References entry for issue #225 in this file and tests-note.md all say that the tests cannot fail without the fix. The issue asked for exactly that coverage, so the status overstates it. Either fix the tests (R1-01, R1-02) or leave FR-APP-MENU-009 and TS-APP-MENU-007 at 'specified' with an explicit note that the regression check is open, so that triage and the owner see an accurate state.
+
+Triage: functional.md line 3 marks FR-APP-MENU-009 implemented and "now covered by tests", and technical.md marks TS-APP-MENU-007 implemented. The same technical.md paragraph and tests-note.md say the tests cannot catch a regression, so the status claims an unmet requirement is met. The developer stage owns these status lines (technical.md "Files to change"), so no contract change is needed: fix the tests, or leave the status at specified with the regression check noted as open.
+

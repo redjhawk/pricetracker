@@ -1,0 +1,26 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": true,
+    "contract": false,
+    "reason": "The issue's only acceptance check is that each new test fails when `handleTriggerKeyDown` handles only Escape (also testcases.md lines 12, 40, 65). tests-note.md and technical.md both record that TC-001 and TC-003 (#225) in tests/leboncoin-session-settings.spec.ts still pass with the arrow-key branch removed, so the tests never reach `focusEntryFromTrigger` and do not prove their cases.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "contract": false,
+    "reason": "Same defect as R1-01 for TC-002 and TC-004 (#225) in tests/app-information.spec.ts (lines 289 and 318). tests-note.md reports that they pass with an Escape-only handler, and testcases.md line 76 requires TC-004 to fail without the fix. In TC-004, Carbon's own ArrowUp handling from Information wraps to Log out, so the test passes either way.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": true,
+    "contract": false,
+    "reason": "functional.md line 3 marks FR-APP-MENU-009 implemented and \"now covered by tests\", and technical.md marks TS-APP-MENU-007 implemented. The same technical.md paragraph and tests-note.md say the tests cannot catch a regression, so the status claims an unmet requirement is met. The developer stage owns these status lines (technical.md \"Files to change\"), so no contract change is needed: fix the tests, or leave the status at specified with the regression check noted as open.",
+    "title": "",
+    "todo": ""
+  }
+]
