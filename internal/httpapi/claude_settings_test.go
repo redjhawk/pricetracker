@@ -28,8 +28,12 @@ func withClaudeStatus(t *testing.T, status int) *int {
 }
 
 func callPath(server *Server, method, path, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	recorder := httptest.NewRecorder()
-	server.Handler().ServeHTTP(recorder, httptest.NewRequest(method, path, strings.NewReader(body)))
+	server.Handler().ServeHTTP(recorder, req)
 	return recorder
 }
 

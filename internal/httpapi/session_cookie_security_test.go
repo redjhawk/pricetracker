@@ -40,6 +40,9 @@ func newCookieServer(t *testing.T) *Server {
 func sendAuth(t *testing.T, server *Server, path, body, token string, secure bool, protos []string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if secure {
 		req.TLS = &tls.ConnectionState{}
 	}
@@ -291,6 +294,9 @@ func (b *browserClient) do(method, path, body string, protos []string, cookie *h
 	req, err := http.NewRequest(method, b.base+path, strings.NewReader(body))
 	if err != nil {
 		b.t.Fatal(err)
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	for _, proto := range protos {
 		req.Header.Add("X-Forwarded-Proto", proto)

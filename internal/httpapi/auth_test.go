@@ -15,6 +15,9 @@ import (
 func request(t *testing.T, server *Server, method, path, body, token string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if token != "" {
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	}

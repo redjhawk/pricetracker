@@ -33,6 +33,9 @@ func newSettingsServer(t *testing.T) (*Server, *store.Store) {
 func call(t *testing.T, server *Server, method, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(method, settingsPath, strings.NewReader(body))
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	recorder := httptest.NewRecorder()
 	server.Handler().ServeHTTP(recorder, request)
 	return recorder

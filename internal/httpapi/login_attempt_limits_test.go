@@ -30,6 +30,9 @@ const (
 // postLoginBody posts a login body from remoteAddr; a cfConnectingIP value, even empty, sets the header.
 func postLoginBody(server *Server, remoteAddr, body string, cfConnectingIP ...string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.RemoteAddr = remoteAddr
 	if len(cfConnectingIP) > 0 {
 		req.Header.Set("CF-Connecting-IP", cfConnectingIP[0])
