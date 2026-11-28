@@ -1,0 +1,3 @@
+# No use cases for issue #387
+
+This change only makes the test helper `KillBrowserOnProfile` (`internal/amazon/amazontest/browser_profile.go`) kill the browser's process group before it fails with `the browser exited before holding the profile`, keeping that message, and extends its own unit test (FR-TEST-HYG-123 to FR-TEST-HYG-126, FR-TEST-HYG-117 updated). The test helper package is never part of the server (FR-TEST-HYG-010). The only observable outputs are test results, test failure messages and the processes left after a failed test. Application behaviour and the user interface do not change, so no use cases are needed.
