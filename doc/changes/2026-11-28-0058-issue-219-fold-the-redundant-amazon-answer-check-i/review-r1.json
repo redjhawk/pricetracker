@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "doc/specifications/test-suite-hygiene/technical.md",
+    "line": 3,
+    "category": "spec",
+    "body": "The Status line still says `TS-TEST-HYG-145–149 specified (issue #219)`. The issue #219 design (line 1048, 'Development stage') and the file table (line 1332) say the development stage sets TS-TEST-HYG-145–149 to implemented. The functional spec and `doc/FUNCTIONAL_SPECIFICATIONS.md` already say FR-TEST-HYG-111–114 are implemented, so the documents now disagree. Fix: change the entry to `TS-TEST-HYG-145–149 implemented (issue #219)`."
+  },
+  {
+    "id": "R1-02",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 579,
+    "category": "spec",
+    "body": "This acceptance criterion says `grep -rn '\"not a failure: ' internal/amazon/` prints nothing, but `no-tests.md` shows it prints six lines from files this change must not touch (`browser_interrupted_test.go:59`, `browser_test.go:364/383`, `browser_retrieval_test.go:417/568`, `browser_profile_test.go:136`). FR-TEST-HYG-114 limits the diff to `browser_navigation_test.go`, so the criterion cannot be met and contradicts the requirement. The tests stage worked around it by 'reading the grep as limited to this file' instead of the specification saying so. TC-002 in `testcases.md` (line 42) and run 3 of the technical design (line 1042) have the same grep. Fix: limit the grep to `internal/amazon/browser_navigation_test.go` in all three places so the documented proof matches what was run."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/specifications/test-suite-hygiene/functional.md",
+    "line": 100,
+    "category": "nit",
+    "body": "The glossary entry 'Navigation failure helper (issue #219)' says the helper 'fails the test with the message `not a failure: %+v`'. After this change that message is gone (FR-TEST-HYG-112), so the current specification describes the old code as if it were current. Fix: say 'on master it fails …' or give the new message `gave %q instead of a failure: %+v`."
+  },
+  {
+    "id": "R1-04",
+    "file": "internal/amazon/browser_navigation_test.go",
+    "line": 35,
+    "category": "readability",
+    "body": "The first check also fails when `Result` is `request_error` but `Message` is not `amazonCheckFailed` or `SecondHandStatus` is not `check_error`. In that case the new message reads `gave \"request_error\" instead of a failure: {…}`, which contradicts itself: `request_error` is the failure. The `%+v` dump still shows the wrong field, so nothing is lost, and FR-TEST-HYG-112 mandates this exact text, so this is not blocking. A follow-up could split the check (result first, then message and second-hand status with their own message) or word the message neutrally, for example `gave %q, not the expected failure: %+v`."
+  }
+]
