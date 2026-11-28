@@ -1,0 +1,30 @@
+[
+  {
+    "id": "R1-01",
+    "file": "internal/amazon/amazontest/browser_profile.go",
+    "line": 95,
+    "category": "bug",
+    "body": "When the browser leader exits before holding the profile, KillBrowserOnProfile fails without killing its process group. Any children the browser had already forked (Chromium zygote or crashpad handler, or a stub's background child) keep running with the profile in their command line. They can then leak into later tests that check BrowserProcesses or assertNothingLeft on that profile. The removed service helper killBrowser always sent SIGKILL to -pid, so for internal/service this is a cleanup regression beyond the fail-fast change FR-TEST-HYG-121 asks for. Fix: call kill() before t.Fatal in the `case <-exited:` branch. It is safe because `exited` is already closed, and an empty group just gives ESRCH, which is ignored. FR-TEST-HYG-117 does not forbid this, and the message stays the same."
+  },
+  {
+    "id": "R1-02",
+    "file": "internal/amazon/amazontest/browser_profile_test.go",
+    "line": 483,
+    "category": "test",
+    "body": "TC-008 row 2 ('lock removed before the kill') is timing-sensitive. The stub keeps SingletonLock for only `sleep 0.1`, and KillBrowserOnProfile polls Lstat every 20 ms plus scheduling delay. On a loaded runner (go test ./... runs packages in parallel with Chromium tests), the helper can miss that window. It then waits the full 30 s and fails with 'the browser did not create SingletonLock in the profile', so the test fails intermittently and takes 30 s. The removal only has to happen before the helper's 500 ms settle sleep ends. Any delay below 0.5 s still proves the case, so use `sleep 0.3` (or 0.4) to widen the window several times."
+  },
+  {
+    "id": "R1-03",
+    "file": "doc/changes/2026-11-28-0214-issue-196-move-duplicated-browser-profile-test-hel/implementation.md",
+    "line": 18,
+    "category": "test",
+    "body": "TS-TEST-HYG-160 and the test case mapping assign TC-013 and TC-014 to two reverted fault injections run by the development stage. Neither was run, so the changed failure paths in the real callers are not proved. Those paths are the service's new '<pid>: <command line>' leftover message and the fail-fast on an early exit through TestAmazonBrowserProfile_TC009 (FR-TEST-HYG-121). Indirect evidence (TC-004, TC-006) covers the helpers in isolation, not the callers. Fix: run `PRICEFOLLOWER_BROWSER_PATH=/bin/true go test -count=1 -run '^TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers$' -v ./internal/service/` and the temporary TC-013 injection (reverted) where the environment allows. Record the actual output here, or have the spec record that these TCs are proved only indirectly."
+  },
+  {
+    "id": "R1-04",
+    "file": "internal/amazon/browser_test.go",
+    "line": 113,
+    "category": "nit",
+    "body": "The added doc-comment lines ('Issue #196 TC-013: it lists the processes with amazontest.BrowserProcesses, and the TestBrowserCollector_ and TestBrowserRetrieval_ tests that call it keep passing.') are pipeline traceability, not a description of assertNothingLeft. They repeat what the code shows and will go stale. The test case mapping in technical.md already records this link. Suggest dropping these two lines and keeping the original one-line doc comment."
+  }
+]

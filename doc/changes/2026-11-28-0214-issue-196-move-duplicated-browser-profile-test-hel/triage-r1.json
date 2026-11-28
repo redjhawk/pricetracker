@@ -1,0 +1,34 @@
+[
+  {
+    "id": "R1-01",
+    "blocking": false,
+    "contract": false,
+    "reason": "The `case <-exited:` branch matches FR-TEST-HYG-117 and is a verbatim move of the former internal/amazon killBrowserOnProfile. It only runs when the test is already failing via t.Fatal. Each caller uses its own t.TempDir() profile, so leftover children cannot make another test's BrowserProcesses check fail. Killing the group there is a cleanup hardening, not a correctness fix.",
+    "title": "Kill the browser's process group when it exits before holding the profile",
+    "todo": "**Problem:** In `internal/amazon/amazontest/browser_profile.go:94-95`, `KillBrowserOnProfile` fails with `the browser exited before holding the profile` without signalling the process group. Children the browser leader already forked (a Chromium zygote or crashpad handler, or a stub's background child) can outlive the failed test. The former `internal/service` `killBrowser` always sent SIGKILL to `-pid`.\n\n**Suggested work:** Call `kill()` before `t.Fatal` in the `case <-exited:` branch. `exited` is already closed, and an empty group only gives ESRCH, which is ignored. The message is unchanged. Optionally, extend `TestKillBrowserOnProfile_Issue196_TC006_ExitBeforeHolding` with a stub that forks a background child holding the profile path and then exits, and check that `BrowserProcesses(profile)` is empty afterwards."
+  },
+  {
+    "id": "R1-02",
+    "blocking": true,
+    "contract": false,
+    "reason": "At internal/amazon/amazontest/browser_profile_test.go:483, the stub keeps SingletonLock for only `sleep 0.1`. KillBrowserOnProfile polls Lstat every 20 ms, so a scheduling stall of about 100 ms makes it miss the lock. The test then waits the full 30 s and fails with the wrong message ('did not create SingletonLock'). That makes the `go test ./...` gate intermittently fail. The removal only has to happen before the 500 ms settle sleep ends, so a longer delay (for example `sleep 0.3`) still proves the case with a much wider margin.",
+    "title": "",
+    "todo": ""
+  },
+  {
+    "id": "R1-03",
+    "blocking": false,
+    "contract": false,
+    "reason": "implementation.md confirms that the TC-013 and TC-014 fault injections that TS-TEST-HYG-160 assigns to development were not run. However, the service and amazon callers now call the same amazontest.KillBrowserOnProfile and BrowserProcesses functions, with no caller-specific logic. The changed paths (the fail-fast in TC-006, the '<pid>: <command line>' entries in TC-004 and TC-008 row 1) are proved by passing tests of that exact code, and TC-012/TC-013 normal runs pass. The missing confirmation runs are a proof-record gap, not a defect.",
+    "title": "Run and record the TC-013/TC-014 fault injections of issue #196",
+    "todo": "**Problem:** TS-TEST-HYG-160 (`doc/specifications/test-suite-hygiene/technical.md:1298`) says the development stage runs two reverted fault injections and records them. `doc/changes/2026-11-28-0214-issue-196-move-duplicated-browser-profile-test-hel/implementation.md:18-21` records that neither TC-013's injection (`sleep 30 <profile>` before an `assertNothingLeft` call) nor TC-014 (`PRICEFOLLOWER_BROWSER_PATH=/bin/true go test -count=1 -run '^TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers$' -v ./internal/service/`) was run, because of sandbox limits.\n\n**Suggested work:** In an environment that allows it, run both injections, revert TC-013's temporary edit, and record the actual output (the expected messages and the fast failure in TC-014). Otherwise, amend the test case mapping and TS-TEST-HYG-160 to state that TC-013/TC-014 are proved indirectly through TC-004, TC-006 and TC-008 together with TC-011 (the callers use the shared helper). Also consider letting the pipeline sandbox run `go test` with an environment variable set, so later fault injections are not skipped."
+  },
+  {
+    "id": "R1-04",
+    "blocking": false,
+    "contract": false,
+    "reason": "These are documentation-only lines in a test file (internal/amazon/browser_test.go:113-114) with no effect on behaviour. They record traceability that technical.md's test case mapping already holds, so this is a readability nit.",
+    "title": "Drop the issue #196 traceability lines from the assertNothingLeft doc comment",
+    "todo": "**Problem:** `internal/amazon/browser_test.go:113-114` adds `Issue #196 TC-013: it lists the processes with amazontest.BrowserProcesses, and the TestBrowserCollector_ and TestBrowserRetrieval_ tests that call it keep passing.` to the doc comment of `assertNothingLeft`. This is pipeline traceability that repeats the code and will go stale. The TC mapping in `doc/specifications/test-suite-hygiene/technical.md` already records the link.\n\n**Suggested work:** Remove these two lines and keep the original one-line doc comment: `assertNothingLeft checks that no browser process of profile and no extra goroutine survive a check.`"
+  }
+]

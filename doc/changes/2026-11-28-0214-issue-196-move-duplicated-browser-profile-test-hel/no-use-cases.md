@@ -1,0 +1,3 @@
+# No use cases for issue #196
+
+This change only moves duplicated test helpers into the test helper package `internal/amazon/amazontest`. It adds `StaleLock`, `BrowserProcesses`, `KillBrowserOnProfile` and a shared profile fixture handler, and replaces the local copies in the browser-profile test files of `internal/amazon`, `internal/service` and `internal/httpapi` (FR-TEST-HYG-115 to FR-TEST-HYG-122). The test helper package is never part of the server (FR-TEST-HYG-010). The only observable outputs are test results and test failure messages. Application behaviour and the user interface do not change, so no use cases are needed.

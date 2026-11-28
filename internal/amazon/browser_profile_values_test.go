@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"pricefollower.local/internal/amazon/amazontest"
 )
 
 // Explicit zero values of issue #197: profile() returns "", nil and the error when the stale lock
@@ -164,7 +166,7 @@ func TestBrowserProfile_Issue197_TC003_PreparedProfileReturnsItsPath(t *testing.
 
 	t.Run("TC-003 stale lock and cookies", func(t *testing.T) {
 		profile := filepath.Join(t.TempDir(), "profile")
-		writeStaleLock(t, profile, "otherhost")
+		amazontest.StaleLock(t, profile, "otherhost")
 		writeProfileFile(t, filepath.Join(profile, "Default", "Cookies"), "cookie database fixture")
 		assertPrepared(t, profile)
 		assertFileContent(t, filepath.Join(profile, "Default", "Cookies"), "cookie database fixture")
@@ -255,7 +257,7 @@ func TestBrowserProfile_Issue197_TC004_UndiscardableLockIsAStartFailure(t *testi
 	assertFileContent(t, filepath.Join(profile, "SingletonLock", "keep"), "directory content")
 
 	t.Run("TC-004 later check after the lock is replaced by a stale lock", func(t *testing.T) {
-		writeStaleLock(t, profile, "otherhost")
+		amazontest.StaleLock(t, profile, "otherhost")
 		assertCheckFailed(t, stubCheck(t, executable, profile))
 		listing, launched := seen()
 		if !launched {
