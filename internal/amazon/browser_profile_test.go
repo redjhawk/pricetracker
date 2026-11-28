@@ -57,71 +57,6 @@ func pageCookieSent(requests []amazontest.Request, path string) bool {
 	return false
 }
 
-// writeStaleLock leaves in profile the lock marks of a browser of host that did not end normally.
-func writeStaleLock(t *testing.T, profile, host string) {
-	t.Helper()
-	if err := os.MkdirAll(profile, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range profileLockNames {
-		if err := os.RemoveAll(filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	links := map[string]string{"SingletonLock": host + "-12345", "SingletonSocket": "/tmp/org.chromium.Chromium.gone/SingletonSocket", "SingletonCookie": "12345"}
-	for name, target := range links {
-		if err := os.Symlink(target, filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// killBrowserOnProfile starts the browser on profile in its own process group, waits until it holds
-// the profile, kills the group and checks that the lock is left behind.
-func killBrowserOnProfile(t *testing.T, executable, profile string) {
-	t.Helper()
-	lock := filepath.Join(profile, "SingletonLock")
-	if err := os.Remove(lock); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		t.Fatal(err)
-	}
-	cmd := exec.Command(executable, "--headless=new", "--user-data-dir="+profile, "--no-sandbox", "--no-first-run", "about:blank") // #nosec G204 -- test browser
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	exited := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(exited) }()
-	kill := func() {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		<-exited
-	}
-	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(20 * time.Millisecond) {
-		if _, err := os.Lstat(lock); err == nil {
-			break
-		}
-		select {
-		case <-exited:
-			t.Fatal("the browser exited before holding the profile")
-		default:
-		}
-		if time.Now().After(deadline) {
-			kill()
-			t.Fatal("the browser did not create SingletonLock in the profile")
-		}
-	}
-	time.Sleep(500 * time.Millisecond) // let the browser finish starting, as during a check
-	kill()
-	for deadline := time.Now().Add(5 * time.Second); len(browserProcesses(profile)) > 0 && time.Now().Before(deadline); {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if left := browserProcesses(profile); len(left) > 0 {
-		t.Fatalf("browser processes left after the kill: %v", left)
-	}
-	if _, err := os.Lstat(lock); err != nil {
-		t.Fatalf("precondition: the killed browser left no SingletonLock: %v", err)
-	}
-}
-
 // assertPriceFound checks a successful check of B0PRICE001.
 func assertPriceFound(t *testing.T, what string, got model.CollectionResult) {
 	t.Helper()
@@ -250,7 +185,7 @@ func TestBrowserProfile_TC001_OnlyLockMarksAreDiscardedBeforeStart(t *testing.T)
 	t.Run("dangling symlinks", func(t *testing.T) {
 		executable, seen := stubBrowser(t)
 		profile := filepath.Join(t.TempDir(), "profile")
-		writeStaleLock(t, profile, "otherhost")
+		amazontest.StaleLock(t, profile, "otherhost")
 		assertCheckFailed(t, stubCheck(t, executable, profile))
 		listing, launched := seen()
 		if !launched {
@@ -515,7 +450,7 @@ func TestBrowserProfile_Issue195_FixtureCheckNeedsTheLockRefusal(t *testing.T) {
 	missing := fmt.Sprintf("the browser output does not hold the lock refusal message %q", lockRefusal("otherhost"))
 	server := amazontest.NewServer(t, profileFixtureHandler(t))
 	profile := filepath.Join(t.TempDir(), "profile")
-	writeStaleLock(t, profile, "otherhost")
+	amazontest.StaleLock(t, profile, "otherhost")
 
 	rows := []struct {
 		name   string
@@ -602,9 +537,9 @@ func TestBrowserProfile_TC002_LockOfAnotherHostDoesNotPreventTheCheck(t *testing
 	item := fixtureItem("B0PRICE001")
 	assertPriceFound(t, "first check", browserCheck(t, NewBrowserCollector(options), item))
 
-	writeStaleLock(t, options.ProfileDir, "otherhost")
+	amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 	assertBrowserRefusesProfile(t, options.ExecPath, options.ProfileDir, "otherhost", server, "/dp/B0PRICE001")
-	writeStaleLock(t, options.ProfileDir, "otherhost")
+	amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 
 	server.Reset()
 	output := captureOutput(t)
@@ -633,7 +568,7 @@ func TestBrowserProfile_TC003_BrowserKilledOnThisMachineDoesNotPreventTheCheck(t
 	collector := NewBrowserCollector(options)
 	assertPriceFound(t, "first check", browserCheck(t, collector, item))
 
-	killBrowserOnProfile(t, options.ExecPath, options.ProfileDir)
+	amazontest.KillBrowserOnProfile(t, options.ProfileDir)
 	server.Reset()
 	output := captureOutput(t)
 	goroutines := runtime.NumGoroutine()
@@ -653,7 +588,7 @@ func TestBrowserProfile_TC003_BrowserKilledOnThisMachineDoesNotPreventTheCheck(t
 		if err != nil {
 			t.Fatal(err)
 		}
-		writeStaleLock(t, options.ProfileDir, "otherhost")
+		amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 		lock := filepath.Join(options.ProfileDir, "SingletonLock")
 		if err := os.Remove(lock); err != nil {
 			t.Fatal(err)
@@ -677,10 +612,10 @@ func TestBrowserProfile_TC004_SuccessiveAbruptEndsRecoverEveryTime(t *testing.T)
 	collector := NewBrowserCollector(options)
 	item := fixtureItem("B0PRICE001")
 	for cycle := 1; cycle <= 2; cycle++ {
-		killBrowserOnProfile(t, options.ExecPath, options.ProfileDir)
+		amazontest.KillBrowserOnProfile(t, options.ProfileDir)
 		assertPriceFound(t, "check after killed browser "+strconv.Itoa(cycle), browserCheck(t, collector, item))
 	}
-	writeStaleLock(t, options.ProfileDir, "otherhost")
+	amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 	assertPriceFound(t, "check after a lock of another host", browserCheck(t, collector, item))
 }
 
@@ -747,13 +682,13 @@ func TestBrowserProfile_TC006_LockThatCannotBeDiscardedIsAFailure(t *testing.T) 
 
 	t.Run("missing browser with a stale lock", func(t *testing.T) {
 		profile := filepath.Join(t.TempDir(), "profile")
-		writeStaleLock(t, profile, "otherhost")
+		amazontest.StaleLock(t, profile, "otherhost")
 		got := stubCheck(t, filepath.Join(t.TempDir(), "missing-chromium"), profile)
 		assertCheckFailed(t, got)
 	})
 
 	t.Run("later check after the directory is replaced by a stale lock", func(t *testing.T) {
-		writeStaleLock(t, options.ProfileDir, "otherhost")
+		amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 		assertPriceFound(t, "later check", browserCheck(t, collector, fixtureItem("B0PRICE001")))
 	})
 }

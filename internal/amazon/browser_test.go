@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -110,34 +109,16 @@ func pointerValue(value *string) string {
 	return *value
 }
 
-// browserProcesses lists the running processes whose command line contains profile.
-func browserProcesses(profile string) []string {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil
-	}
-	var found []string
-	for _, entry := range entries {
-		if _, err := strconv.Atoi(entry.Name()); err != nil {
-			continue
-		}
-		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
-		if err != nil || !strings.Contains(string(cmdline), profile) {
-			continue
-		}
-		found = append(found, entry.Name()+": "+strings.ReplaceAll(string(cmdline), "\x00", " "))
-	}
-	return found
-}
-
 // assertNothingLeft checks that no browser process of profile and no extra goroutine survive a check.
+// Issue #196 TC-013: it lists the processes with amazontest.BrowserProcesses, and the
+// TestBrowserCollector_ and TestBrowserRetrieval_ tests that call it keep passing.
 func assertNothingLeft(t *testing.T, profile string, goroutines int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	for len(browserProcesses(profile)) > 0 && time.Now().Before(deadline) {
+	for len(amazontest.BrowserProcesses(profile)) > 0 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if left := browserProcesses(profile); len(left) > 0 {
+	if left := amazontest.BrowserProcesses(profile); len(left) > 0 {
 		t.Errorf("browser processes left after the check: %v", left)
 	}
 	for runtime.NumGoroutine() > goroutines && time.Now().Before(deadline) {

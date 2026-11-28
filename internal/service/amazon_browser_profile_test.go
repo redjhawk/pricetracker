@@ -7,12 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -25,41 +22,30 @@ import (
 // Amazon browser profile recovery of issue #180 through the service: a real browser collector on a
 // profile holding lock marks left by a killed browser or by another host, with SQLite and a fake clock.
 
-// profileServer serves the price-found fixture page at /dp/<ASIN> for every ASIN (with the cookie
-// fixture), the used-offer responses and the page resources. The page of blocked waits for the
-// returned release function and is reported on arrived.
+// profileServer serves the profile fixture pages of amazontest.ProfileHandler. Each /dp/<ASIN>
+// request is reported on arrived, and the page of blocked waits for the returned release function.
 func profileServer(t *testing.T, blocked string) (*amazontest.Server, <-chan string, func()) {
 	t.Helper()
-	page, noOffer := amazontest.Fixture(t, "price-found.html"), amazontest.Fixture(t, "aod-none.html")
+	pages := amazontest.ProfileHandler(t)
 	arrived := make(chan string, 16)
 	release := make(chan struct{})
 	var once sync.Once
-	mux := http.NewServeMux()
-	mux.HandleFunc("/dp/", func(w http.ResponseWriter, r *http.Request) {
-		asin := strings.TrimPrefix(r.URL.Path, "/dp/")
-		select {
-		case arrived <- asin:
-		default:
-		}
-		if asin == blocked {
+	server := amazontest.NewServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if asin, ok := strings.CutPrefix(r.URL.Path, "/dp/"); ok {
 			select {
-			case <-release:
-			case <-r.Context().Done():
-				return
+			case arrived <- asin:
+			default:
+			}
+			if asin == blocked {
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
 			}
 		}
-		http.SetCookie(w, &http.Cookie{Name: "session-id", Value: "fixture-session-180", Path: "/", MaxAge: 3600})
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, page)
-	})
-	usedOffers := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, noOffer)
-	}
-	mux.HandleFunc("/gp/aod/ajax", usedOffers)
-	mux.HandleFunc("/gp/aod/ajax/", usedOffers)
-	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	server := amazontest.NewServer(t, mux)
+		pages.ServeHTTP(w, r)
+	}))
 	releaseAll := func() { once.Do(func() { close(release) }) }
 	t.Cleanup(releaseAll) // runs before the server is closed
 	return server, arrived, releaseAll
@@ -69,23 +55,6 @@ func profileCollector(t *testing.T, profile, origin string) *amazon.BrowserColle
 	t.Helper()
 	return amazon.NewBrowserCollector(amazon.BrowserOptions{ExecPath: amazontest.Browser(t), ProfileDir: profile, NoSandbox: true,
 		NavigationTimeout: 30 * time.Second, Pause: func() time.Duration { return 0 }, Origin: origin})
-}
-
-// leaveStaleLock leaves in profile the lock marks of a browser of another host.
-func leaveStaleLock(t *testing.T, profile string) {
-	t.Helper()
-	if err := os.MkdirAll(profile, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	links := map[string]string{"SingletonLock": "otherhost-12345", "SingletonSocket": "/tmp/org.chromium.Chromium.gone/SingletonSocket", "SingletonCookie": "12345"}
-	for name, target := range links {
-		if err := os.RemoveAll(filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Symlink(target, filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 // leaveLockDirectory makes SingletonLock of profile a non-empty directory, which cannot be removed.
@@ -99,62 +68,6 @@ func leaveLockDirectory(t *testing.T, profile string) string {
 		t.Fatal(err)
 	}
 	return lock
-}
-
-// profileProcesses lists the running processes whose command line contains profile.
-func profileProcesses(profile string) []string {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil
-	}
-	var found []string
-	for _, entry := range entries {
-		if _, err := strconv.Atoi(entry.Name()); err != nil {
-			continue
-		}
-		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
-		if err == nil && strings.Contains(string(cmdline), profile) {
-			found = append(found, entry.Name())
-		}
-	}
-	return found
-}
-
-// killBrowser starts the browser on profile in its own process group, waits until it holds the
-// profile, kills the group and checks that the lock is left behind.
-func killBrowser(t *testing.T, profile string) {
-	t.Helper()
-	lock := filepath.Join(profile, "SingletonLock")
-	_ = os.Remove(lock)
-	cmd := exec.Command(amazontest.Browser(t), "--headless=new", "--user-data-dir="+profile, "--no-sandbox", "--no-first-run", "about:blank") // #nosec G204 -- test browser
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	exited := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(exited) }()
-	held := false
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline) && !held; time.Sleep(20 * time.Millisecond) {
-		_, err := os.Lstat(lock)
-		held = err == nil
-	}
-	if held {
-		time.Sleep(500 * time.Millisecond)
-	}
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	<-exited
-	if !held {
-		t.Fatal("the browser did not create SingletonLock in the profile")
-	}
-	for deadline := time.Now().Add(5 * time.Second); len(profileProcesses(profile)) > 0 && time.Now().Before(deadline); {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if left := profileProcesses(profile); len(left) > 0 {
-		t.Fatalf("browser processes left after the kill: %v", left)
-	}
-	if _, err := os.Lstat(lock); err != nil {
-		t.Fatalf("precondition: the killed browser left no SingletonLock: %v", err)
-	}
 }
 
 type profileOutput struct {
@@ -367,7 +280,7 @@ func TestAmazonBrowserProfile_TC007_FailureIsLoggedCountedAndStopsItems(t *testi
 		if err := os.RemoveAll(lock); err != nil {
 			t.Fatal(err)
 		}
-		leaveStaleLock(t, profile)
+		amazontest.StaleLock(t, profile, "otherhost")
 		now.Set(scheduleDay(14, 30))
 		service.Collect(ctx, id)
 		assertFixturePriceRecorded(t, database, id, scheduleDay(14, 30))
@@ -392,7 +305,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 			t.Fatal(err)
 		}
 		profile := filepath.Join(t.TempDir(), "profile")
-		killBrowser(t, profile)
+		amazontest.KillBrowserOnProfile(t, profile)
 		now := newClock(scheduleDay(7, 5))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 9)
 		output := captureProfileOutput(t)
@@ -408,7 +321,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 			t.Fatalf("next check at %s, want the evening window", next.In(paris))
 		}
 
-		killBrowser(t, profile)
+		amazontest.KillBrowserOnProfile(t, profile)
 		now.Set(scheduleDay(10, 0))
 		if _, err := service.RefreshItem(ctx, id); err != nil {
 			t.Fatal(err)
@@ -434,7 +347,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 		insertAt(t, database, scheduled, "amazon", scheduleDay(7, 0))
 		insertAt(t, database, refreshed, "amazon", scheduleDay(20, 0))
 		profile := filepath.Join(t.TempDir(), "profile")
-		killBrowser(t, profile)
+		amazontest.KillBrowserOnProfile(t, profile)
 		now := newClock(scheduleDay(7, 5))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 92)
 		ctx := context.Background()
@@ -476,7 +389,7 @@ func TestAmazonBrowserProfile_TC009_ScheduledCheckAndRefreshAfterKilledBrowsers(
 		insertOwned(t, database, 1, "B0PROF0094", "amazon", scheduleDay(7, 0))
 		insertOwned(t, database, 2, "B0PROF0095", "amazon", scheduleDay(7, 0))
 		profile := filepath.Join(t.TempDir(), "profile")
-		killBrowser(t, profile)
+		amazontest.KillBrowserOnProfile(t, profile)
 		now := newClock(scheduleDay(7, 5))
 		service := startHuman(t, database, dir, now, profileCollector(t, profile, server.URL), 94)
 		service.collectDue(context.Background())

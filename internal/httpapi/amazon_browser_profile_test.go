@@ -2,10 +2,8 @@ package httpapi
 
 import (
 	"context"
-	"io"
 	mathrand "math/rand/v2"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -23,48 +21,10 @@ import (
 // amazon-browser profile left with the lock of another host, and the service uses a real browser
 // collector on it, as in production.
 
-// browserProfileServer serves the price-found fixture page at /dp/<ASIN> for every ASIN, setting the
-// cookie fixture, with the used-offer responses and the page resources.
-func browserProfileServer(t *testing.T) *amazontest.Server {
-	t.Helper()
-	page, noOffer := amazontest.Fixture(t, "price-found.html"), amazontest.Fixture(t, "aod-none.html")
-	mux := http.NewServeMux()
-	mux.HandleFunc("/dp/", func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "session-id", Value: "fixture-session-180", Path: "/", MaxAge: 3600})
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, page)
-	})
-	usedOffers := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, noOffer)
-	}
-	mux.HandleFunc("/gp/aod/ajax", usedOffers)
-	mux.HandleFunc("/gp/aod/ajax/", usedOffers)
-	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	return amazontest.NewServer(t, mux)
-}
-
 func browserProfileOptions(t *testing.T, profile, origin string) amazon.BrowserOptions {
 	t.Helper()
 	return amazon.BrowserOptions{ExecPath: amazontest.Browser(t), ProfileDir: profile, NoSandbox: true, NavigationTimeout: 30 * time.Second,
 		Pause: func() time.Duration { return 0 }, Origin: origin}
-}
-
-// leaveOtherHostLock leaves in profile the lock marks of a browser of another host.
-func leaveOtherHostLock(t *testing.T, profile string) {
-	t.Helper()
-	if err := os.MkdirAll(profile, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	links := map[string]string{"SingletonLock": "otherhost-12345", "SingletonSocket": "/tmp/org.chromium.Chromium.gone/SingletonSocket", "SingletonCookie": "12345"}
-	for name, target := range links {
-		if err := os.RemoveAll(filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Symlink(target, filepath.Join(profile, name)); err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 // openBrowserProfileAPI serves the API of a service on dir using collector for Amazon and the fake clock.
@@ -120,7 +80,7 @@ func assertBrowserPriceListed(t *testing.T, item model.Item, at time.Time) {
 // TC-010
 func TestAmazonBrowserProfile_TC010_DataDirectoryMovedToAnotherMachine(t *testing.T) {
 	t.Run("Refresh price after the move", func(t *testing.T) {
-		fixture := browserProfileServer(t)
+		fixture := amazontest.NewServer(t, amazontest.ProfileHandler(t))
 		dir := t.TempDir()
 		options := browserProfileOptions(t, filepath.Join(dir, "amazon-browser"), fixture.URL)
 		const id = "B0PROF0101"
@@ -131,7 +91,7 @@ func TestAmazonBrowserProfile_TC010_DataDirectoryMovedToAnotherMachine(t *testin
 		if earlier.Result != "success" {
 			t.Fatalf("fixture check: the earlier check failed: %+v", earlier)
 		}
-		leaveOtherHostLock(t, options.ProfileDir)
+		amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 
 		database := openHumanStore(t, dir)
 		insertCheckedAmazonItem(t, database, id, humanTime(20, 0))
@@ -163,10 +123,10 @@ func TestAmazonBrowserProfile_TC010_DataDirectoryMovedToAnotherMachine(t *testin
 	})
 
 	t.Run("items stopped before the start", func(t *testing.T) {
-		fixture := browserProfileServer(t)
+		fixture := amazontest.NewServer(t, amazontest.ProfileHandler(t))
 		dir := t.TempDir()
 		options := browserProfileOptions(t, filepath.Join(dir, "amazon-browser"), fixture.URL)
-		leaveOtherHostLock(t, options.ProfileDir)
+		amazontest.StaleLock(t, options.ProfileDir, "otherhost")
 		database := openHumanStore(t, dir)
 		ids := []string{"B0PROF0102", "B0PROF0103", "B0PROF0104"}
 		for _, id := range ids {
