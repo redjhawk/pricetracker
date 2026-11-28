@@ -130,6 +130,9 @@ func TestAmazonBrowserErrorPage_TC004_RefreshSendsNoUsedOfferRequest(t *testing.
 
 		refresh(t, api.server, ids[0])
 		assertUnavailableOfferKept(t, waitBrowserCheck(t, api.server, ids[0], humanTime(14, 0)), humanTime(14, 0))
+		if got := api.usedOfferCount(); got != 0 {
+			t.Fatalf("%d used-offer requests after the first Refresh price: %+v", got, api.fixture.Requests())
+		}
 
 		api.clock.Set(humanTime(14, 5))
 		if recorder := callPath(api.server, http.MethodPost, "/api/v1/items/refresh", ""); recorder.Code != http.StatusAccepted {
@@ -137,6 +140,9 @@ func TestAmazonBrowserErrorPage_TC004_RefreshSendsNoUsedOfferRequest(t *testing.
 		}
 		for _, id := range ids {
 			assertUnavailableOfferKept(t, waitBrowserCheck(t, api.server, id, humanTime(14, 5)), humanTime(14, 5))
+		}
+		if got := api.usedOfferCount(); got != 0 {
+			t.Fatalf("%d used-offer requests after Refresh all prices: %+v", got, api.fixture.Requests())
 		}
 
 		for attempt, minute := range []int{10, 15} {
@@ -147,9 +153,6 @@ func TestAmazonBrowserErrorPage_TC004_RefreshSendsNoUsedOfferRequest(t *testing.
 			if got := api.usedOfferCount(); got != 0 {
 				t.Fatalf("%d used-offer requests after repeated Refresh price %d: %+v", got, attempt+1, api.fixture.Requests())
 			}
-		}
-		if got := api.usedOfferCount(); got != 0 {
-			t.Fatalf("%d used-offer requests in total: %+v", got, api.fixture.Requests())
 		}
 		if lines := linesWith(output(), usedOfferFailedLine); len(lines) != 0 {
 			t.Fatalf("used-offer failure logged: %v", lines)
