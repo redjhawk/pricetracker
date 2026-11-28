@@ -92,6 +92,7 @@ func KillBrowserOnProfile(t testing.TB, profile string) {
 		}
 		select {
 		case <-exited:
+			kill()
 			t.Fatal("the browser exited before holding the profile")
 		default:
 		}
