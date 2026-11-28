@@ -41,6 +41,8 @@ Each use case is stored in its own file. Related use cases are grouped by subjec
 ## Application header menu
 
 - [UC-APP-MENU-001 — Close the header menu with Escape right after opening it](app-header-menu/UC-APP-MENU-001-close-menu-with-escape-right-after-opening.md)
+- [UC-APP-MENU-002 — Open Settings with ArrowDown right after opening the header menu](app-header-menu/UC-APP-MENU-002-open-settings-with-arrowdown-right-after-opening.md)
+- [UC-APP-MENU-003 — Focus the last menu entry with ArrowUp right after opening the header menu](app-header-menu/UC-APP-MENU-003-focus-last-entry-with-arrowup-right-after-opening.md)
 
 ## Application information
 
