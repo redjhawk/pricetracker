@@ -1,0 +1,3 @@
+# No use cases for issue #218
+
+This change only replaces three local copies of a test helper with one shared helper. It adds `CaptureOutput` to the test helper package `internal/amazon/amazontest`. The helper captures the logged and printed text, with an ending read and a live read. It replaces `captureOutput`, `captureProfileOutput` and `captureCheckOutput` in the test files of `internal/amazon`, `internal/service` and `internal/httpapi` (FR-TEST-HYG-127 to FR-TEST-HYG-131). The test helper package is never part of the server (FR-TEST-HYG-010). Production code is excluded. The only observable outputs are test results and test failure messages. Application behaviour and the user interface do not change, so no use cases are needed.
