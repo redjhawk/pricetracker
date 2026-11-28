@@ -1,0 +1,10 @@
+[
+  {
+    "id": "R2-01",
+    "blocking": true,
+    "contract": false,
+    "reason": "Verified: `git diff master --stat` lists `doc/todo/issue-228-r1-02.md`, but FR-TEST-HYG-139 (functional.md:432), its acceptance criterion (functional.md:695), TC-005 (testcases.md:93) and no-tests.md:15 allow only the three documents and the issue #228 change folder, so the delivered change fails its own requirement and test case. The fix is to the subject's specification and test cases, not to `API_SPECIFICATION.md`.",
+    "title": "",
+    "todo": ""
+  }
+]
